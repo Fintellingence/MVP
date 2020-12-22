@@ -31,4 +31,4 @@ Remember,
 3. `git fetch` and `git checkout` if you will work in a exist branch.
 4. `git add` and `git commit` to track your work locally
 5. `git push <remote name> <branch name>` to save the work in Github
-6. Is your work fished? *****Make a pull request**
+6. Is your work fished? **Make a pull request**
