@@ -13,30 +13,29 @@ DEFAULT_DB_PATH = str(Path.home())+'/FintelligenceData/'
 CSV_FILES_PATH = str(Path.home())+'/FintelligenceData/csv_files/'
 INITIAL_DATE_D1 = dt.date(2010,1,2)
 FINAL_DATE_D1 = dt.date.today() - dt.timedelta(days=1)
-DB_NAME = 'BRShares_Intraday1M.db'  # name of database file
 
 
 
-def updateYahooDB_D1():
+def updateYahooDB_D1(db_filename = 'BRSharesYahoo_D1.db'):
     """ Function to construct or update Day-1 frequency database using Yahoo
         --------------------------------------------------------------------
-        pandas_datareader module provide functions to extract data
-        from web and here we use to take shares price from  Yahoo.
-        The company symbols to download data must be  given  in  a
-        plain text file 'symbols_list_D1.txt'
+        pandas_datareader module provide functions to  extract  data
+        from web and here we use it to take shares prices from Yahoo.
+        The company symbols to download data must be given in a text
+        file 'CompanySymbols_list_D1.txt'
     """
+    print("\nBuilding/Updating Yahoo day-1 database ...\n")
     # DEFAULT WARNING AND ERROR MESSAGES
-    path_err_msg = "ERROR fetching folder 'shares_prices' in BackupHD external Hard disk device."
+    path_err_msg = "ERROR fetching folder {}. It does not seem to exist".format(DEFAULT_DB_PATH)
     fetch_error_msg = "[{:2d}/{}] ! FATAL ERROR on fetching {}. Assert the symbol is correct"
     not_up_msg = "[{:2d}/{}] Share {} has less than 3 days of delay. Not updating it."
     up_msg = "[{:2d},{}] Share {} successfully updated."
     new_msg = "[{:2d},{}] New Share : {} introduced in the database"
     # TRY TO FIND THE PATH AND OPEN THE .DB FILE
     if (not os.path.exists(DEFAULT_DB_PATH)): raise IOError(path_err_msg)
-    db_filename = 'BRsharesYahoo_D1.db'
     full_db_path = DEFAULT_DB_PATH + db_filename
     # Tickers/Symbols to be fetched passed by a list of strings from a .txt file
-    symbols_list = list(pd.read_csv(DEFAULT_DB_PATH+'symbols_list_D1.txt')['symbols'])
+    symbols_list = list(pd.read_csv(DEFAULT_DB_PATH+'CompanySymbols_list_D1.txt')['symbols'])
     nsymbols = len(symbols_list) # total number of companies to track
     # OPEN DATABASE
     conn = sqlite3.connect(full_db_path)
@@ -53,7 +52,6 @@ def updateYahooDB_D1():
     symbol_id = 1
     error_count = 0
     symbols_failed = []
-    print('\n')
     for symbol in symbols_list:
         if (symbol in db_symbols_list):
             # SHARE ALREADY IN THE DB. MUST CHECK FOR UPDATES
@@ -70,6 +68,7 @@ def updateYahooDB_D1():
             else:
                 try:
                     df = pdr.DataReader(symbol+'.SA','yahoo',init_date,default_final_date)
+                    # Avoid annoying warning from column names with space in sql database
                     df.rename(columns={'Adj Close':'AdjClose'},inplace=True)
                     df.to_sql(symbol,con=conn,if_exists='append')
                     print(up_msg.format(symbol_id,nsymbols,symbol))
@@ -81,6 +80,7 @@ def updateYahooDB_D1():
             # TICKER NOT INITIALIZED YET. INTRODUCE IT
             try:
                 df = pdr.DataReader(symbol+'.SA','yahoo',INITIAL_DATE_D1,FINAL_DATE_D1)
+                # Avoid annoying warning from column names with space in sql database
                 df.rename(columns={'Adj Close':'AdjClose'},inplace=True)
                 df.to_sql(symbol,con=conn)
                 print(new_msg.format(symbol_id,nsymbols,symbol))
@@ -96,12 +96,12 @@ def updateYahooDB_D1():
             logfile.write("FAILURE FETCHING THE FOLLOWING TICKERS IN DATE {}".format(dt.datetime.now()))
             for symbol in symbols_failed:
                 logfile.write("\n{}".format(symbol))
-    print('\nData updated with {} errors. Connection closed'.format(error_count))
+    print('\nData updated with {} errors. DB-connection closed'.format(error_count))
 
 
 
 def getCSV_period(filename):
-    # Given the file name as export by MetaTrader extract the corresponding period
+    """ Retrieve period(dictionary) from filename in MetaTrader convention """
     raw_str = filename.split('_')[2]
     initial_str = raw_str[:4]+'.'+raw_str[4:6]+'.'+raw_str[6:8]+' '+raw_str[8:10]+':'+raw_str[10:]+':00'
     raw_str = filename.split('_')[3].split('.')[0]
@@ -113,12 +113,13 @@ def getCSV_period(filename):
 
 
 def mergeFiles(filenameA,filenameB):
+    """ Merge two csv files that have an overlapping data period """
     symbol = filenameA.split('_')[0]    # symbol common to both files
-    periodA = getCSV_period(filenameA)  # get period as dict. of datetime data types
+    periodA = getCSV_period(filenameA)  # get period as dict. of datetime data-types
     periodB = getCSV_period(filenameB)
     # check if there is an ovelap in the periods. Raise error if the intervals are disjoint
     if (periodA['final'] < periodB['initial'] or periodA['initial'] > periodB['final']):
-        raise ValueError
+        raise ValueError("Disjoint Intervals")
     if periodA['initial'] < periodB['initial']:
         # file A cover a former initial date
         if periodA['final'] > periodB['final']:
@@ -139,7 +140,7 @@ def mergeFiles(filenameA,filenameB):
         newdf.to_csv(CSV_FILES_PATH+merged_filename,sep='\t',index=False)
         return merged_filename
     else:
-        # file A cover a former initial date - reverse case of the 'if' block above
+        # file B cover a former initial date - reverse case of the 'if' block above
         # For more information see the comments in the 'if' block above
         if periodB['final'] > periodA['final']:
             # file A is contained in file B - nothing to merge
@@ -156,23 +157,34 @@ def mergeFiles(filenameA,filenameB):
 
 
 
-def updateCSV():
+def updateCSVFiles():
+    """ Auxiliar function to merge csv files donwloaded from MetaTrader
+        ===============================================================
+        When manually donwloaded, the csv files from MetaTrader may
+        become obsolete. Then by simply adding new csv  files  with
+        remaining data to present day in  the  folder  'csv_files',
+        this function merge files in a new csv  with  a  continuous
+        time ordering. It also informe if there are time-gaps among
+        csv files
+    """
     # DEFAULT WARNING AND ERROR MESSAGES
-    path_err_msg = "ERROR : The path {} does not exist in this computer"
-    new_msg = "[{},{}] {} introduced in the database"
+    path_err_msg = "ERROR : The path {} does not exist in this computer".format(CSV_FILES_PATH)
+    csv_files_err_msg = "ERROR : There are no csv files in {}".format(CSV_FILES_PATH)
     # TRY TO FIND THE PATH OF CSV DILES
-    if (not os.path.exists(CSV_FILES_PATH)): raise IOError(path_err_msg.format(CSV_FILES_PATH))
-    print('\nScanning csv files\n')
+    if (not os.path.exists(CSV_FILES_PATH)): raise IOError(path_err_msg)
+    print('\nScanning csv files ...\n')
     # list of strings with all csv file names
     csv_filename_list = [name for name in os.listdir(CSV_FILES_PATH) if name.split('.')[-1]=='csv']
     symbols = [csv_filename.split('_')[0] for csv_filename in csv_filename_list]
+    nfiles = len(symbols)
+    if nfiles < 1: raise IOError(csv_files_err_msg) # There are no csv files
     while len(symbols) > 0:
         # get first symbol
         symbol = symbols[0]
         symbols.remove(symbol)
         filenameA = csv_filename_list[0]
         csv_filename_list.remove(filenameA)
-        # check if there is a repetition (new csv of the same asset to update)
+        # check if there is a repetition (other csv of the same company to update)
         if symbol in symbols:
             print('More than one csv file for {} ... '.format(symbol),end='')
             i = symbols.index(symbol)
@@ -183,12 +195,12 @@ def updateCSV():
                 # remove files that were merged
                 os.remove(CSV_FILES_PATH+filenameA)
                 os.remove(CSV_FILES_PATH+filenameB)
-                # include new file generated
+                # include new file generated replacing the old one
                 csv_filename_list[i] = output_filename
                 print('Files merged')
             except ValueError:
-                print('Could not merge files data - disjoint time intervals')
-    print('\n\nFinished scanning csv files\n')
+                print('Could not merge files - disjoint time intervals')
+    print('\nFinished scanning csv files\n')
 
 
 
@@ -215,31 +227,41 @@ def refineDF(df):
 
 
 
-def createDB_MetaTraderCSV_1M():
-    """ Data Downloaded from MetaTrader is stored in a sql database
-        ===========================================================
-        From csv files
+def createDB_MetaTraderCSV_M1(db_filename='BRSharesMetaTrader_M1.db'):
+    """ CSV files Downloaded from MetaTrader is stored in a sql database
+        ================================================================
+        From csv files exported from MetaTrader this function creates
+        a sql database. Each company must have ONLY ONE .csv file  in
+        the path introduced in CSV_FILES_PATH variable. If there  are
+        more than one .csv file per company,  which  were  downloaded
+        aiming to update data, try 'updateCSVFiles' to merge them. If
+        a database with 'db_filename' already exists raise an error
     """
+    print("\nBuilding MetaTrader minute-1 database from CSV files ...\n")
+    full_db_path = DEFAULT_DB_PATH + db_filename
     # DEFAULT WARNING AND ERROR MESSAGES
-    path_err_msg = "ERROR : The path {} does not exist in this computer"
+    path_err_msg = "ERROR : The path {} does not exist in this computer".format(CSV_FILES_PATH)
+    exist_err_msg = "ERROR : MetaTrader database file {} already exists".format(full_db_path)
+    csv_files_err_msg = "ERROR : There are no csv files in {}".format(CSV_FILES_PATH)
     new_msg = "[{:2d},{}] {} introduced in the database"
     # TRY TO FIND THE PATH OF CSV DILES
-    if (not os.path.exists(CSV_FILES_PATH)): raise IOError(path_err_msg.format(CSV_FILES_PATH))
-    # list of strings with all csv file names
+    if (not os.path.exists(CSV_FILES_PATH)): raise IOError(path_err_msg)
+    # Get list of all csv file names
     csv_filename_list = [name for name in os.listdir(CSV_FILES_PATH) if name.split('.')[-1]=='csv']
-    nsymbols = len(csv_filename_list)
-    conn = sqlite3.connect(DB_NAME)
+    nfiles = len(csv_filename_list)
+    if nfiles < 1: raise IOError(csv_files_err_msg) # There are no csv files
+    if (os.path.isfile(full_db_path)): raise IOError(exist_err_msg)
+    conn = sqlite3.connect(full_db_path)
     symbol_id = 1
-    print('\n')
     for csv_filename in csv_filename_list:
-        symbol = csv_filename.split('_')[0]
+        symbol = csv_filename.split('_')[0] # Take company symbol from csv file name
         raw_df = pd.read_csv(CSV_FILES_PATH+csv_filename,sep='\t')
         refined_df = refineDF(raw_df)
         refined_df.to_sql(symbol,con=conn)
-        print(new_msg.format(symbol_id,nsymbols,symbol))
+        print(new_msg.format(symbol_id,nfiles,symbol))
         symbol_id += 1
     conn.close() # connection closed
-    print('\n\nProcess finished. Connection closed\n')
+    print('\nProcess finished. DB-connection closed\n')
 
 
 
