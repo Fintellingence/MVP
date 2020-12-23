@@ -32,3 +32,4 @@ Remember,
 4. `git add` and `git commit` to track your work locally
 5. `git push <remote name> <branch name>` to save the work in Github
 6. Is your work fished? **Make a pull request**
+7. Do not play around with `git rebase`
