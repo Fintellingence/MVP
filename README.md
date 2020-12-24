@@ -32,3 +32,15 @@ Remember,
 4. `git add` and `git commit` to track your work locally
 5. `git push <remote name> <branch name>` to save the work in Github
 6. Is your work fished? **Make a pull request**
+
+### Database
+Database files in general have a prohibitive memory demand to store
+remotely in the git repository. Thus, each one must provide a local
+copy of the database files, which can be taken in the google drive.
+Preferably, they should be located in `$HOME/FintelligenceData/` path
+One may also use the functions in `database_builder.py` to set the
+database files locally, though for the 1-minute data the .csv files
+exported from MetaTrader are required. Try out:
+```
+python3 database_builder.py
+```

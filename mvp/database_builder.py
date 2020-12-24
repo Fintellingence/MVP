@@ -275,5 +275,6 @@ def loadFromDB(symbol):
 
 
 
-# updateCSV()
-# createDB_MetaTraderCSV()
+if __name__ == "__main__":
+    updateYahooDB_D1()
+    createDB_MetaTraderCSV_M1()
