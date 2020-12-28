@@ -264,17 +264,6 @@ def createDB_MetaTraderCSV_M1(db_filename='BRSharesMetaTrader_M1.db'):
     print('\nProcess finished. DB-connection closed\n')
 
 
-
-def loadFromDB(symbol):
-    conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql('SELECT * FROM {}'.format(symbol),con=conn)
-    df.index = pd.to_datetime(df['DateTime'])
-    df.drop(['DateTime'],axis=1,inplace=True) # no longer needed
-    conn.close()
-    return df
-
-
-
 if __name__ == "__main__":
     updateYahooDB_D1()
     createDB_MetaTraderCSV_M1()
