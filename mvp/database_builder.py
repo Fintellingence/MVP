@@ -28,8 +28,9 @@ class Yahoo:
     """
 
     def __init__(self, db_path):
+        os.makedirs("logs/", exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(
-            "yahoo.log", maxBytes=200 * 1024 * 1024, backupCount=1
+            "logs/yahoo.log", maxBytes=200 * 1024 * 1024, backupCount=1
         )
         handler.setLevel(logging.INFO)
         handler.setFormatter(
@@ -147,162 +148,276 @@ class Yahoo:
         self._conn.close()
 
 
-def getCSV_period(filename):
-    """ Retrieve period(dictionary) from filename in MetaTrader convention """
-    raw_str = filename.split("_")[2]
-    initial_str = (
-        raw_str[:4]
-        + "."
-        + raw_str[4:6]
-        + "."
-        + raw_str[6:8]
-        + " "
-        + raw_str[8:10]
-        + ":"
-        + raw_str[10:]
-        + ":00"
-    )
-    raw_str = filename.split("_")[3].split(".")[0]
-    final_str = (
-        raw_str[:4]
-        + "."
-        + raw_str[4:6]
-        + "."
-        + raw_str[6:8]
-        + " "
-        + raw_str[8:10]
-        + ":"
-        + raw_str[10:]
-        + ":00"
-    )
-    initial = dt.datetime.strptime(initial_str, "%Y.%m.%d %H:%M:%S")
-    final = dt.datetime.strptime(final_str, "%Y.%m.%d %H:%M:%S")
-    return {"initial": initial, "final": final}
+class MetaTrader:
+    """Define a database in Sqlite using data from MetaTrader databases for
+    collected shared prices.
 
+    For now, this implementation analysis the day-1 frequency of Yahoo data.
 
-def mergeFiles(filenameA, filenameB):
-    """ Merge two csv files that have an overlapping data period """
-    symbol = filenameA.split("_")[0]  # symbol common to both files
-    periodA = getCSV_period(
-        filenameA
-    )  # get period as dict. of datetime data-types
-    periodB = getCSV_period(filenameB)
-    # check if there is an ovelap in the periods. Raise error if the intervals are disjoint
-    if (
-        periodA["final"] < periodB["initial"]
-        or periodA["initial"] > periodB["final"]
-    ):
-        raise ValueError("Disjoint Intervals")
-    if periodA["initial"] < periodB["initial"]:
-        # file A cover a former initial date
-        if periodA["final"] > periodB["final"]:
-            # file B is contained in file A - nothing to merge
-            return filenameA
-        # must merge files since B final date/time is ahead of A
-        # Format string to set period in filename of resulting merged data
-        period_str = filenameA.split("_")[2] + "_" + filenameB.split("_")[3]
-        merged_filename = "{}_M1_{}".format(symbol, period_str)
-        # Load data from files
-        dfA = pd.read_csv(CSV_FILES_PATH + filenameA, sep="\t")
-        dfB = pd.read_csv(CSV_FILES_PATH + filenameB, sep="\t")
-        # Take start index in B corresponging to the A final date/time
-        A_last_ind = len(dfA.index) - 1
-        B_start_ind = (
-            dfB.loc[
-                (dfA["<DATE>"][A_last_ind] == dfB["<DATE>"])
-                & (dfA["<TIME>"][A_last_ind] == dfB["<TIME>"])
-            ].index[0]
-            + 1
-        )
-        # properly merge files and save in new csv file
-        newdf = dfA.append(
-            dfB.iloc[B_start_ind:], ignore_index=True, sort=False
-        )
-        newdf.to_csv(CSV_FILES_PATH + merged_filename, sep="\t", index=False)
-        return merged_filename
-    else:
-        # file B cover a former initial date - reverse case of the 'if' block above
-        # For more information see the comments in the 'if' block above
-        if periodB["final"] > periodA["final"]:
-            # file A is contained in file B - nothing to merge
-            return filenameB
-        period_str = filenameB.split("_")[2] + "_" + filenameA.split("_")[3]
-        merged_filename = "{}_M1_{}".format(symbol, period_str)
-        dfA = pd.read_csv(CSV_FILES_PATH + filenameA, sep="\t")
-        dfB = pd.read_csv(CSV_FILES_PATH + filenameB, sep="\t")
-        B_last_ind = len(dfB.index) - 1
-        A_start_ind = (
-            dfA.loc[
-                (dfB["<DATE>"][B_last_ind] == dfA["<DATE>"])
-                & (dfB["<TIME>"][B_last_ind] == dfA["<TIME>"])
-            ].index[0]
-            + 1
-        )
-        newdf = dfB.append(
-            dfA.iloc[A_start_ind:], ignore_index=True, sort=False
-        )
-        newdf.to_csv(CSV_FILES_PATH + merged_filename, sep="\t", index=False)
-        return merged_filename
+    Parameters
+    ----------
+    db_path : ``str``
+        The path to the dump file for a Sqlite database.
 
-
-def updateCSVFiles():
-    """Auxiliar function to merge csv files donwloaded from MetaTrader
-    ===============================================================
-    When manually donwloaded, the csv files from MetaTrader may
-    become obsolete. Then by simply adding new csv  files  with
-    remaining data to present day in  the  folder  'csv_files',
-    this function merge files in a new csv  with  a  continuous
-    time ordering. It also informe if there are time-gaps among
-    csv files
     """
-    # DEFAULT WARNING AND ERROR MESSAGES
-    path_err_msg = (
-        "ERROR : The path {} does not exist in this computer".format(
-            CSV_FILES_PATH
+
+    def __init__(self, db_path):
+        os.makedirs("logs/", exist_ok=True)
+        handler = logging.handlers.RotatingFileHandler(
+            "logs/mtrader.log", maxBytes=200 * 1024 * 1024, backupCount=1
         )
-    )
-    csv_files_err_msg = "ERROR : There are no csv files in {}".format(
-        CSV_FILES_PATH
-    )
-    # TRY TO FIND THE PATH OF CSV DILES
-    if not os.path.exists(CSV_FILES_PATH):
-        raise IOError(path_err_msg)
-    print("\nScanning csv files ...\n")
-    # list of strings with all csv file names
-    csv_filename_list = [
-        name
-        for name in os.listdir(CSV_FILES_PATH)
-        if name.split(".")[-1] == "csv"
-    ]
-    symbols = [
-        csv_filename.split("_")[0] for csv_filename in csv_filename_list
-    ]
-    nfiles = len(symbols)
-    if nfiles < 1:
-        raise IOError(csv_files_err_msg)  # There are no csv files
-    while len(symbols) > 0:
-        # get first symbol
-        symbol = symbols[0]
-        symbols.remove(symbol)
-        filenameA = csv_filename_list[0]
-        csv_filename_list.remove(filenameA)
-        # check if there is a repetition (other csv of the same company to update)
-        if symbol in symbols:
-            print("More than one csv file for {} ... ".format(symbol), end="")
-            i = symbols.index(symbol)
-            filenameB = csv_filename_list[i]
-            # Merge the two csv files
-            try:
-                output_filename = mergeFiles(filenameA, filenameB)
-                # remove files that were merged
-                os.remove(CSV_FILES_PATH + filenameA)
-                os.remove(CSV_FILES_PATH + filenameB)
-                # include new file generated replacing the old one
-                csv_filename_list[i] = output_filename
-                print("Files merged")
-            except ValueError:
-                print("Could not merge files - disjoint time intervals")
-    print("\nFinished scanning csv files\n")
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+        )
+        self._logger = logging.getLogger("Logger")
+        self._logger.setLevel(logging.INFO)
+        self._logger.addHandler(handler)
+
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        self._conn = sqlite3.connect(db_path)
+        self._cursor = self._conn.cursor()
+
+    def get_raw_name_initial_time(self, file_path):
+        name = os.path.basename(file_path)
+        return name.split("_")[-2]
+
+    def get_raw_name_final_time(self, file_path):
+        name = os.path.basename(file_path)
+        return name.split("_")[-1].split(".")[0]
+
+    def parse_raw_time(self, raw_time_str):
+        """Return `datetime` object based on `raw_time_str`
+
+        Parameters
+        ----------
+        raw_time_str : ``str``
+            Datetime string in format `YYYYmmddHHMM
+
+        Returns
+        -------
+        raw_time_str : ``datetime.datetime``.
+        """
+        time_str = (
+            raw_time_str[:4]
+            + "."
+            + raw_time_str[4:6]
+            + "."
+            + raw_time_str[6:8]
+            + " "
+            + raw_time_str[8:10]
+            + ":"
+            + raw_time_str[10:]
+            + ":00"
+        )
+        return dt.datetime.strptime(time_str, "%Y.%m.%d %H:%M:%S")
+
+    def get_period_from_name(self, file_path):
+        """Return an temporal interval based on a file path
+
+        Parameters
+        ----------
+        file_path : ``str``
+            A path to the csv file with the meta trader share data. The
+            following format is required ``*._YYmmddHHMM_YYmmddHHMM.csv``
+
+        Return
+        ------
+        interval : ``Dict[str, datetime.datetime]``
+
+        """
+        raw_time_str_initial = self.get_raw_name_initial_time(file_path)
+        raw_time_str_final = self.get_raw_name_final_time(file_path)
+        initial = self.parse_raw_time(raw_time_str_initial)
+        final = self.parse_raw_time(raw_time_str_final)
+        return {"initial": initial, "final": final}
+
+    def check_disjunction(self, interval_a, interval_b):
+        """
+        Check if the intervals a and b are disjoint.
+
+        """
+        if (
+            interval_a["final"] < interval_b["initial"]
+            or interval_a["initial"] > interval_b["final"]
+        ):
+            self._logger.error("Disjoint intervals")
+            raise ValueError("Disjoint intervals")
+
+    def create_data_frame(self, file_path, sep=None):
+        """Create DataFrame using csv file in `file_path`. The miliseconds are
+        ignored during the processing of times.
+
+        Parameters
+        ----------
+        file_path : ``str``
+            A path to the csv file with the meta trader share data.
+
+        Return
+        ------
+        df : ``pandas.DataFrame``
+
+        """
+        df = pd.read_csv(file_path, sep=sep)
+        df["<TIME>"] = df[["<TIME>"]].applymap(lambda x: x.split(".")[0])
+        return df
+
+    def get_datetime_series(self, df):
+        """Create Series concatenating date and time columns of `df`
+        ignored during the processing of times.
+
+        Parameters
+        ----------
+        df : ``pandas.DataFrame``
+            A path to the csv file with the meta trader share data.
+
+        Return
+        ------
+        s : ``pandas.Series``
+
+        """
+        s = df["<DATE>"] + " " + df["<TIME>"]
+        s = s.map(lambda x: dt.datetime.strptime(x, "%Y.%m.%d %H:%M:%S"))
+        return s
+
+    def get_overlap_idx(self, df_a, df_b):
+        """Get the first index of df_b in which the datetime is not covered by
+        df_a.
+
+        Parameters
+        ----------
+        df_a and df_b : ``pandas.DataFrame``
+
+        Return
+        ------
+        index : ``Any``
+            A value associated with df_b index.
+
+        Raises
+        ------
+        ValueError
+            If nothing index are found.
+
+        """
+        s_a = self.get_datetime_series(df_a)
+        s_b = self.get_datetime_series(df_b)
+        indices = s_b[s_b > s_a[len(s_a) - 1]].index
+        if len(indices) == 0:
+            self._logger.error("The is not any ovelap between intervals.")
+            raise ValueError("The is not any ovelap between intervals.")
+        return indices[0]
+
+    def apply_merge(self, symbol, file_path_a, file_path_b):
+        """
+        Create a new csv file with the merge of data in the files `file_path_a`
+        and `file_path_b`.
+
+        """
+        period_str = (
+            self.get_raw_name_initial_time(file_path_a)
+            + "_"
+            + self.get_raw_name_initial_time(file_path_b)
+        )
+        merged_file_path = os.path.join(
+            "merged_csv", "{}_M1_{}".format(symbol, period_str)
+        )
+        df_a = self.share_data_frame(file_path_a)
+        df_b = self.share_data_frame(file_path_b)
+        idx = self.get_overlap_idx(df_a, df_b)
+
+        merged_df = df_a.append(df_b.loc[idx:], ignore_index=True, sort=False)
+        merged_df.to_csv(merged_file_path, sep="\t", index=False)
+        return merged_file_path
+
+    def resolve_overlap_and_merge(
+        self, symbol, interval_a, interval_b, file_path_a, file_path_b
+    ):
+        """
+        Make the merge of csv files `file_path_a` and `file_path_b` considering
+        the possible data overlaps.
+
+        """
+        if interval_a["initial"] < interval_b["initial"]:
+            if interval_a["final"] > interval_b["final"]:
+                return file_path_a
+            return self.apply_merge(symbol, file_path_a, file_path_b)
+        else:
+            if interval_b["final"] > interval_a["final"]:
+                return file_path_b
+            return self.apply_merge(symbol, file_path_b, file_path_a)
+
+    def merge_files(self, file_path_a, file_path_b):
+        """
+        Merge two csv files that have overlapping data in the period.
+
+        """
+        symbol = file_path_a.split("_")[0]
+        interval_a = self.get_interval_from_name(file_path_a)
+        interval_b = self.get_interval_from_name(file_path_b)
+        self.check_disjunction(interval_a, interval_b)
+        return self.resolve_overlap_and_merge(
+            symbol, interval_a, interval_b, file_path_a, file_path_b
+        )
+
+    def perse_csv_files(self, dir_csv_path):
+        """Perse csv files from MetaTrader.
+
+        When manually donwloaded, the csv files from MetaTrader may
+        become obsolete. Since the new csv files are simply added with
+        remaining files to present day. This function merge files in a
+        new csv with  a  continuous time ordering. It also informe
+        if there are time-gaps among csv files
+
+        Parameters
+        ----------
+        dir_csv_path : ``str``
+            A path to the directory containing the csv files for the meta
+            trader share data. The file names following this format
+            ``(*.)_*._YYmmddHHMM_YYmmddHHMM.csv``, in which the first group
+            is the symbol (or company name).
+
+        """
+        if not os.path.exists(dir_csv_path):
+            msg = "The path {} does not exist".format(dir_csv_path)
+            self._logger.error(msg)
+            raise IOError(msg)
+
+        csv_paths = [
+            name
+            for name in os.listdir(dir_csv_path)
+            if name.split(".")[-1] == "csv"
+        ]
+        symbols = [path.split("_")[0] for path in csv_paths]
+        if len(symbols) == 0:
+            self._logger.info(
+                "There is not any file in {}".format(dir_csv_path)
+            )
+            return None
+
+        while len(symbols) > 0:
+            symbol = symbols[0]
+            symbols.remove(symbol)
+            file_path_a = csv_paths[0]
+            csv_paths.remove(file_path_a)
+            if symbol in symbols:
+                i = symbols.index(symbol)
+                file_path_b = csv_paths[i]
+                try:
+                    output_file_path = self.merge_files(
+                        file_path_a, file_path_b
+                    )
+                    if output_file_path == file_path_a:
+                        os.remove(file_path_b)
+                    elif output_file_path == file_path_b:
+                        os.remove(file_path_a)
+                    else:
+                        os.remove(file_path_a)
+                        os.remove(file_path_b)
+                    csv_paths[i] = output_file_path
+                except Exception as e:
+                    raise e
 
 
 def refineDF(df):
