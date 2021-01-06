@@ -3,6 +3,8 @@
 This MVP aims to create a minimum signal prediction as well as a parser for
 finance data.
 
+MetaData: creates a database with stock news using finhub API
+
 ## Installation
 
 In the MVP root directory, make

@@ -1,0 +1,6 @@
+ToDo:
+- Transform B3 tickers into finhub tickers
+- Query News Database for each B3 ticker
+- Create a .db with news titles
+- Use Vader sentiment analysis on data
+- Append to Feature Space Data
