@@ -1,0 +1,84 @@
+2021-01-10 13:40:34 [scrapy.utils.log] INFO: Scrapy 2.4.1 started (bot: scrapybot)
+2021-01-10 13:40:34 [scrapy.utils.log] INFO: Versions: lxml 4.6.2.0, libxml2 2.9.10, cssselect 1.1.0, parsel 1.6.0, w3lib 1.22.0, Twisted 20.3.0, Python 3.8.5 (default, Jul 28 2020, 12:59:40) - [GCC 9.3.0], pyOpenSSL 20.0.1 (OpenSSL 1.1.1f  31 Mar 2020), cryptography 2.8, Platform Linux-5.4.0-58-generic-x86_64-with-glibc2.29
+2021-01-10 13:40:34 [scrapy.utils.log] DEBUG: Using reactor: twisted.internet.epollreactor.EPollReactor
+2021-01-10 13:40:34 [scrapy.crawler] INFO: Overridden settings:
+{'AUTOTHROTTLE_DEBUG': True,
+ 'AUTOTHROTTLE_ENABLED': True,
+ 'AUTOTHROTTLE_START_DELAY': 1,
+ 'AUTOTHROTTLE_TARGET_CONCURRENCY': 10.0,
+ 'USER_AGENT': 'Wayback Machine Scraper/1.0.7 '
+               '(+https://github.com/sangaline/scrapy-wayback-machine)'}
+2021-01-10 13:40:34 [scrapy.extensions.telnet] INFO: Telnet Password: 40ce81dd60e0b70f
+2021-01-10 13:40:34 [scrapy.middleware] INFO: Enabled extensions:
+['scrapy.extensions.corestats.CoreStats',
+ 'scrapy.extensions.telnet.TelnetConsole',
+ 'scrapy.extensions.memusage.MemoryUsage',
+ 'scrapy.extensions.logstats.LogStats',
+ 'scrapy.extensions.throttle.AutoThrottle']
+2021-01-10 13:40:34 [scrapy.middleware] INFO: Enabled downloader middlewares:
+['scrapy_wayback_machine.WaybackMachineMiddleware',
+ 'scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware',
+ 'scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware',
+ 'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware',
+ 'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware',
+ 'scrapy.downloadermiddlewares.retry.RetryMiddleware',
+ 'scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware',
+ 'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware',
+ 'scrapy.downloadermiddlewares.redirect.RedirectMiddleware',
+ 'scrapy.downloadermiddlewares.cookies.CookiesMiddleware',
+ 'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware',
+ 'scrapy.downloadermiddlewares.stats.DownloaderStats']
+2021-01-10 13:40:34 [scrapy.middleware] INFO: Enabled spider middlewares:
+['scrapy.spidermiddlewares.httperror.HttpErrorMiddleware',
+ 'scrapy.spidermiddlewares.offsite.OffsiteMiddleware',
+ 'scrapy.spidermiddlewares.referer.RefererMiddleware',
+ 'scrapy.spidermiddlewares.urllength.UrlLengthMiddleware',
+ 'scrapy.spidermiddlewares.depth.DepthMiddleware']
+2021-01-10 13:40:34 [scrapy.middleware] INFO: Enabled item pipelines:
+[]
+2021-01-10 13:40:34 [scrapy.core.engine] INFO: Spider opened
+2021-01-10 13:40:34 [scrapy.extensions.logstats] INFO: Crawled 0 pages (at 0 pages/min), scraped 0 items (at 0 items/min)
+2021-01-10 13:40:34 [scrapy.extensions.telnet] INFO: Telnet console listening on 127.0.0.1:6023
+2021-01-10 13:40:34 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 1 | delay:  528 ms (-471) | latency:  577 ms | size:   546 bytes
+2021-01-10 13:40:35 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 2 | delay:  298 ms (-230) | latency:  672 ms | size: 16300 bytes
+2021-01-10 13:40:35 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20190703230135id_/https://finviz.com/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:36 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 2 | delay:  189 ms (-108) | latency:  817 ms | size: 16203 bytes
+2021-01-10 13:40:36 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20180406231221id_/https://finviz.com/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:37 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 4 | delay:  135 ms (-54) | latency:  807 ms | size: 16666 bytes
+2021-01-10 13:40:37 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20170815120658id_/http://www.finviz.com:80/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:38 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 7 | delay:  101 ms (-33) | latency:  684 ms | size: 17301 bytes
+2021-01-10 13:40:38 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160310032732id_/http://www.finviz.com/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:41 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 6 | delay:  136 ms (+34) | latency: 1364 ms | size: 17347 bytes
+2021-01-10 13:40:41 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160508174001id_/http://finviz.com:80/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:41 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 5 | delay:  101 ms (-35) | latency:  660 ms | size: 14087 bytes
+2021-01-10 13:40:41 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20140923031757id_/http://finviz.com/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:41 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 4 | delay:   92 ms (-8) | latency:  835 ms | size: 17330 bytes
+2021-01-10 13:40:41 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160304223212id_/http://www.finviz.com:80/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:41 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 3 | delay:  160 ms (+67) | latency: 1601 ms | size: 16781 bytes
+2021-01-10 13:40:41 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160609065853id_/http://finviz.com:80/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:41 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 2 | delay:  198 ms (+38) | latency: 1987 ms | size: 17296 bytes
+2021-01-10 13:40:41 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160407131607id_/http://finviz.com:80/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:42 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 1 | delay:  393 ms (+194) | latency: 3931 ms | size: 14095 bytes
+2021-01-10 13:40:42 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20140916024745id_/http://finviz.com/quote.ashx?t=GOL> (referer: None)
+2021-01-10 13:40:42 [scrapy.core.engine] INFO: Closing spider (finished)
+2021-01-10 13:40:42 [scrapy.statscollectors] INFO: Dumping Scrapy stats:
+{'downloader/request_bytes': 3615,
+ 'downloader/request_count': 11,
+ 'downloader/request_method_count/GET': 11,
+ 'downloader/response_bytes': 188895,
+ 'downloader/response_count': 11,
+ 'downloader/response_status_count/200': 11,
+ 'elapsed_time_seconds': 8.254374,
+ 'finish_reason': 'finished',
+ 'finish_time': datetime.datetime(2021, 1, 10, 16, 40, 42, 479061),
+ 'log_count/DEBUG': 10,
+ 'log_count/INFO': 21,
+ 'memusage/max': 51085312,
+ 'memusage/startup': 51085312,
+ 'response_received_count': 10,
+ 'scheduler/dequeued': 12,
+ 'scheduler/dequeued/memory': 12,
+ 'scheduler/enqueued': 12,
+ 'scheduler/enqueued/memory': 12,
+ 'start_time': datetime.datetime(2021, 1, 10, 16, 40, 34, 224687)}
+2021-01-10 13:40:42 [scrapy.core.engine] INFO: Spider closed (finished)

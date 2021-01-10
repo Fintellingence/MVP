@@ -1,0 +1,78 @@
+2021-01-10 13:40:20 [scrapy.utils.log] INFO: Scrapy 2.4.1 started (bot: scrapybot)
+2021-01-10 13:40:20 [scrapy.utils.log] INFO: Versions: lxml 4.6.2.0, libxml2 2.9.10, cssselect 1.1.0, parsel 1.6.0, w3lib 1.22.0, Twisted 20.3.0, Python 3.8.5 (default, Jul 28 2020, 12:59:40) - [GCC 9.3.0], pyOpenSSL 20.0.1 (OpenSSL 1.1.1f  31 Mar 2020), cryptography 2.8, Platform Linux-5.4.0-58-generic-x86_64-with-glibc2.29
+2021-01-10 13:40:20 [scrapy.utils.log] DEBUG: Using reactor: twisted.internet.epollreactor.EPollReactor
+2021-01-10 13:40:20 [scrapy.crawler] INFO: Overridden settings:
+{'AUTOTHROTTLE_DEBUG': True,
+ 'AUTOTHROTTLE_ENABLED': True,
+ 'AUTOTHROTTLE_START_DELAY': 1,
+ 'AUTOTHROTTLE_TARGET_CONCURRENCY': 10.0,
+ 'USER_AGENT': 'Wayback Machine Scraper/1.0.7 '
+               '(+https://github.com/sangaline/scrapy-wayback-machine)'}
+2021-01-10 13:40:20 [scrapy.extensions.telnet] INFO: Telnet Password: 84b14a53d4898956
+2021-01-10 13:40:20 [scrapy.middleware] INFO: Enabled extensions:
+['scrapy.extensions.corestats.CoreStats',
+ 'scrapy.extensions.telnet.TelnetConsole',
+ 'scrapy.extensions.memusage.MemoryUsage',
+ 'scrapy.extensions.logstats.LogStats',
+ 'scrapy.extensions.throttle.AutoThrottle']
+2021-01-10 13:40:20 [scrapy.middleware] INFO: Enabled downloader middlewares:
+['scrapy_wayback_machine.WaybackMachineMiddleware',
+ 'scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware',
+ 'scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware',
+ 'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware',
+ 'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware',
+ 'scrapy.downloadermiddlewares.retry.RetryMiddleware',
+ 'scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware',
+ 'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware',
+ 'scrapy.downloadermiddlewares.redirect.RedirectMiddleware',
+ 'scrapy.downloadermiddlewares.cookies.CookiesMiddleware',
+ 'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware',
+ 'scrapy.downloadermiddlewares.stats.DownloaderStats']
+2021-01-10 13:40:20 [scrapy.middleware] INFO: Enabled spider middlewares:
+['scrapy.spidermiddlewares.httperror.HttpErrorMiddleware',
+ 'scrapy.spidermiddlewares.offsite.OffsiteMiddleware',
+ 'scrapy.spidermiddlewares.referer.RefererMiddleware',
+ 'scrapy.spidermiddlewares.urllength.UrlLengthMiddleware',
+ 'scrapy.spidermiddlewares.depth.DepthMiddleware']
+2021-01-10 13:40:20 [scrapy.middleware] INFO: Enabled item pipelines:
+[]
+2021-01-10 13:40:20 [scrapy.core.engine] INFO: Spider opened
+2021-01-10 13:40:20 [scrapy.extensions.logstats] INFO: Crawled 0 pages (at 0 pages/min), scraped 0 items (at 0 items/min)
+2021-01-10 13:40:20 [scrapy.extensions.telnet] INFO: Telnet console listening on 127.0.0.1:6023
+2021-01-10 13:40:21 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 1 | delay:  527 ms (-472) | latency:  545 ms | size:   394 bytes
+2021-01-10 13:40:23 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 3 | delay:  313 ms (-213) | latency: 1002 ms | size: 17226 bytes
+2021-01-10 13:40:23 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20190529212920id_/https://finviz.com/quote.ashx?t=UGP> (referer: None)
+2021-01-10 13:40:23 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 3 | delay:  218 ms (-94) | latency: 1240 ms | size: 17212 bytes
+2021-01-10 13:40:23 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20190515204544id_/https://finviz.com/quote.ashx?t=UGP> (referer: None)
+2021-01-10 13:40:24 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 4 | delay:  134 ms (-83) | latency:  509 ms | size: 16099 bytes
+2021-01-10 13:40:24 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160506014809id_/http://finviz.com:80/quote.ashx?t=UGP> (referer: None)
+2021-01-10 13:40:25 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 4 | delay:  179 ms (+44) | latency: 1791 ms | size: 16451 bytes
+2021-01-10 13:40:25 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160811225919id_/http://finviz.com/quote.ashx?t=UGP> (referer: None)
+2021-01-10 13:40:25 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 3 | delay:  139 ms (-39) | latency: 1004 ms | size: 14949 bytes
+2021-01-10 13:40:25 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20150226075958id_/http://www.finviz.com:80/quote.ashx?t=UGP> (referer: None)
+2021-01-10 13:40:26 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 2 | delay:  181 ms (+41) | latency: 1811 ms | size: 12293 bytes
+2021-01-10 13:40:26 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20100507135836id_/http://www.finviz.com:80/quote.ashx?t=UGP> (referer: None)
+2021-01-10 13:40:26 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 1 | delay:  186 ms (+5) | latency: 1869 ms | size:  9692 bytes
+2021-01-10 13:40:26 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20090313013307id_/http://www.finviz.com:80/quote.ashx?t=UGP> (referer: None)
+2021-01-10 13:40:26 [scrapy.core.engine] INFO: Closing spider (finished)
+2021-01-10 13:40:26 [scrapy.statscollectors] INFO: Dumping Scrapy stats:
+{'downloader/request_bytes': 2649,
+ 'downloader/request_count': 8,
+ 'downloader/request_method_count/GET': 8,
+ 'downloader/response_bytes': 121816,
+ 'downloader/response_count': 8,
+ 'downloader/response_status_count/200': 8,
+ 'elapsed_time_seconds': 5.840428,
+ 'finish_reason': 'finished',
+ 'finish_time': datetime.datetime(2021, 1, 10, 16, 40, 26, 544852),
+ 'log_count/DEBUG': 7,
+ 'log_count/INFO': 18,
+ 'memusage/max': 51113984,
+ 'memusage/startup': 51113984,
+ 'response_received_count': 7,
+ 'scheduler/dequeued': 9,
+ 'scheduler/dequeued/memory': 9,
+ 'scheduler/enqueued': 9,
+ 'scheduler/enqueued/memory': 9,
+ 'start_time': datetime.datetime(2021, 1, 10, 16, 40, 20, 704424)}
+2021-01-10 13:40:26 [scrapy.core.engine] INFO: Spider closed (finished)

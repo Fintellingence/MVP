@@ -1,0 +1,116 @@
+2021-01-10 13:39:27 [scrapy.utils.log] INFO: Scrapy 2.4.1 started (bot: scrapybot)
+2021-01-10 13:39:27 [scrapy.utils.log] INFO: Versions: lxml 4.6.2.0, libxml2 2.9.10, cssselect 1.1.0, parsel 1.6.0, w3lib 1.22.0, Twisted 20.3.0, Python 3.8.5 (default, Jul 28 2020, 12:59:40) - [GCC 9.3.0], pyOpenSSL 20.0.1 (OpenSSL 1.1.1f  31 Mar 2020), cryptography 2.8, Platform Linux-5.4.0-58-generic-x86_64-with-glibc2.29
+2021-01-10 13:39:27 [scrapy.utils.log] DEBUG: Using reactor: twisted.internet.epollreactor.EPollReactor
+2021-01-10 13:39:27 [scrapy.crawler] INFO: Overridden settings:
+{'AUTOTHROTTLE_DEBUG': True,
+ 'AUTOTHROTTLE_ENABLED': True,
+ 'AUTOTHROTTLE_START_DELAY': 1,
+ 'AUTOTHROTTLE_TARGET_CONCURRENCY': 10.0,
+ 'USER_AGENT': 'Wayback Machine Scraper/1.0.7 '
+               '(+https://github.com/sangaline/scrapy-wayback-machine)'}
+2021-01-10 13:39:27 [scrapy.extensions.telnet] INFO: Telnet Password: d937eda1d7474893
+2021-01-10 13:39:27 [scrapy.middleware] INFO: Enabled extensions:
+['scrapy.extensions.corestats.CoreStats',
+ 'scrapy.extensions.telnet.TelnetConsole',
+ 'scrapy.extensions.memusage.MemoryUsage',
+ 'scrapy.extensions.logstats.LogStats',
+ 'scrapy.extensions.throttle.AutoThrottle']
+2021-01-10 13:39:27 [scrapy.middleware] INFO: Enabled downloader middlewares:
+['scrapy_wayback_machine.WaybackMachineMiddleware',
+ 'scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware',
+ 'scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware',
+ 'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware',
+ 'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware',
+ 'scrapy.downloadermiddlewares.retry.RetryMiddleware',
+ 'scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware',
+ 'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware',
+ 'scrapy.downloadermiddlewares.redirect.RedirectMiddleware',
+ 'scrapy.downloadermiddlewares.cookies.CookiesMiddleware',
+ 'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware',
+ 'scrapy.downloadermiddlewares.stats.DownloaderStats']
+2021-01-10 13:39:27 [scrapy.middleware] INFO: Enabled spider middlewares:
+['scrapy.spidermiddlewares.httperror.HttpErrorMiddleware',
+ 'scrapy.spidermiddlewares.offsite.OffsiteMiddleware',
+ 'scrapy.spidermiddlewares.referer.RefererMiddleware',
+ 'scrapy.spidermiddlewares.urllength.UrlLengthMiddleware',
+ 'scrapy.spidermiddlewares.depth.DepthMiddleware']
+2021-01-10 13:39:27 [scrapy.middleware] INFO: Enabled item pipelines:
+[]
+2021-01-10 13:39:27 [scrapy.core.engine] INFO: Spider opened
+2021-01-10 13:39:27 [scrapy.extensions.logstats] INFO: Crawled 0 pages (at 0 pages/min), scraped 0 items (at 0 items/min)
+2021-01-10 13:39:27 [scrapy.extensions.telnet] INFO: Telnet console listening on 127.0.0.1:6023
+2021-01-10 13:39:28 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 1 | delay:  550 ms (-449) | latency: 1016 ms | size:  1175 bytes
+2021-01-10 13:39:30 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 3 | delay:  321 ms (-229) | latency:  927 ms | size: 17267 bytes
+2021-01-10 13:39:30 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20190126212139id_/https://finviz.com/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:31 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 6 | delay:  209 ms (-112) | latency:  966 ms | size: 17199 bytes
+2021-01-10 13:39:31 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20170710125204id_/http://finviz.com:80/quote.ashx?t=vale> (referer: None)
+2021-01-10 13:39:31 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 5 | delay:  143 ms (-65) | latency:  774 ms | size: 17327 bytes
+2021-01-10 13:39:31 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20170609070946id_/http://finviz.com:80/quote.ashx?t=vale> (referer: None)
+2021-01-10 13:39:31 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 6 | delay:  203 ms (+60) | latency: 2037 ms | size: 16983 bytes
+2021-01-10 13:39:31 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20170918173013id_/https://finviz.com/quote.ashx?t=vale> (referer: None)
+2021-01-10 13:39:32 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 7 | delay:  406 ms (+203) | latency: 4068 ms | size: 16854 bytes
+2021-01-10 13:39:32 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20191101192617id_/https://finviz.com/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:33 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 8 | delay:  247 ms (-159) | latency:  880 ms | size: 16932 bytes
+2021-01-10 13:39:33 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160423174624id_/http://finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:33 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 7 | delay:  145 ms (-101) | latency:  441 ms | size: 16973 bytes
+2021-01-10 13:39:33 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160422151224id_/http://finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:33 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 8 | delay:  197 ms (+51) | latency: 1973 ms | size: 17376 bytes
+2021-01-10 13:39:33 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160801062057id_/http://finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:33 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 7 | delay:  183 ms (-14) | latency: 1693 ms | size: 17054 bytes
+2021-01-10 13:39:33 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160525062018id_/http://finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:34 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 8 | delay:  143 ms (-39) | latency: 1034 ms | size: 17067 bytes
+2021-01-10 13:39:34 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160328225128id_/http://finviz.com/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:34 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 8 | delay:  121 ms (-21) | latency:  999 ms | size: 16289 bytes
+2021-01-10 13:39:34 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20150227095042id_/http://www.finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:34 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 7 | delay:  197 ms (+75) | latency: 1972 ms | size: 17655 bytes
+2021-01-10 13:39:34 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20160628222045id_/http://finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:35 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 6 | delay:  395 ms (+198) | latency: 3959 ms | size: 17147 bytes
+2021-01-10 13:39:35 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20170508232234id_/http://finviz.com:80/quote.ashx?t=vale> (referer: None)
+2021-01-10 13:39:35 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 6 | delay:  260 ms (-135) | latency: 1241 ms | size: 15122 bytes
+2021-01-10 13:39:35 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20130222004132id_/http://www.finviz.com/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:35 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 5 | delay:  422 ms (+162) | latency: 4225 ms | size: 16778 bytes
+2021-01-10 13:39:35 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20170223203705id_/http://finviz.com:80/quote.ashx?t=vale> (referer: None)
+2021-01-10 13:39:35 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 4 | delay:  301 ms (-121) | latency: 1795 ms | size: 13888 bytes
+2021-01-10 13:39:35 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20140216052002id_/http://finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:36 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 5 | delay:  222 ms (-78) | latency: 1445 ms | size: 14738 bytes
+2021-01-10 13:39:36 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20120825155004id_/http://www.finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:36 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 4 | delay:  134 ms (-88) | latency:  464 ms | size: 13966 bytes
+2021-01-10 13:39:36 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20120211193235id_/http://finviz.com:80/quote.ashx?t=vale> (referer: None)
+2021-01-10 13:39:36 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 4 | delay:  123 ms (-11) | latency: 1114 ms | size: 14105 bytes
+2021-01-10 13:39:36 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20120706185403id_/http://www.finviz.com/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:37 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 7 | delay:  349 ms (+226) | latency: 3493 ms | size: 14288 bytes
+2021-01-10 13:39:37 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20140819205605id_/http://finviz.com/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:37 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 6 | delay:  202 ms (-146) | latency:  553 ms | size: 15878 bytes
+2021-01-10 13:39:37 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20111031221951id_/http://www.finviz.com/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:37 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 5 | delay:  124 ms (-78) | latency:  459 ms | size: 15269 bytes
+2021-01-10 13:39:37 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20110222224018id_/http://www.finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:37 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 4 | delay:   92 ms (-31) | latency:  602 ms | size: 13737 bytes
+2021-01-10 13:39:37 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20101224075158id_/http://www.finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:37 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 3 | delay:  114 ms (+22) | latency: 1149 ms | size: 13791 bytes
+2021-01-10 13:39:37 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20120207084209id_/http://www.finviz.com/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:38 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 2 | delay:  101 ms (-13) | latency:  877 ms | size: 15636 bytes
+2021-01-10 13:39:38 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20100507135846id_/http://www.finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:38 [scrapy.extensions.throttle] INFO: slot: web.archive.org | conc: 1 | delay:  113 ms (+11) | latency: 1130 ms | size: 16109 bytes
+2021-01-10 13:39:38 [scrapy.core.engine] DEBUG: Crawled (200) <GET http://web.archive.org/web/20100728105031id_/http://www.finviz.com:80/quote.ashx?t=VALE> (referer: None)
+2021-01-10 13:39:38 [scrapy.core.engine] INFO: Closing spider (finished)
+2021-01-10 13:39:38 [scrapy.statscollectors] INFO: Dumping Scrapy stats:
+{'downloader/request_bytes': 8843,
+ 'downloader/request_count': 27,
+ 'downloader/request_method_count/GET': 27,
+ 'downloader/response_bytes': 481430,
+ 'downloader/response_count': 27,
+ 'downloader/response_status_count/200': 27,
+ 'elapsed_time_seconds': 11.588922,
+ 'finish_reason': 'finished',
+ 'finish_time': datetime.datetime(2021, 1, 10, 16, 39, 38, 645827),
+ 'log_count/DEBUG': 26,
+ 'log_count/INFO': 37,
+ 'memusage/max': 51068928,
+ 'memusage/startup': 51068928,
+ 'response_received_count': 26,
+ 'scheduler/dequeued': 28,
+ 'scheduler/dequeued/memory': 28,
+ 'scheduler/enqueued': 28,
+ 'scheduler/enqueued/memory': 28,
+ 'start_time': datetime.datetime(2021, 1, 10, 16, 39, 27, 56905)}
+2021-01-10 13:39:38 [scrapy.core.engine] INFO: Spider closed (finished)
