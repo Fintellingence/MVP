@@ -1,3 +1,5 @@
+import pandas as pd
+
 class CuratedData:
     # In this model, data is provided as a class.
     def __init__(self, data, n):
@@ -9,7 +11,7 @@ class CuratedData:
         self.open = data.open
         self.period = n
         #=========================================
-        # Statistics
+        # Statistics #
         #=========================================
         self.simpleMA = self.getSimpleMA()
         self.deviation = self.getDeviation()

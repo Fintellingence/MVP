@@ -1,4 +1,3 @@
-@staticmethod
 def get_tickers(file):
     with open(file) as f:
         tickers = f.readlines()
