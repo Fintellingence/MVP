@@ -1,6 +1,6 @@
 from CuratedData import CuratedData
 from rawData import rawData
-import Helper
+from Helper import Helper
 import pandas as pd
 import numpy as np
 
@@ -16,7 +16,7 @@ for ticker in tickers[:3]:
 
 teste = listData[0].volume.values
 teste2 = list(teste)
-print((teste2))
+print(type(teste2))
 
 listCuratedData = []
 #periods = [10*i for i in range(1,100)]
