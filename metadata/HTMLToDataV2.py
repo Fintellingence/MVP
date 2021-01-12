@@ -73,6 +73,8 @@ for ticker in tickers:
         page_df = pd.DataFrame(recommendations)
         page_df.columns = ['DateTime', 'Status','Company','Recommendation','Target']
         ticker_df = pd.concat([ticker_df,page_df])
+        if ticker == 'PBR':
+            print(page_df.head())
     ticker_df['DateTime'] = ticker_df['DateTime'].map(string_to_YYYYMMDD)
     ticker_df['DateTime'] = pd.to_datetime(ticker_df['DateTime'],format='%Y/%m/%d')
     ticker_df.set_index('DateTime', inplace=True)
