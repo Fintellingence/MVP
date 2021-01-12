@@ -5,13 +5,6 @@ import sqlite3
 
 import pandas as pd
 import pandas_datareader as pdr
-from pathlib import Path
-
-
-DEFAULT_DB_PATH = str(Path.home()) + "/FintelligenceData/"
-CSV_FILES_PATH = str(Path.home()) + "/FintelligenceData/csv_files/"
-INITIAL_DATE_D1 = dt.date(2010, 1, 2)
-FINAL_DATE_D1 = dt.date.today() - dt.timedelta(days=1)
 
 
 class Yahoo:
@@ -149,19 +142,12 @@ class Yahoo:
 
 
 class MetaTrader:
-    """Define a database in Sqlite using data from MetaTrader databases for
-    collected shared prices.
-
-    For now, this implementation analysis the day-1 frequency of Yahoo data.
-
-    Parameters
-    ----------
-    db_path : ``str``
-        The path to the dump file for a Sqlite database.
+    """
+    Deal with CSV files downloaded from MetaTrader.
 
     """
 
-    def __init__(self, db_path):
+    def __init__(self):
         os.makedirs("logs/", exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(
             "logs/mtrader.log", maxBytes=200 * 1024 * 1024, backupCount=1
@@ -175,10 +161,6 @@ class MetaTrader:
         self._logger = logging.getLogger("Logger")
         self._logger.setLevel(logging.INFO)
         self._logger.addHandler(handler)
-
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self._conn = sqlite3.connect(db_path)
-        self._cursor = self._conn.cursor()
 
     def get_raw_name_initial_time(self, file_path):
         name = os.path.basename(file_path)
@@ -312,7 +294,8 @@ class MetaTrader:
     def apply_merge(self, symbol, file_path_a, file_path_b):
         """
         Create a new csv file with the merge of data in the files `file_path_a`
-        and `file_path_b`.
+        and `file_path_b`. Non-empty intersection and
+        `interval_a["initial"] < interval_b["initial"]` are required.
 
         """
         period_str = (
@@ -328,14 +311,14 @@ class MetaTrader:
         idx = self.get_overlap_idx(df_a, df_b)
 
         merged_df = df_a.append(df_b.loc[idx:], ignore_index=True, sort=False)
-        merged_df.to_csv(merged_file_path, sep="\t", index=False)
+        merged_df.to_csv(merged_file_path, index=False)
         return merged_file_path
 
     def resolve_overlap_and_merge(
         self, symbol, interval_a, interval_b, file_path_a, file_path_b
     ):
         """
-        Make the merge of csv files `file_path_a` and `file_path_b` considering
+        Merge of csv files `file_path_a` and `file_path_b` considering
         the possible data overlaps.
 
         """
@@ -350,7 +333,7 @@ class MetaTrader:
 
     def merge_files(self, file_path_a, file_path_b):
         """
-        Merge two csv files that have overlapping data in the period.
+        Merge two csv files with overlap data in the period.
 
         """
         symbol = file_path_a.split("_")[0]
@@ -361,7 +344,7 @@ class MetaTrader:
             symbol, interval_a, interval_b, file_path_a, file_path_b
         )
 
-    def perse_csv_files(self, dir_csv_path):
+    def parse_csv_files(self, dir_csv_path):
         """Perse csv files from MetaTrader.
 
         When manually donwloaded, the csv files from MetaTrader may
@@ -392,7 +375,9 @@ class MetaTrader:
         symbols = [path.split("_")[0] for path in csv_paths]
         if len(symbols) == 0:
             self._logger.info(
-                "There is not any file in {}".format(dir_csv_path)
+                "There is not any file in {} with expected format".format(
+                    dir_csv_path
+                )
             )
             return None
 
@@ -419,100 +404,76 @@ class MetaTrader:
                 except Exception as e:
                     raise e
 
+    def parse_columns(df):
+        """
+        Drop `<SPREAD>`, convert columns `<DATE>` and `<TIME>` to the index
+        composed of timestamp, and remove brackes from names of remaining
+        columns.
 
-def refineDF(df):
-    """Refine data extracted from csv files using a better convention
-    ==============================================================
-    Especially the column names comes with <> and date-time are
-    given as strings. Here remove <> and set date-time properly
-    as python time-stamp. Called in 'createDB_MetaTraderCSV'
-    """
-    refined = df
-    # Date and Time are given in separate rows as the rows labels are just numbers
-    # Therefore merge these two rows information to set as labes of the  dataframe
-    datetimeIndex = [
-        dt.datetime.strptime(
-            "{} {}".format(df["<DATE>"][i], df["<TIME>"][i]),
-            "%Y.%m.%d %H:%M:%S",
-        )
-        for i in df.index
-    ]
-    pandas_datetimeIndex = pd.DatetimeIndex(datetimeIndex)
-    refined.set_index(pandas_datetimeIndex, inplace=True)
-    refined.index.name = "DateTime"
-    refined.drop(
-        ["<DATE>", "<TIME>", "<SPREAD>"], axis=1, inplace=True
-    )  # no longer needed ?
-    # Remove annoyng <> bracket notation
-    columns_rename = {
-        "<OPEN>": "Open",
-        "<HIGH>": "High",
-        "<LOW>": "Low",
-        "<CLOSE>": "Close",
-        "<VOL>": "Volume",
-        "<TICKVOL>": "TickVol",
-    }
-    # columns_rename = {column:column[1:-1] for column in refined.columns if ('<' in column and '>' in column)}
-    refined.rename(columns=columns_rename, inplace=True)
-    return refined
+        """
+        datetime_index = [
+            dt.datetime.strptime(
+                "{} {}".format(df["<DATE>"][i], df["<TIME>"][i]),
+                "%Y.%m.%d %H:%M:%S",
+            )
+            for i in df.index
+        ]
+        df.set_index(pd.DatetimeIndex(datetime_index), inplace=True)
+        df.index.name = "DateTime"
+        df.drop(["<DATE>", "<TIME>", "<SPREAD>"], axis=1, inplace=True)
+        columns_rename = {
+            "<OPEN>": "Open",
+            "<HIGH>": "High",
+            "<LOW>": "Low",
+            "<CLOSE>": "Close",
+            "<VOL>": "Volume",
+            "<TICKVOL>": "TickVol",
+        }
+        df.rename(columns=columns_rename, inplace=True)
+        return df
 
+    def create_metratrader_m1_db(self, db_path, dir_csv_path):
+        """Create a Sqlite database composed of data from CSV files downloaded
+        from MetaTrader.
 
-def createDB_MetaTraderCSV_M1(db_filename="BRSharesMetaTrader_M1.db"):
-    """CSV files Downloaded from MetaTrader is stored in a sql database
-    ================================================================
-    From csv files exported from MetaTrader this function creates
-    a sql database. Each company must have ONLY ONE .csv file  in
-    the path introduced in CSV_FILES_PATH variable. If there  are
-    more than one .csv file per company,  which  were  downloaded
-    aiming to update data, try 'updateCSVFiles' to merge them. If
-    a database with 'db_filename' already exists raise an error
-    """
-    print("\nBuilding MetaTrader minute-1 database from CSV files ...\n")
-    full_db_path = DEFAULT_DB_PATH + db_filename
-    # DEFAULT WARNING AND ERROR MESSAGES
-    path_err_msg = (
-        "ERROR : The path {} does not exist in this computer".format(
-            CSV_FILES_PATH
-        )
-    )
-    exist_err_msg = (
-        "ERROR : MetaTrader database file {} already exists".format(
-            full_db_path
-        )
-    )
-    csv_files_err_msg = "ERROR : There are no csv files in {}".format(
-        CSV_FILES_PATH
-    )
-    new_msg = "[{:2d},{}] {} introduced in the database"
-    # TRY TO FIND THE PATH OF CSV DILES
-    if not os.path.exists(CSV_FILES_PATH):
-        raise IOError(path_err_msg)
-    # Get list of all csv file names
-    csv_filename_list = [
-        name
-        for name in os.listdir(CSV_FILES_PATH)
-        if name.split(".")[-1] == "csv"
-    ]
-    nfiles = len(csv_filename_list)
-    if nfiles < 1:
-        raise IOError(csv_files_err_msg)  # There are no csv files
-    if os.path.isfile(full_db_path):
-        raise IOError(exist_err_msg)
-    conn = sqlite3.connect(full_db_path)
-    symbol_id = 1
-    for csv_filename in csv_filename_list:
-        symbol = csv_filename.split("_")[
-            0
-        ]  # Take company symbol from csv file name
-        raw_df = pd.read_csv(CSV_FILES_PATH + csv_filename, sep="\t")
-        refined_df = refineDF(raw_df)
-        refined_df.to_sql(symbol, con=conn)
-        print(new_msg.format(symbol_id, nfiles, symbol))
-        symbol_id += 1
-    conn.close()  # connection closed
-    print("\nProcess finished. DB-connection closed\n")
+        Each company must have only one csv file in the path `dir_csv_path`. If
+        there  are more than one, the files will be merged applying method
+        `parse_csv_files`. If `db_path` already exists,
+        a new file will be created
 
+        Parameters
+        ----------
+        db_path : ``str``
+            The path to the dump file for a Sqlite database.
+        dir_csv_path: ``str``
+            The path to the directory with CSV files for MetaTrader
 
-if __name__ == "__main__":
-    updateYahooDB_D1()
-    createDB_MetaTraderCSV_M1()
+        """
+        if not os.path.exists(dir_csv_path):
+            msg = "The path {} does not exist in this computer".format(
+                dir_csv_path
+            )
+            self._logger.error("{}".format(msg))
+            raise IOError(msg)
+        self.parse_csv_files(dir_csv_path)
+        csv_name_list = [
+            name
+            for name in os.listdir(dir_csv_path)
+            if name.split(".")[-1] == "csv"
+        ]
+        num_files = len(csv_name_list)
+        if num_files == 0:
+            msg = "There are no csv files in {}".format(dir_csv_path)
+            self._logger.error("{}".format(msg))
+            raise IOError(msg)
+        if os.path.isfile(db_path):
+            os.rename(db_path, db_path + ".{}.old".fromat(dt.datetime.now()))
+        conn = sqlite3.connect(db_path)
+        for csv_name in csv_name_list:
+            symbol = csv_name.split("_")[0]
+            df = self.parse_columns(
+                pd.read_csv(dir_csv_path + csv_name, sep=None)
+            )
+            df.to_sql(symbol, con=conn)
+        conn.close()
+        self._logger.info("Process finished. DB-connection closed\n")
