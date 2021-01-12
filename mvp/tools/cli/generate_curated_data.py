@@ -1,12 +1,12 @@
-from CuratedData import CuratedData
-from rawData import rawData
-from Helper import Helper
+from classes.CuratedData import CuratedData
+from classes.rawData import rawData
+from classes.Helper import Helper
 import pandas as pd
 import numpy as np
 
 # We have to push to database processed data
 
-tickers = Helper.get_tickers('MVP/mvp/tools/stocks.txt')
+tickers = Helper.getTickers('database/stocks.txt')
 
 listData = []
 
@@ -16,7 +16,7 @@ for ticker in tickers[:3]:
 
 teste = listData[0].volume.values
 teste2 = list(teste)
-print(type(teste2))
+print(type(teste))
 
 listCuratedData = []
 #periods = [10*i for i in range(1,100)]

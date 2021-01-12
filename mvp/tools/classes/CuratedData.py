@@ -16,7 +16,7 @@ class CuratedData:
         self.simpleMA = self.getSimpleMA()
         self.deviation = self.getDeviation()
         self.ACF = self.getACF()
-        self.fracDiff = self.getFracDiff(level)
+        #self.fracDiff = self.getFracDiff(level)
         self.RSI = self.getRSI()
         self.stationarityScore = self.getStationarity()
 

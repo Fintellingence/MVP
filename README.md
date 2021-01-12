@@ -33,3 +33,13 @@ Remember,
 5. `git push <remote name> <branch name>` to save the work in Github
 6. Is your work fished? **Make a pull request**
 7. Do not play around with `git rebase`
+
+## How to update this repo?
+
+By changing and creating PRs. If they are approved, they will be merged into `main`.
+
+It's important to notice that, when we update the content, we must run the Setup again by the following command:
+
+```
+python3 setup.py install --user
+```

@@ -12,7 +12,7 @@ class rawData:
         self.open = self.getOpen()
 
     def getFullData(self):
-        conn = sql3.connect('MVP/mvp/database/BRShares_Intraday1M.db')
+        conn = sql3.connect('database/BRShares_Intraday1M.db')
         df = pd.read_sql("SELECT * FROM {}".format(self.ticker),conn).drop(columns=['<TICKVOL>'])
         df.rename(columns={"<HIGH>": "High", "<LOW>": "Low", "<OPEN>":"Open", "<CLOSE>":"Close", "<VOL>":"Vol"}, inplace=True)
         return df.set_index('DateTime')

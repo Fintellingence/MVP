@@ -138,4 +138,4 @@ dmypy.json
 cython_debug/
 
 # Our database
-mvp/database/BRShares_Intraday1M.db
+mvp/tools/database/BRShares_Intraday1M.db
