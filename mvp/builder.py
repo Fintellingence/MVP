@@ -6,6 +6,8 @@ import sqlite3
 import pandas as pd
 import pandas_datareader as pdr
 
+__all__ = ['Yahoo', 'MetaTrader']
+
 
 class Yahoo:
     """Define a database in Sqlite using data from Yahoo databases for
