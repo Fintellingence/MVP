@@ -37,7 +37,7 @@ class CuratedData:
         return 0 #(self.dfCurated['Close']-self.dfCurated['Close'].shift(1))/self.dfCurated['Close'].shift(1)
 
     def getRSI(self):
-        return self.dfCurated['Close'].
+        return 0
 
     def getStationarity(self):
         return 0
