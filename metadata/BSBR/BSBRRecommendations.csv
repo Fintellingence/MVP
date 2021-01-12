@@ -1,0 +1,20 @@
+DateTime,Status,Company,Recommendation,Target
+2009-12-15,Initiated,Deutsche Bank,Hold,$16
+2010-01-28,Initiated,Citigroup,Buy,
+2011-06-07,Initiated,Barclays Capital,Equal Weight,$15
+2015-11-12,Downgrade,JP Morgan,Neutral → Underweight,
+2016-01-19,Downgrade,HSBC Securities,Hold → Reduce,
+2016-10-17,Upgrade,Credit Suisse,Underperform → Neutral,
+2016-11-30,Initiated,Citigroup,Sell,
+2017-04-07,Upgrade,Citigroup,Sell → Neutral,
+2017-04-18,Upgrade,Credit Suisse,Neutral → Outperform,
+2017-05-02,Upgrade,BofA/Merrill,Underperform → Neutral,
+2017-05-19,Upgrade,JP Morgan,Underweight → Neutral,
+2017-11-01,Upgrade,JP Morgan,Neutral → Overweight,
+2018-03-01,Downgrade,Citigroup,Neutral → Sell,
+2018-06-07,Downgrade,JP Morgan,Overweight → Neutral,
+2018-06-12,Downgrade,Credit Suisse,Outperform → Neutral,
+2018-12-11,Downgrade,HSBC Securities,Buy → Hold,
+2019-06-10,Initiated,Goldman,Neutral,
+2019-08-07,Upgrade,Morgan Stanley,Equal-Weight → Overweight,
+2019-08-27,Upgrade,Citigroup,Neutral → Buy,

@@ -1,0 +1,27 @@
+DateTime,Status,Company,Recommendation,Target
+2007-04-26,Downgrade,Pali Research,Neutral → Sell ,
+2007-05-17,Reiterated,Pali Research,Buy,$5 → $6
+2009-07-08,Upgrade,UBS,Neutral → Buy,
+2009-09-08,Initiated,Barclays Capital,Underweight,
+2009-11-06,Upgrade,Oscar Gruss,Hold → Buy,$23.50 → $31
+2009-12-10,Downgrade,Oscar Gruss,Buy → Hold,$31
+2010-10-19,Reiterated,Barclays Capital,Underweight,$24 → $26
+2010-11-11,Reiterated,Barclays Capital,Underweight,$26 → $30
+2011-10-13,Initiated,Barclays Capital,Overweight,$34
+2012-07-18,Initiated,Stifel Nicolaus,Hold,
+2013-04-09,Reiterated,Barclays,Overweight,$26 → $31
+2013-07-26,Reiterated,Barclays,Overweight,$31 → $27.50
+2014-01-15,Upgrade,HSBC Securities,Neutral → Overweight,
+2014-03-03,Initiated,Standpoint Research,Buy,$24
+2014-11-04,Initiated,Gabelli & Co,Hold,
+2015-04-13,Reiterated,RBC Capital Mkts,Sector Perform,$23 → $15
+2015-08-31,Upgrade,Morgan Stanley,Equal-Weight → Overweight,
+2015-10-06,Reiterated,Barclays,Overweight,$20 → $13
+2016-05-25,Downgrade,Credit Suisse,Outperform → Neutral,
+2016-07-06,Downgrade,Morgan Stanley,Overweight → Equal-Weight,
+2018-04-03,Initiated,Goldman,Neutral,$18
+2018-12-14,Upgrade,Citigroup,Neutral → Buy,
+2019-06-04,Upgrade,JP Morgan,Underweight → Neutral,
+2019-07-25,Downgrade,Standpoint Research,Buy → Hold,
+2019-08-01,Downgrade,Barclays,Overweight → Equal Weight,
+,Reiterated,Barclays Capital,Overweight,$39 → $42

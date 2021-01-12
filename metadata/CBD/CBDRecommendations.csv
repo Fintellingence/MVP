@@ -1,0 +1,10 @@
+DateTime,Status,Company,Recommendation,Target
+2009-09-24,Upgrade,JP Morgan,Neutral → Overweight,
+2015-05-11,Downgrade,BofA/Merrill,Buy → Neutral,
+2015-10-13,Downgrade,JP Morgan,Neutral → Underweight,
+2015-10-16,Downgrade,BofA/Merrill,Neutral → Underperform,
+2015-11-09,Downgrade,Citigroup,Buy → Neutral,
+2016-12-15,Upgrade,BofA/Merrill,Underperform → Neutral,
+2017-11-07,Upgrade,Credit Suisse,Neutral → Outperform,
+2018-05-02,Upgrade,BofA/Merrill,Neutral → Buy,
+,Downgrade,Credit Suisse,Outperform → Neutral,

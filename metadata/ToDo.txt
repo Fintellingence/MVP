@@ -1,6 +1,15 @@
 ToDo:
-- Transform B3 tickers into finhub tickers
+- Transform B3 tickers into finhub tickers (DONE)
 - Query News Database for each B3 ticker
 - Create a .db with news titles
 - Use Vader sentiment analysis on data
 - Append to Feature Space Data
+
+NewToDo:
+
+- Transform B3 tickers into finhub tickers (Done)
+- Query wayback-machine-scrapper for (200) for each ticker
+- Extract (200) URL list for each ticker
+- wget each URL for each ticker
+- scrape HTML for news for each URL pages
+- Overlap end delete duplicates

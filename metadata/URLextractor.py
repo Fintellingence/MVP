@@ -36,4 +36,4 @@ for URL in zip(finvizURLs,tickers):
     process = subprocess.run(["wayback-machine-scraper", "-a", "\'"+URL[0]+"$\'", "-f", "20100101", "-t", "20200101", URL[0],"-v"], capture_output=True)
     with open(URL[1]+'_out.txt','wb') as filehandle:
         filehandle.write(process.stderr)
-        print("All pages fetched for " URL[1])
+        print("All pages fetched for "+URL[1])

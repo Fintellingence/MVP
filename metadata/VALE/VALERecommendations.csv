@@ -1,0 +1,75 @@
+DateTime,Status,Company,Recommendation,Target
+2009-05-21,Initiated,Dahlman Rose,Hold,
+2009-06-12,Downgrade,BMO Capital Markets,Outperform → Market Perform,
+2009-08-04,Upgrade,Dahlman Rose,Hold → Buy,$28
+2009-08-25,Downgrade,HSBC Securities,Neutral → Underweight,
+2009-09-01,Upgrade,Credit Suisse,Neutral → Outperform,
+2009-11-05,Upgrade,Deutsche Securities,Hold → Buy,$23 → $30
+2009-12-10,Upgrade,JP Morgan,Neutral → Overweight,$24.50 → $35.50
+2010-01-19,Upgrade,Barclays Capital,Equal Weight → Overweight,$31 → $39
+2010-01-21,Initiated,UBS,Neutral,$34.24
+2010-03-03,Upgrade,RBC Capital Mkts,Sector Perform → Outperform,
+2010-03-10,Downgrade,UBS,Buy → Neutral,
+2010-03-29,Upgrade,Canaccord Adams,Hold → Buy,$29.50 → $36
+2010-03-29,Upgrade,Canaccord Adams,Hold → Buy,
+2010-05-11,Initiated,Stifel Nicolaus,Hold,
+2010-05-26,Upgrade,HSBC Securities,Neutral → Overweight,$36 → $34
+2010-08-02,Reiterated,Dahlman Rose,Buy,$48 → $50
+2010-08-09,Reiterated,Canaccord Genuity,Buy,$36 → $38
+2010-09-02,Downgrade,RBC Capital Mkts,Outperform → Sector Perform,$32
+2010-10-29,Reiterated,RBC Capital Mkts,Sector Perform,$32 → $33
+2010-12-01,Reiterated,Barclays Capital,Overweight,$42 → $46
+2011-01-11,Reiterated,Deutsche Bank,Buy,$42 → $48
+2011-01-14,Reiterated,Dahlman Rose,Buy,$45 → $54
+2011-08-01,Reiterated,Barclays Capital,Overweight,$46 → $42
+2011-08-02,Reiterated,Dahlman Rose,Buy,$45 → $43
+2011-10-31,Reiterated,Barclays Capital,Overweight,$42 → $37
+2011-11-29,Reiterated,Barclays Capital,Overweight,$37 → $34
+2012-01-26,Downgrade,Dahlman Rose,Buy → Hold,
+2012-04-27,Reiterated,Barclays,Overweight,$34 → $31
+2012-10-03,Initiated,BB&T Capital Mkts,Hold,
+2013-04-11,Reiterated,Deutsche Bank,Buy,$24 → $23
+2013-07-15,Reiterated,BMO Capital Markets,Market Perform,$22 → $15
+2013-10-04,Initiated,Barclays,Underweight,$13
+2013-11-01,Upgrade,Stifel,Hold → Buy,$20
+2015-04-15,Downgrade,JP Morgan,Overweight → Neutral,
+2015-05-13,Downgrade,Macquarie,Outperform → Neutral,
+2015-08-03,Reiterated,RBC Capital Mkts,Sector Perform,$7.25 → $7
+2015-10-20,Reiterated,Stifel,Buy,$13 → $10
+2015-10-28,Upgrade,HSBC Securities,Hold → Buy,
+2015-11-20,Reiterated,Cowen,Market Perform,$4 → $3
+2016-01-20,Downgrade,HSBC Securities,Buy → Hold,
+2016-03-10,Downgrade,Stifel,Buy → Hold,
+2016-03-17,Downgrade,Nomura,Buy → Neutral,
+2016-03-24,Upgrade,BofA/Merrill,Neutral → Buy,
+2016-04-14,Downgrade,Credit Agricole,Underperform → Sell,
+2016-05-02,Upgrade,BB&T Capital Mkts,Hold → Buy,$10
+2016-05-05,Reiterated,Cowen,Market Perform,$3 → $6
+2016-05-06,Reiterated,RBC Capital Mkts,Sector Perform,$5 → $5.50
+2016-05-09,Downgrade,Societe Generale,Buy → Hold,
+2016-06-09,Initiated,Goldman,Neutral,
+2016-08-09,Upgrade,Morgan Stanley,Equal-Weight → Overweight,
+2016-09-08,Reiterated,RBC Capital Mkts,Sector Perform,$5.50 → $6
+2016-09-12,Upgrade,JP Morgan,Neutral → Overweight,
+2016-11-01,Upgrade,Citigroup,Sell → Neutral,
+2016-12-07,Upgrade,Credit Suisse,Underperform → Neutral,
+2017-01-23,Upgrade,Citigroup,Neutral → Buy,
+2017-01-25,Upgrade,Bernstein,Mkt Perform → Outperform,
+2017-03-31,Upgrade,BMO Capital Markets,Underperform → Market Perform,$7 → $10
+2017-09-25,Resumed,Morgan Stanley,Equal-Weight,
+2017-10-23,Resumed,Goldman,Neutral,
+2017-11-20,Upgrade,RBC Capital Mkts,Sector Perform → Outperform,$11 → $14.50
+2017-11-21,Upgrade,Macquarie,Neutral → Outperform,
+2018-01-16,Downgrade,Deutsche Bank,Buy → Hold,$12 → $12.50
+2018-03-01,Reiterated,Cowen,Market Perform,$11 → $15
+2018-03-28,Resumed,BofA/Merrill,Buy,
+2018-04-24,Downgrade,RBC Capital Mkts,Outperform → Sector Perform,
+2018-07-24,Upgrade,Clarksons Platou,Neutral → Buy,
+2018-09-07,Upgrade,Jefferies,Hold → Buy,
+2019-01-24,Downgrade,Exane BNP Paribas,Neutral → Underperform,
+2019-01-28,Downgrade,Jefferies,Buy → Hold,
+2019-05-24,Upgrade,RBC Capital Mkts,Underperform → Sector Perform,
+2019-09-05,Upgrade,Exane BNP Paribas,Underperform → Neutral,
+,Reiterated,Stifel,Buy,$16 → $13
+,Reiterated,RBC Capital Mkts,Sector Perform,$20 → $21
+,Downgrade,Morgan Stanley,Overweight → Equal-Weight,

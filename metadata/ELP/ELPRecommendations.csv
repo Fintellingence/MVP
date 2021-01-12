@@ -1,0 +1,8 @@
+DateTime,Status,Company,Recommendation,Target
+2008-01-25,Upgrade,Bear Stearns,Peer Perform → Outperform,
+2015-05-15,Upgrade,Credit Suisse,Underperform → Neutral,
+2016-01-27,Upgrade,Citigroup,Neutral → Buy,
+2016-08-05,Downgrade,Citigroup,Buy → Neutral,
+2017-08-08,Downgrade,HSBC Securities,Buy → Hold,
+2019-05-03,Upgrade,UBS,Neutral → Buy,
+2019-05-03,Downgrade,Standpoint Research,Buy → Hold,

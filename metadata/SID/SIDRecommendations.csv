@@ -1,0 +1,10 @@
+DateTime,Status,Company,Recommendation,Target
+2007-10-17,Upgrade,Deutsche Securities,Hold → Buy,$90
+2008-04-16,Upgrade,Deutsche Securities,Hold → Buy,
+2010-01-28,Upgrade,Deutsche Bank,Hold → Buy,$40 → $43
+2010-05-04,Downgrade,Barclays Capital,Overweight → Equal Weight,
+2012-03-21,Downgrade,Barclays,Equal Weight → Underweight,
+2013-10-17,Upgrade,Standpoint Research,Hold → Buy,
+2017-09-07,Upgrade,Credit Suisse,Underperform → Neutral,
+2018-01-17,Upgrade,JP Morgan,Underweight → Neutral,
+2018-06-04,Upgrade,Credit Suisse,Neutral → Outperform,

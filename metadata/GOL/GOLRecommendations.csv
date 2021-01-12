@@ -1,0 +1,39 @@
+DateTime,Status,Company,Recommendation,Target
+2007-11-08,Downgrade,Deutsche Securities,Buy → Hold,$28.30
+2007-11-13,Reiterated,Calyon Securities,Add,$26 → $29
+2007-12-11,Downgrade,UBS,Neutral → Sell ,
+2008-01-30,Upgrade,Avondale Partners,Mkt Underperform  → Mkt Perform,
+2008-04-14,Upgrade,Deutsche Securities,Hold → Buy,
+2008-08-01,Downgrade,JP Morgan,Neutral → Underweight,
+2008-08-25,Upgrade,UBS,Sell → Neutral,
+2008-09-12,Upgrade,JP Morgan,Underweight → Overweight,
+2008-12-17,Upgrade,UBS,Neutral → Buy,
+2009-01-13,Downgrade,Citigroup,Hold → Sell,
+2009-03-23,Downgrade,UBS,Buy → Neutral,
+2009-04-03,Downgrade,JP Morgan,Overweight → Underweight,
+2009-07-22,Upgrade,Credit Suisse,Neutral → Outperform,
+2009-08-25,Upgrade,Argus,Sell → Buy,$17
+2010-12-22,Downgrade,Argus,Buy → Hold,
+2011-11-01,Initiated,Barclays Capital,Overweight,$15
+2013-07-01,Initiated,Imperial Capital,Outperform,$6
+2013-10-23,Reiterated,Imperial Capital,Outperform,$6 → $9
+2015-05-08,Downgrade,BofA/Merrill,Neutral → Underperform,
+2015-08-19,Initiated,Imperial Capital,Outperform,$7 → $4
+2015-11-23,Initiated,HSBC Securities,Reduce,
+2015-12-10,Downgrade,Credit Suisse,Neutral → Underperform,
+2016-01-05,Downgrade,Deutsche Bank,Buy → Hold,$2 → $1
+2016-08-05,Upgrade,BofA/Merrill,Underperform → Neutral,
+2016-08-26,Upgrade,Credit Suisse,Underperform → Neutral,
+2016-09-08,Upgrade,Morgan Stanley,Underweight → Equal-Weight,
+2016-11-07,Upgrade,Citigroup,Sell → Neutral,
+2017-01-30,Upgrade,BofA/Merrill,Neutral → Buy,
+2017-04-05,Upgrade,HSBC Securities,Reduce → Hold,
+2017-05-18,Downgrade,BofA/Merrill,Buy → Neutral,
+2017-11-06,Initiated,Buckingham Research,Buy,$29
+2018-04-19,Downgrade,Citigroup,Neutral → Sell,
+2018-07-16,Initiated,Goldman,Neutral,
+2018-11-30,Downgrade,HSBC Securities,Buy → Hold,
+2019-06-10,Upgrade,Morgan Stanley,Equal-Weight → Overweight,
+2019-07-03,Upgrade,Goldman,Neutral → Buy,
+,Upgrade,Goldman,Sell → Neutral,
+,Downgrade,Avondale Partners,Mkt Perform → Mkt Underperform ,

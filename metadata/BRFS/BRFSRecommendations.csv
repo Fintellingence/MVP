@@ -1,0 +1,10 @@
+DateTime,Status,Company,Recommendation,Target
+2012-09-14,Downgrade,Miller Tabak,Buy → Hold,
+2015-01-14,Upgrade,Miller Tabak,Hold → Buy,
+2015-04-29,Upgrade,BofA/Merrill,Neutral → Buy,
+2015-09-16,Downgrade,JP Morgan,Overweight → Neutral,
+2015-10-05,Downgrade,Goldman,Neutral → Sell,
+2015-10-08,Upgrade,Citigroup,Neutral → Buy,
+2015-10-30,Downgrade,BofA/Merrill,Buy → Neutral,
+2016-05-31,Upgrade,JP Morgan,Neutral → Overweight,
+2017-06-06,Initiated,Barclays,Equal Weight,$14

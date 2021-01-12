@@ -2,6 +2,8 @@ from bs4 import BeautifulSoup
 import os
 import glob
 import csv
+import pandas as pd
+import numpy as np
 
 CSS_CLASS = {'up':'body-table-rating-upgrade', 'neutral':'body-table-rating-neutral','down':'body-table-rating-downgrade'}
 CWD = os.getcwd()
@@ -18,7 +20,17 @@ def get_tickers(file):
     stripper = lambda x: (x.strip())
     return list(map(stripper, tickers))
 
+def string_to_YYYYMMDD(string):
+    MONTHS = {'Jan':'01','Fev':'02','Mar':'03','Apr':'04','May':'05','Jun':'06','Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'}
+    decomposed = string.split('-')
+    for month in MONTHS.keys():
+        if month == decomposed[0]:
+            return '20'+decomposed[2]+'/'+MONTHS[month]+'/'+decomposed[1]
+        if month == decomposed[1]:
+            return '20'+decomposed[2]+'/'+MONTHS[month]+'/'+decomposed[0]
 
+
+    
 tickers = get_tickers('topBRinNYSE.txt')
 print(tickers)
 
@@ -28,6 +40,7 @@ for ticker in tickers:
     os.chdir(tickerDir)
     HTMLpages = glob.glob("*.html")
     globalRecommendations = list()
+    ticker_df = pd.DataFrame(columns=['DateTime', 'Status','Company','Recommendation','Target'])
     for page in HTMLpages:
         with open(page) as html_doc:
             soup = BeautifulSoup(html_doc,'html.parser')
@@ -54,11 +67,17 @@ for ticker in tickers:
         neutralRecommend = list(map_level(contentFilter,neutralContent,2))
         downRecommend = list(map_level(contentFilter,downgradeContent,2))
 
+
+
         recommendations = upRecommend + neutralRecommend + downRecommend
-        globalRecommendations.append(recommendations)
-    with open(ticker+"Recomendation.csv", "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerows(globalRecommendations)
-        print(globalRecommendations)
+        page_df = pd.DataFrame(recommendations)
+        page_df.columns = ['DateTime', 'Status','Company','Recommendation','Target']
+        ticker_df = pd.concat([ticker_df,page_df])
+    ticker_df['DateTime'] = ticker_df['DateTime'].map(string_to_YYYYMMDD)
+    ticker_df['DateTime'] = pd.to_datetime(ticker_df['DateTime'],format='%Y/%m/%d')
+    ticker_df.set_index('DateTime', inplace=True)
+    ticker_df.sort_values(by='DateTime',inplace=True)
+    ticker_df = ticker_df.drop_duplicates()
+    ticker_df.to_csv(ticker+'Recommendations.csv')    
     print("Recommendations for "+ticker+" successfully scraped.")
 

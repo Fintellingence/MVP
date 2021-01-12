@@ -1,0 +1,21 @@
+DateTime,Status,Company,Recommendation,Target
+2007-10-15,Initiated,HSBC Securities,Neutral,$16
+2008-01-18,Initiated,Bear Stearns,Outperform,
+2008-10-22,Downgrade,Deutsche Securities,Buy → Hold,
+2009-08-24,Initiated,Standpoint Research,Buy,$14
+2009-12-02,Reiterated,Standpoint Research,Buy,$10 → $12
+2009-12-28,Reiterated,Standpoint Research,Buy,$11 → $13
+2009-12-29,Upgrade,JP Morgan,Neutral → Overweight,$10
+2010-03-09,Initiated,Citigroup,Buy,
+2010-07-09,Downgrade,Stanford Research,Buy → Hold,
+2010-07-09,Downgrade,Standpoint Research,Buy → Hold,
+2012-12-12,Initiated,Barclays,Equal Weight,$21
+2015-05-12,Initiated,Goldman,Buy,$9.50
+2015-09-28,Downgrade,BofA/Merrill,Buy → Neutral,$8.40 → $3.60
+2017-10-09,Upgrade,Credit Suisse,Neutral → Outperform,
+2019-01-16,Upgrade,Morgan Stanley,Equal-Weight → Overweight,
+2019-09-20,Downgrade,Morgan Stanley,Overweight → Equal-Weight,$14 → $16
+2019-10-03,Initiated,Goldman,Buy,
+2019-10-07,Downgrade,HSBC Securities,Buy → Hold,
+,Upgrade,JP Morgan,Neutral → Overweight,$13
+,Downgrade,JP Morgan,Overweight → Neutral,
