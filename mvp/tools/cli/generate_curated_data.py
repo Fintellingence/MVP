@@ -14,7 +14,7 @@ for ticker in tickers[:1]:
      temp = rawData(ticker)
      listData.append(temp)
 
-parameters = {'MA': [10,15,20], 'DEV': 15, 'ACF':True, 'FD': 0.3, 'RSI': 20, 'STAT':False}
+parameters = {'MA': [10], 'DEV': [10], 'ACF':[10,500,30000], 'FD': 0.3, 'RSI': 20, 'STAT':False}
 
 test = CuratedData(listData[0],parameters)
 print(test.dfCurated)
