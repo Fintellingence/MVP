@@ -2,26 +2,20 @@ import pandas as pd
 
 class CuratedData:
     # In this model, data is provided as a class.
-    def __init__(self, data, n):
+    def __init__(self, data, parameters):
         self.ticker = data.ticker
-        self.volume = data.volume
-        self.high = data.high
-        self.low = data.low
-        self.close = data.close
-        self.open = data.open
-        self.period = n
+        self.dfCurated = data.df
+        self.parameters = parameters
         #=========================================
         # Statistics #
         #=========================================
-        self.simpleMA = self.getSimpleMA()
-        self.deviation = self.getDeviation()
-        self.ACF = self.getACF()
-        #self.fracDiff = self.getFracDiff(level)
-        self.RSI = self.getRSI()
+        for paramMA in self.parameters['MA']:
+            self.dfCurated['MA'+str(paramMA)] = self.getSimpleMA(paramMA)
+        
         self.stationarityScore = self.getStationarity()
 
-    def getSimpleMA(self):
-        return 0
+    def getSimpleMA(self, paramMA):
+        return  self.dfCurated['Close'].rolling(window=paramMA).mean()
 
     def getDeviation(self):
         return 0
@@ -37,3 +31,4 @@ class CuratedData:
 
     def getStationarity(self):
         return 0
+
