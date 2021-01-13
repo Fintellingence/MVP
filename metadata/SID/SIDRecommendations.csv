@@ -1,10 +1,1001 @@
-DateTime,Status,Company,Recommendation,Target
-2007-10-17,Upgrade,Deutsche Securities,Hold → Buy,$90
-2008-04-16,Upgrade,Deutsche Securities,Hold → Buy,
-2010-01-28,Upgrade,Deutsche Bank,Hold → Buy,$40 → $43
-2010-05-04,Downgrade,Barclays Capital,Overweight → Equal Weight,
-2012-03-21,Downgrade,Barclays,Equal Weight → Underweight,
-2013-10-17,Upgrade,Standpoint Research,Hold → Buy,
-2017-09-07,Upgrade,Credit Suisse,Underperform → Neutral,
-2018-01-17,Upgrade,JP Morgan,Underweight → Neutral,
-2018-06-04,Upgrade,Credit Suisse,Neutral → Outperform,
+,DateTime,News
+0,Sep-22-15 08:14AM,Companhia Siderurgica (SID) Enters Overbought Territory
+1,Sep-16-15 11:40AM,"Companhia Siderurgica Nacional Earnings Q2, 2015"
+2,Sep-09-15 05:03PM,Brazilian Real Extends Losses as Manufacturing Plunges Deeper
+3,Sep-08-15 02:42PM,Brazil Keeps Rates Unchanged as Real Continues Free Fall
+4,Sep-03-15 08:06PM,"CSN cash crunch eases as it refinances 2016, 2017 bank debt"
+5,Aug-28-15 06:33PM,"Brazil Tops World Markets, Even As Q2 GDP Tumbles"
+6,Aug-26-15 06:28PM,"Real slump bites Brazil\'s CSN, others despite debt hedging efforts"
+7,Aug-19-15 12:36PM,Brazil\'s CSN mulls Rothschild or Lazard for asset sales-source
+8,Aug-14-15 11:00AM,Companhia Siderurgica: Q2 Loss on Soft Sales & High Costs
+9,Aug-13-15 11:34AM,Brazil\'s CSN swings to loss; asset sales to begin soon
+10,Aug-13-15 08:19AM,CSN announces 2Q15 results
+11,Aug-13-15 07:52AM,Brazil\'s CSN posts 2nd-qtr loss as mining division struggles
+12,Aug-12-15 09:55AM,"Vale SA Earnings Q2*, 2015"
+13,Jul-21-15 02:16PM,Uh Oh. These Beaten-Down Miners are Joy Global\'s Biggest Customers
+14,Jun-26-15 06:06PM,Lula Arrest Concerns Trigger Brazil Panic: 5 Biggest Losers - Analyst Blog
+15,Jun-12-15 03:00PM,"Companhia Siderurgica Shows Growth Potential, Runs Risks - Analyst Blog"
+16,May-26-15 11:56AM,Why an Increase in Housing Starts Is Positive for Steel Investors
+17,May-07-15 01:20PM,"Companhia Siderurgica Q1 Earnings Rise Y/Y, Revenues Fall - Analyst Blog"
+18,May-07-15 08:48AM,Steel Scrap Prices Moved Sideways in April
+19,May-06-15 11:11AM,CSN announces 1Q15 results
+20,May-06-15 09:44AM,"Brazil steelmaker CSN posts surprise Q1 profit, shares rise"
+21,May-06-15 07:59AM,1Q15 Earnings Release
+22,Apr-30-15 08:40PM,1Q15 Earnings Release Schedule
+23,Apr-30-15 06:13PM,CSN announces the filing of its 2014 form 20-F
+24,Apr-30-15 10:01AM,12 Steel Stocks You Should Sell Right Now
+25,Apr-29-15 10:24PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Ba2; outlook negative
+26,Apr-28-15 10:06AM,Latest Chinese Real Estate Demand Indicators Reflect Slowdown
+27,Apr-28-15 08:51AM,Companhia Siderurgica Nacional (SID) in Focus: Up 9.2% - Tale of the Tape
+28,Apr-20-15 04:09PM,Steel Inventories in US Service Centers Decline Slightly in March
+29,Apr-17-15 10:04AM,An Overview of the Global Steel Industry in April
+30,Apr-16-15 09:30AM,Zacks Rank #5 Additions for Thursday - Tale of the Tape
+31,Apr-13-15 02:50PM,Companhia Siderurgica: Risks Outweigh Growth Prospects - Analyst Blog
+32,Apr-11-15 02:06AM,How the Decline in Steel Production Impacts Steel Companies
+33,Apr-10-15 10:06AM,Annual and Extraordinary Shareholders\xc2\xb4 Meetings Call Notice
+34,Mar-27-15 03:06PM,U.S. Steel Brings Steel Industry Woes to Congresspeople
+35,Mar-25-15 08:13AM,Will Companhia Siderurgica (SID) Continue to Surge Higher? - Tale of the Tape
+36,Mar-23-15 02:20PM,Nucor (NUE) Shares Decline 6.4% after Q1 Guidance Cut - Analyst Blog
+37,Mar-20-15 12:00PM,"AK Steel Sees Loss in Q1 on Higher Imports, Shares Sag - Analyst Blog"
+38,Mar-18-15 12:00PM,"Valmont (VMI) Faces Challenges in Irrigation, Utility - Analyst Blog"
+39,Mar-18-15 11:50AM,Steel Dynamics Sees Lower Q1 Earnings as Shipments Fall - Analyst Blog
+40,Mar-17-15 02:20PM,Steel Dynamics (STLD) Repays Senior Notes Due 2020 - Analyst Blog
+41,Mar-16-15 03:10PM,LB Foster Rides on Inorganic Growth Trajectory with IOS Buy - Analyst Blog
+42,Mar-16-15 03:00PM,"Gerdau Set to Leverage Rising Steel Demand, Runs Risks - Analyst Blog"
+43,Mar-13-15 09:50AM,Companhia Siderurgica Posts Q4 Earnings as Expenses Fall - Analyst Blog
+44,Mar-12-15 07:44AM,CSN announces 4Q14 and 2014 results
+45,Mar-12-15 07:28AM,4Q14 and 2014 Earnings Release
+46,Mar-12-15 07:00AM,CSN announces 4Q14 and 2014 Results
+47,Mar-09-15 09:15AM,4Q14 and 2014 Earnings Release Schedule
+48,Mar-03-15 11:13AM,It Might Not Be The Time To Buy Into Steel and Iron
+49,Feb-28-15 03:14PM,Brazil Is Ready To Takeoff
+50,Jan-07-15 02:52PM,Companhia Siderurgica Nacional (SID) Stock Up Today as Brazilian Iron Ore Exports Climb
+51,Jan-06-15 11:54AM,Companhia Siderurgica Nacional (SID) Stock Rises Today as Brazilian Iron Ore Exports Climb
+52,Dec-30-14 05:30PM,Notice to Shareholders - Payment of Interim Dividends
+53,Dec-23-14 02:55PM,Companhia Siderurgica Nacional (SID) Stock Higher Today as Brent Oil Rises Above $60
+54,Dec-05-14 06:40AM,Companhia Siderurgica Nacion (SID) Downgraded From Hold to Sell
+55,Nov-17-14 08:30AM,Companhia Siderurgica Posts Q3 Loss on Weak Revenues
+56,Nov-14-14 12:09PM,3 Stocks Dragging The Metals & Mining Industry Downward
+57,Nov-14-14 06:53AM,CSN announces 3Q14 results
+58,Oct-27-14 09:47AM,Today\'s Perilous Reversal Stock: Companhia Siderurgica Nacional (SID)
+59,Sep-02-14 01:03PM,Today\'s Stocks Driving Success For The Metals & Mining Industry
+60,Aug-28-14 03:32PM,Still Time to Sell Cliffs Natural Resources?
+61,Aug-19-14 06:51PM,Colombia\'s Top Gas Distributor Shows Healthy Debut
+62,Aug-05-14 10:30AM,Companhia Siderurgica Nacional Q2 Earnings and Revenue Fall
+63,Aug-04-14 09:01AM,CSN Announces 2Q14 Results
+64,Jul-18-14 09:51AM,Today\'s Dead Cat Bounce Stock Is Companhia Siderurgica Nacional (SID)
+65,Jul-16-14 07:36AM,Companhia Siderurgica Nacional (SID) in Focus: Stock Rises 5.9% in Session
+66,Jul-11-14 08:14AM,Companhia Siderurgica Nacional (SID) is Overbought: Is A Drop Coming?
+67,Jul-09-14 10:02AM,Is Companhia Siderurgica\'s Dividend Safe for Your Portfolio?
+68,Jul-08-14 06:51AM,Companhia Siderurgica Nacional (SID) in Focus: Stock Rises 5.2%
+69,Jul-07-14 03:22PM,Why Companhia Siderugica Nacion (SID) Stock Is a \'Hold\'
+70,Jul-07-14 01:02PM,3 Stocks Driving The Metals & Mining Industry Higher
+71,Jul-01-14 11:48AM,UBS: Why Did Vale Regain Momentum?
+72,Jun-30-14 04:00PM,Companhia Siderurgica Nacional to Buy Back 27M shares
+73,Jun-27-14 01:03PM,3 Stocks Pulling The Metals & Mining Industry Downward
+74,Jun-13-14 05:27PM,Election Polls Trump World Cup For Brazilian Investors
+75,Jun-13-14 01:03PM,Today\'s Stocks Driving Success For The Metals & Mining Industry
+76,Jun-06-14 09:23AM,Bank Of China Cuts Iron Ore Financing; UBS Cautious On LatAm Materials
+77,May-30-14 11:30AM,"What To Hold: 3 Hold-Rated Dividend Stocks WWE, SID, CLMT"
+78,May-28-14 11:20AM,Updated Research Report on CSN
+79,May-13-14 12:29PM,U.S. Steel: A Bid for Severstal\'s North American Assets?
+80,May-08-14 02:40PM,Brazil\'s CSN (SID) Q1 Earnings Up
+81,May-07-14 04:27PM,Companhia Siderurgica Nacional (SID) Q1 2014 Results - Earnings Call Transcript
+82,May-07-14 08:38AM,CSN Posts Net Revenue of R$4.4 Billion and Adjusted EBITDA Margin of 30% in 1Q14
+83,Apr-30-14 05:40PM,Mechel Halts Bluestone Mining Operations
+84,Apr-30-14 05:17PM,CSN Announces The Filing of its 2013 Form 20-F
+85,Apr-30-14 11:00AM,"U.S. Steel Turns to Profit, but Earnings Miss"
+86,Apr-29-14 05:20PM,AK Steel\'s AK Tube Plants Wins Safety Recognition
+87,Apr-29-14 09:22AM,"The Zacks Analyst Blog Highlights: Exelon, Ameren, ArcelorMittal, Companhia Siderurgica Nacional and Gerdau"
+88,Apr-28-14 05:30PM,ArcelorMittal Slips to Strong Sell
+89,Apr-25-14 02:40PM,"POSCO Posts Weak Q1 Earnings, Lowers Outlook"
+90,Apr-24-14 12:02PM,"Nucor Beats on Q1 Earnings, Revs"
+91,Apr-23-14 10:50AM,AK Steel Posts Wider Loss in Q1
+92,Apr-16-14 01:28PM,[video] Pisani: Yellen \'clear\' on Fed\'s intentions
+93,Apr-16-14 09:46AM,Companhia Siderurgica Nacional (SID) Marked As A Dead Cat Bounce Stock
+94,Apr-14-14 12:01PM,"Nick Carter, the President and COO of Natural Resource Partners L.P. (NRP), Interviews with The Wall Street Transcript"
+95,Apr-09-14 01:03PM,3 Stocks Dragging In The Basic Materials Sector
+96,Mar-31-14 11:30AM,"3 Hold-Rated Dividend Stocks: PVR, NYMT, SID"
+97,Mar-28-14 01:22PM,Updated Research Report on CSN
+98,Mar-26-14 02:39PM,Gerdau\'s Correction Seems Overdone
+99,Mar-25-14 05:01PM,Fears About Argentina And Mexico Have Ternium Looking Cheap
+100,Apr-29-15 10:24PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Ba2; outlook negative
+101,Apr-28-15 10:06AM,Latest Chinese Real Estate Demand Indicators Reflect Slowdown
+102,Apr-28-15 08:51AM,Companhia Siderurgica Nacional (SID) in Focus: Up 9.2% - Tale of the Tape
+103,Apr-20-15 04:09PM,Steel Inventories in US Service Centers Decline Slightly in March
+104,Apr-17-15 10:04AM,An Overview of the Global Steel Industry in April
+105,Apr-16-15 09:30AM,Zacks Rank #5 Additions for Thursday - Tale of the Tape
+106,Apr-13-15 02:50PM,Companhia Siderurgica: Risks Outweigh Growth Prospects - Analyst Blog
+107,Apr-11-15 02:06AM,How the Decline in Steel Production Impacts Steel Companies
+108,Apr-10-15 10:06AM,Annual and Extraordinary Shareholders\xc2\xb4 Meetings Call Notice
+109,Mar-27-15 03:06PM,U.S. Steel Brings Steel Industry Woes to Congresspeople
+110,Mar-25-15 08:13AM,Will Companhia Siderurgica (SID) Continue to Surge Higher? - Tale of the Tape
+111,Mar-23-15 02:20PM,Nucor (NUE) Shares Decline 6.4% after Q1 Guidance Cut - Analyst Blog
+112,Mar-20-15 12:00PM,"AK Steel Sees Loss in Q1 on Higher Imports, Shares Sag - Analyst Blog"
+113,Mar-18-15 12:00PM,"Valmont (VMI) Faces Challenges in Irrigation, Utility - Analyst Blog"
+114,Mar-18-15 11:50AM,Steel Dynamics Sees Lower Q1 Earnings as Shipments Fall - Analyst Blog
+115,Mar-17-15 02:20PM,Steel Dynamics (STLD) Repays Senior Notes Due 2020 - Analyst Blog
+116,Mar-16-15 03:10PM,LB Foster Rides on Inorganic Growth Trajectory with IOS Buy - Analyst Blog
+117,Mar-16-15 03:00PM,"Gerdau Set to Leverage Rising Steel Demand, Runs Risks - Analyst Blog"
+118,Mar-13-15 09:50AM,Companhia Siderurgica Posts Q4 Earnings as Expenses Fall - Analyst Blog
+119,Mar-12-15 07:44AM,CSN announces 4Q14 and 2014 results
+120,Mar-12-15 07:28AM,4Q14 and 2014 Earnings Release
+121,Mar-12-15 07:00AM,CSN announces 4Q14 and 2014 Results
+122,Mar-09-15 09:15AM,4Q14 and 2014 Earnings Release Schedule
+123,Mar-03-15 11:13AM,It Might Not Be The Time To Buy Into Steel and Iron
+124,Feb-28-15 03:14PM,Brazil Is Ready To Takeoff
+125,Jan-07-15 02:52PM,Companhia Siderurgica Nacional (SID) Stock Up Today as Brazilian Iron Ore Exports Climb
+126,Jan-06-15 11:54AM,Companhia Siderurgica Nacional (SID) Stock Rises Today as Brazilian Iron Ore Exports Climb
+127,Dec-30-14 05:30PM,Notice to Shareholders - Payment of Interim Dividends
+128,Dec-23-14 02:55PM,Companhia Siderurgica Nacional (SID) Stock Higher Today as Brent Oil Rises Above $60
+129,Dec-05-14 06:40AM,Companhia Siderurgica Nacion (SID) Downgraded From Hold to Sell
+130,Nov-17-14 08:30AM,Companhia Siderurgica Posts Q3 Loss on Weak Revenues
+131,Nov-14-14 12:09PM,3 Stocks Dragging The Metals & Mining Industry Downward
+132,Nov-14-14 06:53AM,CSN announces 3Q14 results
+133,Oct-27-14 09:47AM,Today\'s Perilous Reversal Stock: Companhia Siderurgica Nacional (SID)
+134,Sep-02-14 01:03PM,Today\'s Stocks Driving Success For The Metals & Mining Industry
+135,Aug-28-14 03:32PM,Still Time to Sell Cliffs Natural Resources?
+136,Aug-19-14 06:51PM,Colombia\'s Top Gas Distributor Shows Healthy Debut
+137,Aug-05-14 10:30AM,Companhia Siderurgica Nacional Q2 Earnings and Revenue Fall
+138,Aug-04-14 09:01AM,CSN Announces 2Q14 Results
+139,Jul-18-14 09:51AM,Today\'s Dead Cat Bounce Stock Is Companhia Siderurgica Nacional (SID)
+140,Jul-16-14 07:36AM,Companhia Siderurgica Nacional (SID) in Focus: Stock Rises 5.9% in Session
+141,Jul-11-14 08:14AM,Companhia Siderurgica Nacional (SID) is Overbought: Is A Drop Coming?
+142,Jul-09-14 10:02AM,Is Companhia Siderurgica\'s Dividend Safe for Your Portfolio?
+143,Jul-08-14 06:51AM,Companhia Siderurgica Nacional (SID) in Focus: Stock Rises 5.2%
+144,Jul-07-14 03:22PM,Why Companhia Siderugica Nacion (SID) Stock Is a \'Hold\'
+145,Jul-07-14 01:02PM,3 Stocks Driving The Metals & Mining Industry Higher
+146,Jul-01-14 11:48AM,UBS: Why Did Vale Regain Momentum?
+147,Jun-30-14 04:00PM,Companhia Siderurgica Nacional to Buy Back 27M shares
+148,Jun-27-14 01:03PM,3 Stocks Pulling The Metals & Mining Industry Downward
+149,Jun-13-14 05:27PM,Election Polls Trump World Cup For Brazilian Investors
+150,Jun-13-14 01:03PM,Today\'s Stocks Driving Success For The Metals & Mining Industry
+151,Jun-06-14 09:23AM,Bank Of China Cuts Iron Ore Financing; UBS Cautious On LatAm Materials
+152,May-30-14 11:30AM,"What To Hold: 3 Hold-Rated Dividend Stocks WWE, SID, CLMT"
+153,May-28-14 11:20AM,Updated Research Report on CSN
+154,May-13-14 12:29PM,U.S. Steel: A Bid for Severstal\'s North American Assets?
+155,May-08-14 02:40PM,Brazil\'s CSN (SID) Q1 Earnings Up
+156,May-07-14 04:27PM,Companhia Siderurgica Nacional (SID) Q1 2014 Results - Earnings Call Transcript
+157,May-07-14 08:38AM,CSN Posts Net Revenue of R$4.4 Billion and Adjusted EBITDA Margin of 30% in 1Q14
+158,Apr-30-14 05:40PM,Mechel Halts Bluestone Mining Operations
+159,Apr-30-14 05:17PM,CSN Announces The Filing of its 2013 Form 20-F
+160,Apr-30-14 11:00AM,"U.S. Steel Turns to Profit, but Earnings Miss"
+161,Apr-29-14 05:20PM,AK Steel\'s AK Tube Plants Wins Safety Recognition
+162,Apr-29-14 09:22AM,"The Zacks Analyst Blog Highlights: Exelon, Ameren, ArcelorMittal, Companhia Siderurgica Nacional and Gerdau"
+163,Apr-28-14 05:30PM,ArcelorMittal Slips to Strong Sell
+164,Apr-25-14 02:40PM,"POSCO Posts Weak Q1 Earnings, Lowers Outlook"
+165,Apr-24-14 12:02PM,"Nucor Beats on Q1 Earnings, Revs"
+166,Apr-23-14 10:50AM,AK Steel Posts Wider Loss in Q1
+167,Apr-16-14 01:28PM,[video] Pisani: Yellen \'clear\' on Fed\'s intentions
+168,Apr-16-14 09:46AM,Companhia Siderurgica Nacional (SID) Marked As A Dead Cat Bounce Stock
+169,Apr-14-14 12:01PM,"Nick Carter, the President and COO of Natural Resource Partners L.P. (NRP), Interviews with The Wall Street Transcript"
+170,Apr-09-14 01:03PM,3 Stocks Dragging In The Basic Materials Sector
+171,Mar-31-14 11:30AM,"3 Hold-Rated Dividend Stocks: PVR, NYMT, SID"
+172,Mar-28-14 01:22PM,Updated Research Report on CSN
+173,Mar-26-14 02:39PM,Gerdau\'s Correction Seems Overdone
+174,Mar-25-14 05:01PM,Fears About Argentina And Mexico Have Ternium Looking Cheap
+175,Mar-19-14 11:30AM,"What To Hold: 3 Hold-Rated Dividend Stocks POT, HTA, SID"
+176,Mar-14-14 05:16PM,"Why VAALCO Energy, Rigel Pharmaceuticals, and Companhia Siderurgica Nacional Are Today\'s 3 Best Stocks"
+177,Mar-14-14 01:50PM,Why Companhia Siderurgica Nacional (SID) Is Up Today
+178,Mar-03-14 09:10AM,Companhia Siderurgica Nacional Loss Plunges in Q4
+179,Feb-28-14 12:02PM,3 Stocks Pushing The Basic Materials Sector Lower
+180,Feb-28-14 07:36AM,"CSN Posts Record Net Revenue of R$17.3 Billion in 2013, With Steel Sales of More Than 6.1 Million Tonnes"
+181,Feb-24-14 11:53AM,"Another Lousy Year, Brazil Won\'t Meet Revenue Target"
+182,Feb-19-14 10:14AM,"Trade-Ideas: Companhia Siderurgica Nacional (SID) Is Today\'s ""Dead Cat Bounce"" Stock"
+183,Feb-13-14 06:00PM,Mechel Successfully Tests New Coal Export Terminal
+184,Feb-11-14 10:30AM,"5 Hold-Rated Dividend Stocks: WIN, BDN, BMO, PCL, SID"
+185,Feb-10-14 11:53AM,"Gerdau: Raising Price In Brazil, Falling US Scrap Prices; Citi\'s Top Pick"
+186,Feb-10-14 10:30AM,ArcelorMittal Cuts Loss in Q4
+187,Feb-10-14 07:17AM,"The Zacks Analyst Blog Highlights: U.S. Steel, Carpenter Technology, ArcelorMittal, Companhia Siderurgica Nacional and Novo Nordisk"
+188,Feb-07-14 04:20PM,U.S. Steel Upped to Strong Buy
+189,Feb-04-14 10:20PM,U.S. economy hits a wall; time for defense
+190,Feb-03-14 04:35PM,Nucor Held at Neutral
+191,Jan-29-14 01:53PM,"Ghost of 1929 haunts, as 1997-style crisis hits"
+192,Jan-29-14 10:30AM,"What To Hold: 5 Hold-Rated Dividend Stocks WGL, WIN, FE, BDN, SID"
+193,Jan-29-14 09:20AM,"AK Steel Jumps as Earnings, Sales Beat in Q4"
+194,Jan-29-14 09:00AM,Weak Steel Erodes Earnings at POSCO
+195,Jan-29-14 03:04AM,AK Steel Holding (AKS) Jumps: Stock Up 18.7%
+196,Jan-28-14 12:27PM,"Nucor Beats on Earnings, Revs in Q4"
+197,Jan-28-14 08:40AM,U.S. Steel Beats Q4 Earnings
+198,Jan-27-14 10:40AM,U.S. Steel Makes Management Changes
+199,Jan-24-14 03:43PM,These 4 Brazil-Based Stocks Plummeted on Friday
+200,05-Dec-13 05:28PM,Nucor Hikes Quarterly Dividend
+201,05-Dec-13 08:10AM,VTB Bank Gives Mechel Covenant Holidays
+202,04-Dec-13 08:30AM,AKS Cheers Trade Commission???s Ruling
+203,04-Dec-13 05:54AM,Shiloh Industries (SHLO) in Focus: Stock Moves 5.2% Higher
+204,02-Dec-13 05:50PM,"ArcelorMittal, Nippon Steel Buy TK Steel USA"
+205,27-Nov-13 06:15PM,ArcelorMittal Retains Neutral Rec
+206,26-Nov-13 02:30PM,Mechel Gets Covenant Holidays on Loan
+207,25-Nov-13 05:45PM,AK Steel Raises Stainless Steel Prices
+208,22-Nov-13 01:40PM,CSN Maintained at Outperform
+209,21-Nov-13 01:40PM,Gerdau Maintained at Neutral
+210,20-Nov-13 10:00AM,"5 With Upcoming Ex-Dividend Dates: HL, TEN, SID, LTD, LYB"
+211,18-Nov-13 11:00AM,J.P. Morgan 2014 LatAm Outlook: Returns Will Come From Earnings
+212,15-Nov-13 08:20AM,CSN Q3 Earnings Beat Ests
+213,14-Nov-13 04:59PM,Companhia Siderurgica Nacional\'s Management Discusses Q3 2013 Results - Earnings Call Transcript
+214,14-Nov-13 12:03PM,"CSN, Brazil carmakers in talks for new price hike this year"
+215,14-Nov-13 05:50AM,CSN Posts Record Steel And Mining Revenue In 3Q13
+216,12-Nov-13 06:23PM,"US Steel, AK Steel Lead Steel Stocks On A Hot Roll"
+217,12-Nov-13 01:30PM,Balanced View on U.S. Steel
+218,11-Nov-13 05:50PM,AK Steel Reaffirmed with Neutral Rec
+219,11-Nov-13 05:05PM,LB Foster Acquires Ball Winch Pipeline
+220,11-Nov-13 04:20PM,U.S. Steel Up on Safety Recognition
+221,08-Nov-13 05:10PM,AK Steel Hikes Carbon Steel Prices
+222,08-Nov-13 02:52PM,Mechel Posts Q3 Operational Results
+223,08-Nov-13 12:50PM,Narrower-than-Expected Loss at ArcelorMittal
+224,07-Nov-13 05:50PM,Universal Stainless Down to Strong Sell
+225,06-Nov-13 12:55PM,"Foster Beats Q3 Earnings, Misses on Revs"
+226,01-Nov-13 06:23PM,Your first trade for Monday
+227,01-Nov-13 05:29PM,[video] Fast Money Final Trade
+228,30-Oct-13 06:05PM,AK Steel Wins Patent Infringement Lawsuit
+229,29-Oct-13 11:43AM,Narrower-than-Expected Loss at U.S. Steel
+230,28-Oct-13 06:00PM,Mechel Inks Elga Financing Deal
+231,28-Oct-13 08:40AM,Commercial Metals Rises on Q4 Earnings Beat
+232,23-Oct-13 08:30AM,"AK Steel Trims Loss, Outage Hurts Shipment"
+233,22-Oct-13 03:50PM,Will Precision Castparts (PCP) Miss Earnings?
+234,21-Oct-13 05:25PM,Top Stock Picks for the Week of October 21st
+235,17-Oct-13 01:45PM,Nucor Beats Estimates in Q3
+236,17-Oct-13 12:10PM,Mechel Shareholders Approve Guarantee Issue
+237,17-Oct-13 04:05AM,Comp Siderurgica upgraded by Standpoint Research
+238,15-Oct-13 05:04PM,5 Stocks Under $10
+239,15-Oct-13 02:30PM,"Allegheny to Restructure, Forecasts Q3 Loss"
+240,14-Oct-13 05:25PM,Allegheny Lifted to Neutral
+241,10-Oct-13 08:20AM,A. M. Castle Slips on Loss Prediction
+242,08-Oct-13 02:20PM,ArcelorMittal Inks Deal with Sider
+243,07-Oct-13 06:20PM,Valmont Lowered to Neutral
+244,03-Oct-13 05:52PM,U.S. Steel Intros ACRYLUME E PLUS
+245,03-Oct-13 03:40PM,USAP Gets Nadcap & ISO 17025 Accreditation
+246,01-Oct-13 12:00PM,AK Steel Files Anti-Dumping Case
+247,30-Sep-13 02:20PM,Nucor Falls on Project Delay
+248,26-Sep-13 01:50PM,Mechel Completes Project Construction
+249,25-Sep-13 11:28AM,Interesting SID Put For November 16th
+250,23-Sep-13 01:50PM,AK Steel Down on Weak Q3 View
+251,23-Sep-13 01:10PM,Universal Stainless Down to Strong Sell
+252,20-Sep-13 01:50PM,Mechel Gets Fund Approval for Elga
+253,19-Sep-13 02:20PM,Nucor Unveils Q3 View
+254,19-Sep-13 02:00PM,SID Upgraded to Outperform
+255,19-Sep-13 08:00AM,AK Steel Holding (AKS) in Focus: Stock Soars 10%
+256,18-Sep-13 06:26PM,Steel Makers: Second Powerful Advance In Three Months
+257,18-Sep-13 05:18PM,Is the Steel Industry Regaining Its Shine?
+258,18-Sep-13 12:30PM,ROCK Downgraded to Underperform
+259,16-Sep-13 01:30PM,Nucor Lifted to Neutral
+260,12-Sep-13 10:50AM,Gibraltar Expands Product Offering
+261,11-Sep-13 01:30PM,Strongest Steel Stocks in the Materials Sector
+262,11-Sep-13 08:20AM,SID Upgraded to Strong Buy
+263,10-Sep-13 04:39AM,Emerging Markets Morning Roundup: Miners and Steel Makers Gain From China; Syria Overhang Recedes
+264,26-Aug-13 01:40PM,CSN\'s Neutral Rec Maintained
+265,19-Aug-13 01:03PM,5 Stocks Improving Performance Of The Basic Materials Sector
+266,15-Aug-13 03:45PM,3 Steals on Steel
+267,15-Aug-13 04:16AM,Large put trade in Brazilian steel firm
+268,14-Aug-13 10:00AM,"Ex-Dividends To Watch: 5 Stocks Going Ex-Dividend Tomorrow: ARDC, PACW, SID, HIW, ABC"
+269,12-Aug-13 04:02PM,Is it Time to Buy These Beaten Down Brazilian Stocks?
+270,12-Aug-13 01:45PM,Steel Stocks Jump
+271,07-Aug-13 06:59PM,Companhia Siderurgica Nacional\'s Management Discusses Q2 2013 Results - Earnings Call Transcript
+272,07-Aug-13 04:46PM,Emerging Markets Evening Roundup: The Love Boat\'s Final Voyage to Turkey; Giant Interactive\'s 9% Plunge
+273,07-Aug-13 02:10PM,CSN\'s Q2 Earnings Surpass Est.
+274,07-Aug-13 07:14AM,InPlay: Comp Siderurgica reports 1H13 net rev from steel +21% y/y
+275,06-Aug-13 07:46PM,CSN Posts Record Steel Revenue and Sales Volume in 1H13
+276,06-Aug-13 07:10PM,Brazil\'s CSN second-quarter profit above estimates
+277,22-Jul-13 11:34AM,"HRT Plunges 25% on Dry Oil Well, UBS Downgrade"
+278,12-Jul-13 02:00PM,Buy This Coal Miner At A Deep Discount
+279,12-Jul-13 11:07AM,Gafisa Drops 3% as New Project Launches Slow
+280,17-Jun-13 03:44PM,Investors Dump Cos Owned By Brazil Billionaire Batista
+281,07-Jun-13 11:36AM,Brazil: Is S&P\'s Negative Outlook Good News?
+282,06-Jun-13 01:10PM,Neutral Reiterated on CSN
+283,06-Jun-13 01:04PM,"SID, GGB, TS And MT, 4 Metals & Mining Stocks Pushing The Industry Lower"
+284,06-Jun-13 11:56AM,Invest In These 3 Brazilian Steel Companies
+285,05-Jun-13 05:29PM,Emerging Markets Evening Roundup: Las Vegas Sands Approves Share Buyback; Giant Interactive Plunges
+286,05-Jun-13 08:54AM,"ThyssenKrupp may sell Brazilian steel mill to CSN, Reuters reports"
+287,03-Jun-13 03:30PM,Will Future Initiatives Be Enough to Boost the Brazilian Iron & Steel Industry?
+288,29-May-13 01:04PM,4 Stocks Underperforming Today In The Metals & Mining Industry
+289,21-May-13 08:06AM,Brazil\'s CSN could see Asian partners exit Namisa unit -report
+290,17-May-13 09:04PM,STXNEWS LATAM-CSN still considering purchase of Thyssen\'s Steel America unit
+291,16-May-13 09:29PM,Companhia Siderurgica Nacional Management Discusses Q1 2013 Results - Earnings Call Transcript
+292,16-May-13 02:46PM,Brazil\'s CSN sees its average steel price up over 5 pct in Q2
+293,16-May-13 09:48AM,Brazil CSN\'s earnings miss forecasts as iron sales decline
+294,16-May-13 08:10AM,CSN Posts Weak 1Q13 Earnings & Rev
+295,15-May-13 11:14PM,CSN Announces 1Q13 Results
+296,09-May-13 09:01AM,ThyssenKrupp Close to Finally Biting the Bullet
+297,09-May-13 04:16AM,Big put sale in Brazilian steel maker
+298,07-May-13 01:04PM,NATIONAL STEEL CO Financials
+299,30-Apr-13 06:06PM,CSN Announces the Filing of its 2012 Form 20-F
+300,Dec-04-18 10:18AM,Edited Transcript of CSNA3.SA earnings conference call or presentation 8-Nov-18 2:00pm GMT
+301,Dec-01-18 05:56PM,6 Undervalued Stocks With Rising Prices
+302,Nov-28-18 09:31AM,"EMERGING MARKETS-Brazil\'s real gains for second day on central bank support, peso firms too"
+303,Nov-28-18 07:58AM,Emerging Markets to Outpace US in 2019: 4 Gainers
+304,Nov-08-18 01:47PM,Brazil steelmaker CSN plans 27.5 pct price hike for automakers
+305,Nov-08-18 01:35PM,Brazil steelmaker CSN plans 27.5 pct price hike for automakers
+306,Sep-20-18 09:44AM,Siderurgica Nacional: 2Q Earnings Snapshot
+307,Sep-19-18 03:51PM,6 Undervalued Stocks With a Margin of Safety
+308,Sep-12-18 08:14AM,5 Reasons to Add Steel Dynamics (STLD) to Your Portfolio
+309,Aug-31-18 07:01AM,Steel Dynamics (STLD) Stock Up 31% in a Year: Here\'s Why
+310,Aug-28-18 09:27AM,Brazil\'s CSN says court blocked $217 mln dividend distribution
+311,Aug-26-18 12:01AM,Edited Transcript of CSNA3.SA earnings conference call or presentation 8-Aug-18 7:00pm GMT
+312,Aug-24-18 11:19AM,Brazilian steelmaker CSN to raise prices by 10 percent
+313,Aug-24-18 09:46AM,Brazil\'s steelmaker CSN to hike prices 10 pct -newspaper
+314,Aug-22-18 07:35AM,"Detailed Research: Economic Perspectives on Matthews International, New York, Goldcorp, Match Group, Range Resources, and National Steel  What Drives Growth in Today\'s Competitive Landscape"
+315,Aug-12-18 10:02AM,"CSN hires Jefferies to sell assets in Portugal, Germany -paper"
+316,Aug-08-18 02:00PM,Companhia Siderurgica Nacional Sponsored ADR to Host Earnings Call
+317,Jul-24-18 12:57PM,Why Companhia Siderurgica Nacional\xc2\xa0Stock Popped 11% This Morning
+318,Jun-25-18 07:15AM,Free Stock Performance Review on AK Steel Holding and Three Additional Steel & Iron Stocks
+319,Jun-14-18 08:20AM,Here\'s Why You Should Hold on to Companhia Siderurgica Now
+320,Jun-08-18 12:03PM,"Why Petroleo Brasileiro, Companhia Siderurgica, and Azul SA Stocks Collapsed Yesterday"
+321,Jun-08-18 07:55AM,"Research Report Identifies AC Immune SA, Vipshop, Infosys, STMicroelectronics N.V., BRF S.A., and National Steel with Renewed Outlook  Fundamental Analysis, Calculating Forward Movement"
+322,Jun-04-18 04:33PM,"Why Fossil Group, Companhia Siderurgica Nacional, and Immunomedics Jumped Today"
+323,Jun-04-18 01:37PM,Why Companhia Siderurgica Nacional Stock Just Popped 13%
+324,May-23-18 06:13AM,Edited Transcript of CSNA3.SA earnings conference call or presentation 15-May-18 2:00pm GMT
+325,May-21-18 08:27AM,"Brazil regulator investigates dispute between CSN, shareholder"
+326,May-15-18 07:57PM,"Steel Dynamics, Inc. -- Moody\'s says SDI\'s acquisition of CSN Heartland is credit positive"
+327,May-15-18 06:17PM,Companhia Siderurgica Nacional (CSN) -- Moody\'s comments that CSN\'s US asset sale is credit positive
+328,May-15-18 11:44AM,"Brazil\'s CSN plans more asset sales this year, CEO says"
+329,May-15-18 10:14AM,Companhia Siderurgica\'s (SID) Earnings Improve Y/Y in Q1
+330,May-10-18 07:15AM,Free Research Coverage on United States Steel and Three Additional Stocks Within the Steel & Iron Industry
+331,Apr-17-18 04:00PM,Deals of the day-Mergers and acquisitions
+332,Apr-17-18 08:14AM,Brazil steelmaker CSN in talks to sell U.S. unit for $250 mln- report
+333,Mar-27-18 11:46AM,"Companhia Siderurgica (SID) Posts Q4 Earnings, Sales Solid"
+334,Mar-27-18 10:38AM,"Brazilian steelmaker CSN to sell up to $900 mln in assets, CEO says"
+335,Mar-27-18 07:35AM,"Report: Exploring Fundamental Drivers Behind Mobile TeleSystems OJSC, Scorpio Tankers, Magellan Midstream Partners, National Steel, AstraZeneca, and Alibaba Group Holding  New Horizons, Emerging Trends, and Upcoming Developments"
+336,Mar-14-18 10:16AM,"Brazilian steelmaker shrugs off U.S. tariffs, sees domestic demand as key"
+337,Mar-02-18 04:30PM,Expiration of Tender Offers for up to U.S.$350 million of 2019 Notes and 2020 Notes by CSN Resources S.A.
+338,Feb-15-18 11:47AM,Early Results of Tender Offers for up to U.S.$350 million of 2019 Notes and 2020 Notes by CSN Resources S.A.
+339,Feb-08-18 11:52PM,Amendment to Terms of Cash Tender Offers by CSN Resources S.A.
+340,Feb-01-18 11:17AM,Announcement of Tender Offers for up to U.S.$750 million of 2019 Notes and 2020 Notes by CSN Resources S.A.
+341,Feb-01-18 10:23AM,"CSN Islands XII Corporation -- Moody\'s upgrades CSN\'s ratings to B3, Stable Outlook"
+342,Jan-02-18 11:14AM,"ETFs with exposure to Companhia Siderurgica Nacional : January 2, 2018"
+343,Dec-22-17 11:49AM,"ETFs with exposure to Companhia Siderurgica Nacional : December 22, 2017"
+344,Dec-11-17 02:09PM,"ETFs with exposure to Companhia Siderurgica Nacional : December 11, 2017"
+345,Nov-30-17 02:22PM,"ETFs with exposure to Companhia Siderurgica Nacional : November 30, 2017"
+346,Nov-20-17 01:17PM,"ETFs with exposure to Companhia Siderurgica Nacional : November 20, 2017"
+347,Nov-10-17 12:51PM,"ETFs with exposure to Companhia Siderurgica Nacional : November 10, 2017"
+348,Nov-09-17 09:41AM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q3, 2017 By the Numbers : November 9, 2017"
+349,Nov-01-17 09:48AM,Companhia Siderurgica (SID) Posts Q3 Earnings on Solid Sales
+350,Oct-31-17 01:39PM,"Brazil\'s CSN waiting for better prices to sell assets, CEO says"
+351,Oct-31-17 09:00AM,Companhia Siderurgica Nacional Sponsored ADR to Host Earnings Call
+352,Oct-20-17 02:19PM,"Brazil\'s CSN expects to issue bonds by year-end, CEO says"
+353,Aug-15-17 05:57PM,Brazil\'s CSN delays second-quarter results
+354,Jul-17-17 07:46PM,CSN Islands XII Corporation -- Moody\'s downgrades CSN to Caa2; outlook remains negative
+355,Jul-05-17 10:09AM,First Asset Opens the Market
+356,Jul-05-17 07:00AM,NEW: First Asset U.S. TrendLeaders Index ETF
+357,Jun-07-17 01:13PM,Why Companhia Siderurgica Nacional Stock Dropped 12% in May
+358,May-19-17 06:31PM,"Why Gerdau, Cosan, and Companhia Siderurgica Nacional Stocks Soared Today"
+359,May-18-17 12:36PM,"Why Cia Energetica de Minas Gerais, Companhia Siderurgica Nacional, and Everything Else in Brazil Are Falling Apart Today"
+360,May-15-17 08:34PM,Brazil\'s CSN delays first-quarter results pending accounting review
+361,Apr-19-17 03:37PM,Brazil\'s CSN iron ore terminal not operating after accident -sources
+362,Apr-19-17 12:28PM,Brazil\'s CSN iron ore terminal not operating after accident - sources
+363,Mar-09-17 09:30AM,"The Zacks Analyst Blog Highlights: U.S. Steel, Ternium, ArcelorMittal and Companhia Siderurgica Nacional"
+364,Mar-08-17 05:03PM,4 Steel Stocks Poised to Run Higher Without Trump\'s Help
+365,Mar-01-17 10:36AM,Will Rising Commodity Prices Help Brazil Recover?
+366,Feb-10-17 08:55AM,Why National Steel Company (SID) Could Shock the Market Soon
+367,Jan-18-17 03:20PM,7 Stocks You Could Buy to Beat the Market
+368,Jan-03-17 09:04AM,Companhia Siderurgica Nacional (SID) Sees Hammer Chart Pattern: Time to Buy?
+369,Dec-27-16 06:06PM,Bruce Pile\'s Top Recommendations For 2017
+370,Dec-27-16 06:06PM,Bruce Pile\'s Top Recommendations For 2017
+371,Dec-23-16 08:15AM,"Post Earnings Coverage as Worthington Revenue up 4 Percent, Adjusted Earnings Climbed 25 Percent"
+372,Dec-20-16 07:08AM,What Makes Gerdau (GGB) an Attractive Pick for Long Term?
+373,Dec-12-16 07:48PM,Is Woodward Inc (WWD) a Good Stock to Buy?
+374,Dec-12-16 07:48PM,Is Woodward Inc (WWD) a Good Stock to Buy?
+375,Dec-07-16 07:30AM,Companhia Siderurgica\'s Prospects Strong: Should You Buy?
+376,Dec-01-16 10:47AM,Better Buy: Teck Resources Ltd. vs. Companhia Siderurgica Nacional
+377,Nov-27-16 03:41PM,Should You Be Concerned About Diamond Offshore Drilling Inc (DO)s Falling Hedge Fund Ownership?
+378,Nov-23-16 08:30AM,Companhia Siderurgica Nacional (SID) Jumps: Stock Up 9%
+379,Nov-22-16 11:15AM,Shark Bites: These Steel Names Are Looking Strong
+380,Nov-18-16 01:35PM,"ETFs with exposure to Companhia Siderurgica Nacional : November 18, 2016"
+381,Nov-17-16 10:10AM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q3, 2016 By the Numbers : November 17, 2016"
+382,Nov-15-16 08:47AM,"Companhia Siderurgica (SID) Q3 Loss Narrows Y/Y, Sales Up"
+383,Nov-14-16 06:41AM,CSN announces 3Q16 results
+384,Oct-05-16 07:23PM,Brazil\'s CSN says Usiminas shareholder rift is prejudicial to company
+385,Sep-30-16 08:30AM,Companhia Siderurgica\'s Growth Dimmed by Headwinds
+386,Sep-14-16 02:45PM,Here\'s Why These Steel Stocks Got Hammered
+387,Aug-19-16 08:18AM,Companhia Siderurgica\'s Potential Overshadowed by Risks
+388,Aug-16-16 08:19AM,"Companhia Siderurgica (SID) Q2 Loss Narrows Y/Y, Sales Up"
+389,Aug-15-16 06:34PM,Siderurgica Nacional reports 2Q loss
+390,Aug-15-16 05:54PM,CSN announces 2Q16 results
+391,Jul-19-16 01:07PM,"ETFs with exposure to Companhia Siderurgica Nacional : July 19, 2016"
+392,Jun-17-16 03:42PM,Brazil judge overturns bar on CSN appointees to Usiminas board
+393,Jun-17-16 07:07AM,Companhia Siderurgica\'s Future Dim on Micro & Macro Woes
+394,Jun-09-16 04:21PM,Companhia Siderurgica Nacional: Strong price momentum but will it sustain?
+395,Jun-03-16 03:40PM,"ETFs with exposure to Companhia Siderurgica Nacional : June 3, 2016"
+396,Jun-01-16 02:18PM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q1, 2016 By the Numbers : June 1, 2016"
+397,May-30-16 01:04AM,Brazilian Financial Markets in the Aftermath of the 5522 Vote
+398,May-26-16 01:04PM,NATIONAL STEEL CO Financials
+399,May-25-16 03:45PM,Chesapeake Energy Corporation (CHK)s Stock Extends Its Rally Into Second Day
+400,Jul-19-16 01:07PM,"ETFs with exposure to Companhia Siderurgica Nacional : July 19, 2016"
+401,Jun-17-16 03:42PM,Brazil judge overturns bar on CSN appointees to Usiminas board
+402,Jun-17-16 07:07AM,Companhia Siderurgica\'s Future Dim on Micro & Macro Woes
+403,Jun-09-16 04:21PM,Companhia Siderurgica Nacional: Strong price momentum but will it sustain?
+404,Jun-03-16 03:40PM,"ETFs with exposure to Companhia Siderurgica Nacional : June 3, 2016"
+405,Jun-01-16 02:18PM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q1, 2016 By the Numbers : June 1, 2016"
+406,May-30-16 01:04AM,Brazilian Financial Markets in the Aftermath of the 5522 Vote
+407,May-26-16 01:04PM,NATIONAL STEEL CO Financials
+408,May-25-16 03:45PM,Chesapeake Energy Corporation (CHK)s Stock Extends Its Rally Into Second Day
+409,May-16-16 02:53PM,"Inflation in Brazil Has Slowed, but the Battle Is Far from Over"
+410,May-13-16 05:12PM,Companhia Siderurgica Plunges 13% After Earnings Disappoint Investors
+411,May-13-16 12:48PM,Why Are These Stocks Deep In Red on Friday?
+412,May-13-16 08:14AM,"Companhia Siderurgica (SID) Slips into Q1 Loss, Sales Weak"
+413,May-12-16 08:52AM,CSN announces 1Q16 results
+414,Apr-28-16 05:53PM,Brazil\'s Usiminas picks new chairman in rare consensus
+415,Apr-28-16 01:55PM,5 Stocks Below $10 That Have Crushed the Market
+416,Apr-13-16 02:20PM,Heres Why These 5 Stocks Are Grabbing Headlines Today
+417,Apr-12-16 04:24PM,Commodity Sectors Lead the Market\'s Charge
+418,Apr-08-16 09:30AM,"The Zacks Analyst Blog Highlights: GAMCO Investors, Companhia Siderurgica Nacional, NII Holdings, OCI Partners and James Hardie Industries"
+419,Apr-07-16 11:08AM,5 Stocks Brokers Have Given Up On: Why You Should Not
+420,Apr-07-16 10:00AM,5 Momentum Stocks to Play on a Strong Uptrend
+421,Apr-06-16 03:06PM,"Brazil\'s CSN gauges sale, partner for Tecon amid debt relief -sources"
+422,Apr-06-16 08:05AM,Companhia Siderurgica Nacional (SID) Moves 8.8% Higher
+423,Apr-05-16 02:20PM,ArcelorMittal (MT) Completes $3 Billion Rights Issue
+424,Apr-05-16 12:30PM,Reliance Steel & Aluminum (RS) Snaps Up Best Manufacturing
+425,Apr-05-16 09:30AM,"White Mountains Insurance Group, Bunge, Siderurgica Steel, Konami and AXA SA highlighted as Zacks Bull and Bear of the Day"
+426,Apr-04-16 05:25PM,What Makes Companhia Siderurgica (SID) an Attractive Pick?
+427,Apr-04-16 03:38PM,"ETFs with exposure to Companhia Siderurgica Nacional : April 4, 2016"
+428,Apr-04-16 03:38PM,"ETFs with exposure to Companhia Siderurgica Nacional : April 4, 2016"
+429,Apr-04-16 10:21AM,Ride Beaten-Down Shares Up the Wall of Worry: Global Week Ahead
+430,Apr-02-16 03:49PM,Five Top-Performering Stocks Hedge Funds Overlooked
+431,Mar-31-16 12:33PM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q4, 2015 By the Numbers"
+432,Mar-31-16 11:51AM,Companhia Siderurgica Nacional :SID-US: Earnings Analysis: 2015 By the Numbers
+433,Mar-31-16 08:36AM,New Strong Buy Stocks for March 31st
+434,Mar-29-16 10:00AM,Companhia Siderurgica Q4 Net Income Up Y/Y; Sales Down
+435,Mar-29-16 12:28AM,CSN announces its 4Q15 results
+436,Mar-28-16 11:27PM,CSN announces 4Q15 and 2015 Results
+437,Mar-21-16 05:03PM,4Q15 and 2015 Earnings Release Schedule
+438,Mar-17-16 04:08PM,Why Brazilian Industrial Stocks Surged Higher Today
+439,Mar-17-16 01:54PM,3 Low-priced Stocks Set to Head Higher
+440,Mar-17-16 12:39PM,Is Brazil Economy Bottoming Out?
+441,Mar-01-16 08:10AM,Companhia Siderurgica Nacional (SID) Catches Eye: Stock Up 5.6%
+442,Feb-29-16 08:30AM,"Do GGB, CMC, SID, and TMST Weigh Their Weight in Gold?"
+443,Feb-12-16 02:50PM,Companhia Siderurgica Nacional Faces Micro & Macro Woes
+444,Feb-09-16 06:21AM,5 Commodity Stocks That Could Reverse Higher in February
+445,Feb-03-16 05:25PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Caa1; outlook remains negative
+446,Feb-02-16 04:26PM,Brazil Steel Maker CSN On Verge Of Bankruptcy As China Demand Vanishes
+447,Dec-22-15 03:15PM,Companhia Siderurgica Shows Vital Strength Despite Risks
+448,Dec-03-15 11:00AM,"Companhia Siderurgica Nacional Earnings Q3, 2015"
+449,Dec-02-15 12:09PM,"ArcelorMittal: \'We Knew We Were Early, But Not This Early\'"
+450,Nov-27-15 05:26PM,Hedge Funds Arent Crazy About Companhia Siderurgica Nacional (ADR) (SID) Anymore
+451,Nov-21-15 11:47AM,Is TransAlta Corporation (USA) (TAC) Going to Power These Hedge Funds Returns?
+452,Nov-16-15 10:20AM,Companhia Siderurgica\'s Q3 Loss Widens on Higher Costs
+453,Nov-13-15 03:05PM,Brazil\'s CSN sinks as management fails to assuage debt worries
+454,Nov-13-15 12:17PM,What Factors Derailed the Steel Industrys Expected 2H15 Recovery?
+455,Nov-13-15 07:27AM,CSN announces 3Q15 results
+456,Nov-04-15 03:09PM,"Brazilian Industry Saw Largest Decline Since 2009, But It\'s Not As Bad As Anticipated"
+457,Oct-30-15 05:07PM,CSN Resources S.A. -- Moody\'s downgrades CSN to B1; outlook remains negative
+458,Oct-27-15 03:22PM,"S&P downgrades Brazil\'s steelmaker CSN, keeps outlook negative"
+459,Oct-14-15 06:03PM,How the World Economy Adjusts to Lower Commodity Prices
+460,Sep-22-15 08:14AM,Companhia Siderurgica (SID) Enters Overbought Territory
+461,Sep-16-15 11:40AM,"Companhia Siderurgica Nacional Earnings Q2, 2015"
+462,Sep-09-15 05:03PM,Brazilian Real Extends Losses as Manufacturing Plunges Deeper
+463,Sep-08-15 02:42PM,Brazil Keeps Rates Unchanged as Real Continues Free Fall
+464,Sep-03-15 08:06PM,"CSN cash crunch eases as it refinances 2016, 2017 bank debt"
+465,Aug-28-15 06:33PM,"Brazil Tops World Markets, Even As Q2 GDP Tumbles"
+466,Aug-26-15 06:28PM,"Real slump bites Brazil\'s CSN, others despite debt hedging efforts"
+467,Aug-19-15 12:36PM,Brazil\'s CSN mulls Rothschild or Lazard for asset sales-source
+468,Aug-14-15 11:00AM,Companhia Siderurgica: Q2 Loss on Soft Sales & High Costs
+469,Aug-13-15 11:34AM,Brazil\'s CSN swings to loss; asset sales to begin soon
+470,Aug-13-15 08:19AM,CSN announces 2Q15 results
+471,Aug-13-15 07:52AM,Brazil\'s CSN posts 2nd-qtr loss as mining division struggles
+472,Aug-12-15 09:55AM,"Vale SA Earnings Q2*, 2015"
+473,Jul-21-15 02:16PM,Uh Oh. These Beaten-Down Miners are Joy Global\'s Biggest Customers
+474,Jun-26-15 06:06PM,Lula Arrest Concerns Trigger Brazil Panic: 5 Biggest Losers - Analyst Blog
+475,Jun-12-15 03:00PM,"Companhia Siderurgica Shows Growth Potential, Runs Risks - Analyst Blog"
+476,May-26-15 11:56AM,Why an Increase in Housing Starts Is Positive for Steel Investors
+477,May-07-15 01:20PM,"Companhia Siderurgica Q1 Earnings Rise Y/Y, Revenues Fall - Analyst Blog"
+478,May-07-15 08:48AM,Steel Scrap Prices Moved Sideways in April
+479,May-06-15 11:11AM,CSN announces 1Q15 results
+480,May-06-15 09:44AM,"Brazil steelmaker CSN posts surprise Q1 profit, shares rise"
+481,May-06-15 07:59AM,1Q15 Earnings Release
+482,Apr-30-15 08:40PM,1Q15 Earnings Release Schedule
+483,Apr-30-15 06:13PM,CSN announces the filing of its 2014 form 20-F
+484,Apr-30-15 10:01AM,12 Steel Stocks You Should Sell Right Now
+485,Apr-29-15 10:24PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Ba2; outlook negative
+486,Apr-28-15 10:06AM,Latest Chinese Real Estate Demand Indicators Reflect Slowdown
+487,Apr-28-15 08:51AM,Companhia Siderurgica Nacional (SID) in Focus: Up 9.2% - Tale of the Tape
+488,Apr-20-15 04:09PM,Steel Inventories in US Service Centers Decline Slightly in March
+489,Apr-17-15 10:04AM,An Overview of the Global Steel Industry in April
+490,Apr-16-15 09:30AM,Zacks Rank #5 Additions for Thursday - Tale of the Tape
+491,Apr-13-15 02:50PM,Companhia Siderurgica: Risks Outweigh Growth Prospects - Analyst Blog
+492,Apr-11-15 02:06AM,How the Decline in Steel Production Impacts Steel Companies
+493,Apr-10-15 10:06AM,Annual and Extraordinary Shareholders\xc2\xb4 Meetings Call Notice
+494,Mar-27-15 03:06PM,U.S. Steel Brings Steel Industry Woes to Congresspeople
+495,Mar-25-15 08:13AM,Will Companhia Siderurgica (SID) Continue to Surge Higher? - Tale of the Tape
+496,Mar-23-15 02:20PM,Nucor (NUE) Shares Decline 6.4% after Q1 Guidance Cut - Analyst Blog
+497,Mar-20-15 12:00PM,"AK Steel Sees Loss in Q1 on Higher Imports, Shares Sag - Analyst Blog"
+498,Mar-18-15 12:00PM,"Valmont (VMI) Faces Challenges in Irrigation, Utility - Analyst Blog"
+499,Mar-18-15 11:50AM,Steel Dynamics Sees Lower Q1 Earnings as Shipments Fall - Analyst Blog
+500,Aug-15-17 05:57PM,Brazil\'s CSN delays second-quarter results
+501,Jul-17-17 07:46PM,CSN Islands XII Corporation -- Moody\'s downgrades CSN to Caa2; outlook remains negative
+502,Jul-05-17 10:09AM,First Asset Opens the Market
+503,Jul-05-17 07:00AM,NEW: First Asset U.S. TrendLeaders Index ETF
+504,Jun-07-17 01:13PM,Why Companhia Siderurgica Nacional Stock Dropped 12% in May
+505,May-19-17 06:31PM,"Why Gerdau, Cosan, and Companhia Siderurgica Nacional Stocks Soared Today"
+506,May-18-17 12:36PM,"Why Cia Energetica de Minas Gerais, Companhia Siderurgica Nacional, and Everything Else in Brazil Are Falling Apart Today"
+507,May-15-17 08:34PM,Brazil\'s CSN delays first-quarter results pending accounting review
+508,Apr-19-17 03:37PM,Brazil\'s CSN iron ore terminal not operating after accident -sources
+509,Apr-19-17 12:28PM,Brazil\'s CSN iron ore terminal not operating after accident - sources
+510,Mar-09-17 09:30AM,"The Zacks Analyst Blog Highlights: U.S. Steel, Ternium, ArcelorMittal and Companhia Siderurgica Nacional"
+511,Mar-08-17 05:03PM,4 Steel Stocks Poised to Run Higher Without Trump\'s Help
+512,Mar-01-17 10:36AM,Will Rising Commodity Prices Help Brazil Recover?
+513,Feb-10-17 08:55AM,Why National Steel Company (SID) Could Shock the Market Soon
+514,Jan-18-17 03:20PM,7 Stocks You Could Buy to Beat the Market
+515,Jan-03-17 09:04AM,Companhia Siderurgica Nacional (SID) Sees Hammer Chart Pattern: Time to Buy?
+516,Dec-27-16 06:06PM,Bruce Pile\'s Top Recommendations For 2017
+517,Dec-27-16 06:06PM,Bruce Pile\'s Top Recommendations For 2017
+518,Dec-23-16 08:15AM,"Post Earnings Coverage as Worthington Revenue up 4 Percent, Adjusted Earnings Climbed 25 Percent"
+519,Dec-20-16 07:08AM,What Makes Gerdau (GGB) an Attractive Pick for Long Term?
+520,Dec-12-16 07:48PM,Is Woodward Inc (WWD) a Good Stock to Buy?
+521,Dec-12-16 07:48PM,Is Woodward Inc (WWD) a Good Stock to Buy?
+522,Dec-07-16 07:30AM,Companhia Siderurgica\'s Prospects Strong: Should You Buy?
+523,Dec-01-16 10:47AM,Better Buy: Teck Resources Ltd. vs. Companhia Siderurgica Nacional
+524,Nov-27-16 03:41PM,Should You Be Concerned About Diamond Offshore Drilling Inc (DO)s Falling Hedge Fund Ownership?
+525,Nov-23-16 08:30AM,Companhia Siderurgica Nacional (SID) Jumps: Stock Up 9%
+526,Nov-22-16 11:15AM,Shark Bites: These Steel Names Are Looking Strong
+527,Nov-18-16 01:35PM,"ETFs with exposure to Companhia Siderurgica Nacional : November 18, 2016"
+528,Nov-17-16 10:10AM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q3, 2016 By the Numbers : November 17, 2016"
+529,Nov-15-16 08:47AM,"Companhia Siderurgica (SID) Q3 Loss Narrows Y/Y, Sales Up"
+530,Nov-14-16 06:41AM,CSN announces 3Q16 results
+531,Oct-05-16 07:23PM,Brazil\'s CSN says Usiminas shareholder rift is prejudicial to company
+532,Sep-30-16 08:30AM,Companhia Siderurgica\'s Growth Dimmed by Headwinds
+533,Sep-14-16 02:45PM,Here\'s Why These Steel Stocks Got Hammered
+534,Aug-19-16 08:18AM,Companhia Siderurgica\'s Potential Overshadowed by Risks
+535,Aug-16-16 08:19AM,"Companhia Siderurgica (SID) Q2 Loss Narrows Y/Y, Sales Up"
+536,Aug-15-16 06:34PM,Siderurgica Nacional reports 2Q loss
+537,Aug-15-16 05:54PM,CSN announces 2Q16 results
+538,Jul-19-16 01:07PM,"ETFs with exposure to Companhia Siderurgica Nacional : July 19, 2016"
+539,Jun-17-16 03:42PM,Brazil judge overturns bar on CSN appointees to Usiminas board
+540,Jun-17-16 07:07AM,Companhia Siderurgica\'s Future Dim on Micro & Macro Woes
+541,Jun-09-16 04:21PM,Companhia Siderurgica Nacional: Strong price momentum but will it sustain?
+542,Jun-03-16 03:40PM,"ETFs with exposure to Companhia Siderurgica Nacional : June 3, 2016"
+543,Jun-01-16 02:18PM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q1, 2016 By the Numbers : June 1, 2016"
+544,May-30-16 01:04AM,Brazilian Financial Markets in the Aftermath of the 5522 Vote
+545,May-26-16 01:04PM,NATIONAL STEEL CO Financials
+546,May-25-16 03:45PM,Chesapeake Energy Corporation (CHK)s Stock Extends Its Rally Into Second Day
+547,May-16-16 02:53PM,"Inflation in Brazil Has Slowed, but the Battle Is Far from Over"
+548,May-13-16 05:12PM,Companhia Siderurgica Plunges 13% After Earnings Disappoint Investors
+549,May-13-16 12:48PM,Why Are These Stocks Deep In Red on Friday?
+550,May-13-16 08:14AM,"Companhia Siderurgica (SID) Slips into Q1 Loss, Sales Weak"
+551,May-12-16 08:52AM,CSN announces 1Q16 results
+552,Apr-28-16 05:53PM,Brazil\'s Usiminas picks new chairman in rare consensus
+553,Apr-28-16 01:55PM,5 Stocks Below $10 That Have Crushed the Market
+554,Apr-13-16 02:20PM,Heres Why These 5 Stocks Are Grabbing Headlines Today
+555,Apr-12-16 04:24PM,Commodity Sectors Lead the Market\'s Charge
+556,Apr-08-16 09:30AM,"The Zacks Analyst Blog Highlights: GAMCO Investors, Companhia Siderurgica Nacional, NII Holdings, OCI Partners and James Hardie Industries"
+557,Apr-07-16 11:08AM,5 Stocks Brokers Have Given Up On: Why You Should Not
+558,Apr-07-16 10:00AM,5 Momentum Stocks to Play on a Strong Uptrend
+559,Apr-06-16 03:06PM,"Brazil\'s CSN gauges sale, partner for Tecon amid debt relief -sources"
+560,Apr-06-16 08:05AM,Companhia Siderurgica Nacional (SID) Moves 8.8% Higher
+561,Apr-05-16 02:20PM,ArcelorMittal (MT) Completes $3 Billion Rights Issue
+562,Apr-05-16 12:30PM,Reliance Steel & Aluminum (RS) Snaps Up Best Manufacturing
+563,Apr-05-16 09:30AM,"White Mountains Insurance Group, Bunge, Siderurgica Steel, Konami and AXA SA highlighted as Zacks Bull and Bear of the Day"
+564,Apr-04-16 05:25PM,What Makes Companhia Siderurgica (SID) an Attractive Pick?
+565,Apr-04-16 03:38PM,"ETFs with exposure to Companhia Siderurgica Nacional : April 4, 2016"
+566,Apr-04-16 03:38PM,"ETFs with exposure to Companhia Siderurgica Nacional : April 4, 2016"
+567,Apr-04-16 10:21AM,Ride Beaten-Down Shares Up the Wall of Worry: Global Week Ahead
+568,Apr-02-16 03:49PM,Five Top-Performering Stocks Hedge Funds Overlooked
+569,Mar-31-16 12:33PM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q4, 2015 By the Numbers"
+570,Mar-31-16 11:51AM,Companhia Siderurgica Nacional :SID-US: Earnings Analysis: 2015 By the Numbers
+571,Mar-31-16 08:36AM,New Strong Buy Stocks for March 31st
+572,Mar-29-16 10:00AM,Companhia Siderurgica Q4 Net Income Up Y/Y; Sales Down
+573,Mar-29-16 12:28AM,CSN announces its 4Q15 results
+574,Mar-28-16 11:27PM,CSN announces 4Q15 and 2015 Results
+575,Mar-21-16 05:03PM,4Q15 and 2015 Earnings Release Schedule
+576,Mar-17-16 04:08PM,Why Brazilian Industrial Stocks Surged Higher Today
+577,Mar-17-16 01:54PM,3 Low-priced Stocks Set to Head Higher
+578,Mar-17-16 12:39PM,Is Brazil Economy Bottoming Out?
+579,Mar-01-16 08:10AM,Companhia Siderurgica Nacional (SID) Catches Eye: Stock Up 5.6%
+580,Feb-29-16 08:30AM,"Do GGB, CMC, SID, and TMST Weigh Their Weight in Gold?"
+581,Feb-12-16 02:50PM,Companhia Siderurgica Nacional Faces Micro & Macro Woes
+582,Feb-09-16 06:21AM,5 Commodity Stocks That Could Reverse Higher in February
+583,Feb-03-16 05:25PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Caa1; outlook remains negative
+584,Feb-02-16 04:26PM,Brazil Steel Maker CSN On Verge Of Bankruptcy As China Demand Vanishes
+585,Dec-22-15 03:15PM,Companhia Siderurgica Shows Vital Strength Despite Risks
+586,Dec-03-15 11:00AM,"Companhia Siderurgica Nacional Earnings Q3, 2015"
+587,Dec-02-15 12:09PM,"ArcelorMittal: \'We Knew We Were Early, But Not This Early\'"
+588,Nov-27-15 05:26PM,Hedge Funds Arent Crazy About Companhia Siderurgica Nacional (ADR) (SID) Anymore
+589,Nov-21-15 11:47AM,Is TransAlta Corporation (USA) (TAC) Going to Power These Hedge Funds Returns?
+590,Nov-16-15 10:20AM,Companhia Siderurgica\'s Q3 Loss Widens on Higher Costs
+591,Nov-13-15 03:05PM,Brazil\'s CSN sinks as management fails to assuage debt worries
+592,Nov-13-15 12:17PM,What Factors Derailed the Steel Industrys Expected 2H15 Recovery?
+593,Nov-13-15 07:27AM,CSN announces 3Q15 results
+594,Nov-04-15 03:09PM,"Brazilian Industry Saw Largest Decline Since 2009, But It\'s Not As Bad As Anticipated"
+595,Oct-30-15 05:07PM,CSN Resources S.A. -- Moody\'s downgrades CSN to B1; outlook remains negative
+596,Oct-27-15 03:22PM,"S&P downgrades Brazil\'s steelmaker CSN, keeps outlook negative"
+597,Oct-14-15 06:03PM,How the World Economy Adjusts to Lower Commodity Prices
+598,Sep-22-15 08:14AM,Companhia Siderurgica (SID) Enters Overbought Territory
+599,Sep-16-15 11:40AM,"Companhia Siderurgica Nacional Earnings Q2, 2015"
+600,07-May-10 08:54AM,Brazil steelmaker CSN plans 28.9 mln share buyback
+601,06-May-10 10:42PM,CSN: EBITDA Margin Reaches 41% and Gross Profit Stands at R$1.4 Billion in 1Q10
+602,06-May-10 10:33PM,"UPDATE - CSN Q1 net income up 31 pct, sales recover"
+603,06-May-10 07:07AM,Q1 2010 Companhia Siderurgica Nacional Earnings Release - After Market Close
+604,04-May-10 12:07PM,Comp Siderurgica downgraded by Barclays Capital
+605,03-May-10 05:59PM,Latin American Markets: Petrobras falls as share-offer plan progresses
+606,16-Apr-10 01:04PM,NATIONAL STEEL CO Financials
+607,14-Apr-10 05:01PM,CSN will raise Brazil steel prices by 7.5 pct
+608,07-Apr-10 06:20PM,Foreign Steel Makers Reflect World Recovery
+609,07-Apr-10 07:03AM,Splits Calendar: Comp Siderurgica splits before market open today (2:1 ratio)
+610,31-Mar-10 05:01PM,Global Base Metals And Domestic Coal - Jordi Dominguez - HSBC Securities (USA)
+611,30-Mar-10 12:11PM,The Technical Indicator: Is a rotation to China the markets\' next move?
+612,29-Mar-10 07:05PM,Latin American Markets: Brazil stock index higher as Vale shares upgraded
+613,29-Mar-10 03:05PM,[$$] Brazil Firms Rebound but Lose Pricing Power
+614,24-Mar-10 08:36PM,Steel And Mining ETFs Outpace S&P
+615,24-Mar-10 01:28PM,The Hottest Thing In Natural Gas: Steel
+616,24-Mar-10 01:04PM,NATIONAL STEEL CO Financials
+617,18-Mar-10 07:45PM,Latin American Markets: Brazil index pulled lower as resource stocks slump
+618,17-Mar-10 04:46PM,"Companhia Siderurgica Nacional, Abraxis BioScience, Inc.: Biggest Price Gainers (SID, ABII)"
+619,17-Mar-10 12:48PM,"Companhia Siderurgica Nacional, Abraxis Bioscience Inc.: Biggest Price Gainers (SID, ABII)"
+620,11-Mar-10 08:22PM,Latin American Markets: Brazil stocks slip as China rate concerns crop up
+621,11-Mar-10 03:35PM,Hot Rumors and Forged Deals in Steel
+622,10-Mar-10 06:11PM,Brazilian Steel Company Eyes Some Spinoffs
+623,09-Mar-10 07:24PM,"Latin American Markets: Mining, home builders fuel stock gains in Brazil"
+624,09-Mar-10 01:33PM,Commercial Metals: Rumored M&A Target
+625,09-Mar-10 11:04AM,UPDATE - Brazil\'s CSN plans Casa de Pedra IPO by June 30
+626,09-Mar-10 08:38AM,Brazil\'s CSN plans Casa de Pedra IPO by June 30-chairman
+627,09-Mar-10 08:01AM,CSN to build two cement plants to boost output
+628,04-Mar-10 05:28PM,AK Steel Spikes on Buyout Rumor
+629,03-Mar-10 11:12AM,SID Beats Zacks Consensus
+630,26-Feb-10 10:43AM,CSN iron ore division IPO depends on market -CFO
+631,26-Feb-10 08:54AM,InPlay: Comp Siderurgica reports 4Q09 results
+632,26-Feb-10 08:00AM,CSN: EBITDA Margin Exceeds 39% in 4Q09 and Net Income Reaches R$2.6 Billion in 2009
+633,26-Feb-10 06:59AM,"Brazil\'s CSN posts lower profit, beats estimates"
+634,23-Feb-10 04:10PM,"CSN Makes Announcement in Relation to Tender Offer to Acquire Shares of CIMPOR - CIMENTOS DE PORTUGAL, SGPS, S.A."
+635,23-Feb-10 08:35AM,UPDATE - Battle for Cimpor switches to Brazil cement rivals
+636,23-Feb-10 02:23AM,UPDATE - Market Chatter -- Corporate finance press digest
+637,22-Feb-10 11:22PM,Market Chatter -- Corporate finance press digest
+638,17-Feb-10 03:01PM,UPDATE - Brazil\'s Votorantim ups stake in Portugal\'s Cimpor
+639,17-Feb-10 12:18PM,UPDATE - Cimpor says CSN\'s new offer still too low
+640,16-Feb-10 06:44PM,"Companhia Siderurgica Nacional (National Steel Company) Announcement in Relation to Tender Offer to Acquire Shares of CIMPOR - CIMENTOS DE PORTUGAL, SGPS, S.A."
+641,12-Feb-10 06:26PM,Latin American Markets: Brazil stocks hurt by global growth worries
+642,12-Feb-10 10:22AM,Brazil\'s CSN raises offer for Portugal\'s Cimpor
+643,10-Feb-10 11:49AM,[$$] Camargo Correa to Buy $1.3 Billion Stake in Portugal\'s Cimpor
+644,10-Feb-10 11:21AM,Iron Ore And Coking Coal Prices Are Going Up According To Deutsche Bank Securities: Which Stocks Will Benefit?
+645,09-Feb-10 07:56PM,Brazil\'s CSN secures loan from state bank
+646,09-Feb-10 06:26PM,Latin American Markets: Brazilian equities climb as commodities rally
+647,08-Feb-10 01:45PM,Deutsche Bank Equity Research Head Sees Rebound In Iron Ore Prices For 2010 As Pricing Resets And North America Comes To Bat
+648,04-Feb-10 04:40AM,Steel Import Licenses Rise in January
+649,03-Feb-10 07:18PM,UPDATE - Brazil Votorantim to buy stake in Portugal\'s Cimpor
+650,03-Feb-10 05:26PM,UPDATE - Brazil Votorantim to buy stake in Portugal\'s Cimpor
+651,29-Jan-10 06:13PM,"Latin American Markets: Brazil, Mexico stocks finish with monthly losses"
+652,29-Jan-10 01:34PM,UPDATE - Camargo calls off Cimpor merger proposal
+653,29-Jan-10 05:28AM,Camargo to withdraw Cimpor merger proposal -report
+654,26-Jan-10 06:42PM,Latin American Markets: Brazil stocks fall as China worries resurface
+655,26-Jan-10 10:05AM,"Brazil\'s Votorantim says made ""conciliatory"" bid for Cimpor"
+656,21-Jan-10 02:17PM,Portuguese regulator to probe CGD\'s Cimpor stake
+657,20-Jan-10 06:54PM,Latin American Markets: Brazilian stocks hit on Chinese stimulus worries
+658,14-Jan-10 09:27AM,UPDATE - Camargo says no deal or talks with Lafarge on Cimpor
+659,13-Jan-10 11:46AM,UPDATE - Camargo eyes Cimpor cement tie-up in challenge to CSN
+660,13-Jan-10 10:02AM,UPDATE - Camargo seeks cement business merger with Cimpor
+661,08-Jan-10 02:20PM,"Latin American Markets: Brazil stock benchmark gains on Gol, steel shares"
+662,08-Jan-10 02:17PM,"UPDATE - CSN says Cimpor bid aggressive, open to talks -CEO"
+663,08-Jan-10 01:13PM,"CSN says Cimpor bid aggressive, open to talks-CEO"
+664,08-Jan-10 12:52PM,UPDATE - Cimpor shares hold bid premium amid talk of rival bid
+665,08-Jan-10 07:03AM,UPDATE - Cimpor shares pare losses on talk of rival bid
+666,08-Jan-10 04:28AM,RPT-UPDATE - Cimpor shares down after rejects CSN takeover bid
+667,31-Dec-09 11:19AM,10 Global Large Cap Steel Stocks
+668,31-Dec-09 05:55AM,Top 10 Emerging Markets Metals and Mining Stocks
+669,30-Dec-09 10:23AM,4-Star Stocks Poised to Pop: CSN
+670,28-Dec-09 06:50AM,Top 11 Components of the Dow Jones BRIC Brazil 15 Index
+671,23-Dec-09 10:05AM,Wilkinson OGrady And Co. Portfolio Manager Chooses International Stock Winners: Which Companies Made The List?
+672,21-Dec-09 02:04PM,SID Bids for Portuguese Company
+673,21-Dec-09 12:55PM,UPDATE - Brazil\'s Camargo mum on reports it wants Cimpor stake
+674,18-Dec-09 05:59PM,EMERGING MARKETS-LatAm stocks slide for 4th session
+675,18-Dec-09 05:55PM,Latin American Markets: CSN drags Brazilian stock benchmark lower
+676,18-Dec-09 03:42PM,Steelmaker Bids $5.56 Billion for Cement Firm
+677,18-Dec-09 10:19AM,Brazil\'s CSN bids $5.6 bln for Portugal\'s Cimpor
+678,18-Dec-09 09:45AM,UPDATE - Brazilian CSN bids $5.6 bln for Portuguese Cimpor
+679,18-Dec-09 08:45AM,CSN Announces Proposal for the Acquisition of Cimpor
+680,18-Dec-09 08:44AM,"Before the Bell: Dana, Micron, Oracle in focus"
+681,18-Dec-09 07:12AM,UPDATE - Brazilian CSN bids $5.6 bln for Portuguese Cimpor
+682,18-Dec-09 06:15AM,[$$] Brazil\'s CSN Bids $5.53 Billion for Portugal\'s Cimpor
+683,18-Dec-09 05:57AM,Companhia Siderurgica Nacional bids for Cimpor
+684,18-Dec-09 05:36AM,"CSN says to fund Cimpor takeover with cash, loans"
+685,18-Dec-09 04:16AM,UPDATE - Brazil\'s CSN in $5.6 bln bid for Portugal\'s Cimpor
+686,17-Dec-09 07:17AM,Why Steel Makers Are on an Earnings Watch
+687,11-Dec-09 07:43AM,Peter Brimelow: From \'markets nerd\' to \'flashy promoter\'
+688,04-Dec-09 07:12PM,Latin American Markets: Mexican stocks advance on U.S. jobs hopes
+689,04-Dec-09 02:24PM,"Latin American Markets: Stocks in Mexico reach new highs, follow U.S. data"
+690,03-Dec-09 07:54AM,What Options are Saying About This Steel Company
+691,20-Nov-09 05:00AM,Infrastructure ETF Picks Best of BRICs
+692,06-Nov-09 01:52PM,3 Stocks Hitting High Notes
+693,04-Nov-09 05:37PM,"Latin American Markets: Mexico, Brazil stocks climb after Fed statement"
+694,04-Nov-09 04:00PM,"Latin American Markets: Mexico, Brazil extend gains after Fed statement"
+695,04-Nov-09 08:57AM,"UPDATE - Brazil\'s CSN Q3 profit soars 28-fold, shares rally"
+696,04-Nov-09 06:00AM,This Is the Market\'s Cheapest Stock
+697,04-Nov-09 05:46AM,"CSN Records Net Income of R$1.15 Billion, Sales Volume Moves up by 39% and the EBITDA Margin Widens to 33% in the 3Q09"
+698,03-Nov-09 08:33PM,Brazil\'s Billionaire Boom
+699,03-Nov-09 05:29PM,Latin American Markets: Vale issues 30-year bonds; Mexico up
+700,May-30-16 01:04AM,Brazilian Financial Markets in the Aftermath of the 5522 Vote
+701,May-26-16 01:04PM,NATIONAL STEEL CO Financials
+702,May-25-16 03:45PM,Chesapeake Energy Corporation (CHK)s Stock Extends Its Rally Into Second Day
+703,May-16-16 02:53PM,"Inflation in Brazil Has Slowed, but the Battle Is Far from Over"
+704,May-13-16 05:12PM,Companhia Siderurgica Plunges 13% After Earnings Disappoint Investors
+705,May-13-16 12:48PM,Why Are These Stocks Deep In Red on Friday?
+706,May-13-16 08:14AM,"Companhia Siderurgica (SID) Slips into Q1 Loss, Sales Weak"
+707,May-12-16 08:52AM,CSN announces 1Q16 results
+708,Apr-28-16 05:53PM,Brazil\'s Usiminas picks new chairman in rare consensus
+709,Apr-28-16 01:55PM,5 Stocks Below $10 That Have Crushed the Market
+710,Apr-13-16 02:20PM,Heres Why These 5 Stocks Are Grabbing Headlines Today
+711,Apr-12-16 04:24PM,Commodity Sectors Lead the Market\'s Charge
+712,Apr-08-16 09:30AM,"The Zacks Analyst Blog Highlights: GAMCO Investors, Companhia Siderurgica Nacional, NII Holdings, OCI Partners and James Hardie Industries"
+713,Apr-07-16 11:08AM,5 Stocks Brokers Have Given Up On: Why You Should Not
+714,Apr-07-16 10:00AM,5 Momentum Stocks to Play on a Strong Uptrend
+715,Apr-06-16 03:06PM,"Brazil\'s CSN gauges sale, partner for Tecon amid debt relief -sources"
+716,Apr-06-16 08:05AM,Companhia Siderurgica Nacional (SID) Moves 8.8% Higher
+717,Apr-05-16 02:20PM,ArcelorMittal (MT) Completes $3 Billion Rights Issue
+718,Apr-05-16 12:30PM,Reliance Steel & Aluminum (RS) Snaps Up Best Manufacturing
+719,Apr-05-16 09:30AM,"White Mountains Insurance Group, Bunge, Siderurgica Steel, Konami and AXA SA highlighted as Zacks Bull and Bear of the Day"
+720,Apr-04-16 05:25PM,What Makes Companhia Siderurgica (SID) an Attractive Pick?
+721,Apr-04-16 03:38PM,"ETFs with exposure to Companhia Siderurgica Nacional : April 4, 2016"
+722,Apr-04-16 03:38PM,"ETFs with exposure to Companhia Siderurgica Nacional : April 4, 2016"
+723,Apr-04-16 10:21AM,Ride Beaten-Down Shares Up the Wall of Worry: Global Week Ahead
+724,Apr-02-16 03:49PM,Five Top-Performering Stocks Hedge Funds Overlooked
+725,Mar-31-16 12:33PM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q4, 2015 By the Numbers"
+726,Mar-31-16 11:51AM,Companhia Siderurgica Nacional :SID-US: Earnings Analysis: 2015 By the Numbers
+727,Mar-31-16 08:36AM,New Strong Buy Stocks for March 31st
+728,Mar-29-16 10:00AM,Companhia Siderurgica Q4 Net Income Up Y/Y; Sales Down
+729,Mar-29-16 12:28AM,CSN announces its 4Q15 results
+730,Mar-28-16 11:27PM,CSN announces 4Q15 and 2015 Results
+731,Mar-21-16 05:03PM,4Q15 and 2015 Earnings Release Schedule
+732,Mar-17-16 04:08PM,Why Brazilian Industrial Stocks Surged Higher Today
+733,Mar-17-16 01:54PM,3 Low-priced Stocks Set to Head Higher
+734,Mar-17-16 12:39PM,Is Brazil Economy Bottoming Out?
+735,Mar-01-16 08:10AM,Companhia Siderurgica Nacional (SID) Catches Eye: Stock Up 5.6%
+736,Feb-29-16 08:30AM,"Do GGB, CMC, SID, and TMST Weigh Their Weight in Gold?"
+737,Feb-12-16 02:50PM,Companhia Siderurgica Nacional Faces Micro & Macro Woes
+738,Feb-09-16 06:21AM,5 Commodity Stocks That Could Reverse Higher in February
+739,Feb-03-16 05:25PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Caa1; outlook remains negative
+740,Feb-02-16 04:26PM,Brazil Steel Maker CSN On Verge Of Bankruptcy As China Demand Vanishes
+741,Dec-22-15 03:15PM,Companhia Siderurgica Shows Vital Strength Despite Risks
+742,Dec-03-15 11:00AM,"Companhia Siderurgica Nacional Earnings Q3, 2015"
+743,Dec-02-15 12:09PM,"ArcelorMittal: \'We Knew We Were Early, But Not This Early\'"
+744,Nov-27-15 05:26PM,Hedge Funds Arent Crazy About Companhia Siderurgica Nacional (ADR) (SID) Anymore
+745,Nov-21-15 11:47AM,Is TransAlta Corporation (USA) (TAC) Going to Power These Hedge Funds Returns?
+746,Nov-16-15 10:20AM,Companhia Siderurgica\'s Q3 Loss Widens on Higher Costs
+747,Nov-13-15 03:05PM,Brazil\'s CSN sinks as management fails to assuage debt worries
+748,Nov-13-15 12:17PM,What Factors Derailed the Steel Industrys Expected 2H15 Recovery?
+749,Nov-13-15 07:27AM,CSN announces 3Q15 results
+750,Nov-04-15 03:09PM,"Brazilian Industry Saw Largest Decline Since 2009, But It\'s Not As Bad As Anticipated"
+751,Oct-30-15 05:07PM,CSN Resources S.A. -- Moody\'s downgrades CSN to B1; outlook remains negative
+752,Oct-27-15 03:22PM,"S&P downgrades Brazil\'s steelmaker CSN, keeps outlook negative"
+753,Oct-14-15 06:03PM,How the World Economy Adjusts to Lower Commodity Prices
+754,Sep-22-15 08:14AM,Companhia Siderurgica (SID) Enters Overbought Territory
+755,Sep-16-15 11:40AM,"Companhia Siderurgica Nacional Earnings Q2, 2015"
+756,Sep-09-15 05:03PM,Brazilian Real Extends Losses as Manufacturing Plunges Deeper
+757,Sep-08-15 02:42PM,Brazil Keeps Rates Unchanged as Real Continues Free Fall
+758,Sep-03-15 08:06PM,"CSN cash crunch eases as it refinances 2016, 2017 bank debt"
+759,Aug-28-15 06:33PM,"Brazil Tops World Markets, Even As Q2 GDP Tumbles"
+760,Aug-26-15 06:28PM,"Real slump bites Brazil\'s CSN, others despite debt hedging efforts"
+761,Aug-19-15 12:36PM,Brazil\'s CSN mulls Rothschild or Lazard for asset sales-source
+762,Aug-14-15 11:00AM,Companhia Siderurgica: Q2 Loss on Soft Sales & High Costs
+763,Aug-13-15 11:34AM,Brazil\'s CSN swings to loss; asset sales to begin soon
+764,Aug-13-15 08:19AM,CSN announces 2Q15 results
+765,Aug-13-15 07:52AM,Brazil\'s CSN posts 2nd-qtr loss as mining division struggles
+766,Aug-12-15 09:55AM,"Vale SA Earnings Q2*, 2015"
+767,Jul-21-15 02:16PM,Uh Oh. These Beaten-Down Miners are Joy Global\'s Biggest Customers
+768,Jun-26-15 06:06PM,Lula Arrest Concerns Trigger Brazil Panic: 5 Biggest Losers - Analyst Blog
+769,Jun-12-15 03:00PM,"Companhia Siderurgica Shows Growth Potential, Runs Risks - Analyst Blog"
+770,May-26-15 11:56AM,Why an Increase in Housing Starts Is Positive for Steel Investors
+771,May-07-15 01:20PM,"Companhia Siderurgica Q1 Earnings Rise Y/Y, Revenues Fall - Analyst Blog"
+772,May-07-15 08:48AM,Steel Scrap Prices Moved Sideways in April
+773,May-06-15 11:11AM,CSN announces 1Q15 results
+774,May-06-15 09:44AM,"Brazil steelmaker CSN posts surprise Q1 profit, shares rise"
+775,May-06-15 07:59AM,1Q15 Earnings Release
+776,Apr-30-15 08:40PM,1Q15 Earnings Release Schedule
+777,Apr-30-15 06:13PM,CSN announces the filing of its 2014 form 20-F
+778,Apr-30-15 10:01AM,12 Steel Stocks You Should Sell Right Now
+779,Apr-29-15 10:24PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Ba2; outlook negative
+780,Apr-28-15 10:06AM,Latest Chinese Real Estate Demand Indicators Reflect Slowdown
+781,Apr-28-15 08:51AM,Companhia Siderurgica Nacional (SID) in Focus: Up 9.2% - Tale of the Tape
+782,Apr-20-15 04:09PM,Steel Inventories in US Service Centers Decline Slightly in March
+783,Apr-17-15 10:04AM,An Overview of the Global Steel Industry in April
+784,Apr-16-15 09:30AM,Zacks Rank #5 Additions for Thursday - Tale of the Tape
+785,Apr-13-15 02:50PM,Companhia Siderurgica: Risks Outweigh Growth Prospects - Analyst Blog
+786,Apr-11-15 02:06AM,How the Decline in Steel Production Impacts Steel Companies
+787,Apr-10-15 10:06AM,Annual and Extraordinary Shareholders\xc2\xb4 Meetings Call Notice
+788,Mar-27-15 03:06PM,U.S. Steel Brings Steel Industry Woes to Congresspeople
+789,Mar-25-15 08:13AM,Will Companhia Siderurgica (SID) Continue to Surge Higher? - Tale of the Tape
+790,Mar-23-15 02:20PM,Nucor (NUE) Shares Decline 6.4% after Q1 Guidance Cut - Analyst Blog
+791,Mar-20-15 12:00PM,"AK Steel Sees Loss in Q1 on Higher Imports, Shares Sag - Analyst Blog"
+792,Mar-18-15 12:00PM,"Valmont (VMI) Faces Challenges in Irrigation, Utility - Analyst Blog"
+793,Mar-18-15 11:50AM,Steel Dynamics Sees Lower Q1 Earnings as Shipments Fall - Analyst Blog
+794,Mar-17-15 02:20PM,Steel Dynamics (STLD) Repays Senior Notes Due 2020 - Analyst Blog
+795,Mar-16-15 03:10PM,LB Foster Rides on Inorganic Growth Trajectory with IOS Buy - Analyst Blog
+796,Mar-16-15 03:00PM,"Gerdau Set to Leverage Rising Steel Demand, Runs Risks - Analyst Blog"
+797,Mar-13-15 09:50AM,Companhia Siderurgica Posts Q4 Earnings as Expenses Fall - Analyst Blog
+798,Mar-12-15 07:44AM,CSN announces 4Q14 and 2014 results
+799,Mar-12-15 07:28AM,4Q14 and 2014 Earnings Release
+800,Mar-29-16 10:00AM,Companhia Siderurgica Q4 Net Income Up Y/Y; Sales Down
+801,Mar-29-16 12:28AM,CSN announces its 4Q15 results
+802,Mar-28-16 11:27PM,CSN announces 4Q15 and 2015 Results
+803,Mar-21-16 05:03PM,4Q15 and 2015 Earnings Release Schedule
+804,Mar-17-16 04:08PM,Why Brazilian Industrial Stocks Surged Higher Today
+805,Mar-17-16 01:54PM,3 Low-priced Stocks Set to Head Higher
+806,Mar-17-16 12:39PM,Is Brazil Economy Bottoming Out?
+807,Mar-01-16 08:10AM,Companhia Siderurgica Nacional (SID) Catches Eye: Stock Up 5.6%
+808,Feb-29-16 08:30AM,"Do GGB, CMC, SID, and TMST Weigh Their Weight in Gold?"
+809,Feb-12-16 02:50PM,Companhia Siderurgica Nacional Faces Micro & Macro Woes
+810,Feb-09-16 06:21AM,5 Commodity Stocks That Could Reverse Higher in February
+811,Feb-03-16 05:25PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Caa1; outlook remains negative
+812,Feb-02-16 04:26PM,Brazil Steel Maker CSN On Verge Of Bankruptcy As China Demand Vanishes
+813,Dec-22-15 03:15PM,Companhia Siderurgica Shows Vital Strength Despite Risks
+814,Dec-08-15 01:10PM,NATIONAL STEEL CO Financials
+815,Dec-03-15 11:00AM,"Companhia Siderurgica Nacional Earnings Q3, 2015"
+816,Dec-02-15 12:09PM,"ArcelorMittal: \'We Knew We Were Early, But Not This Early\'"
+817,Nov-27-15 05:26PM,Hedge Funds Arent Crazy About Companhia Siderurgica Nacional (ADR) (SID) Anymore
+818,Nov-21-15 11:47AM,Is TransAlta Corporation (USA) (TAC) Going to Power These Hedge Funds Returns?
+819,Nov-16-15 10:20AM,Companhia Siderurgica\'s Q3 Loss Widens on Higher Costs
+820,Nov-13-15 03:05PM,Brazil\'s CSN sinks as management fails to assuage debt worries
+821,Nov-13-15 12:17PM,What Factors Derailed the Steel Industrys Expected 2H15 Recovery?
+822,Nov-13-15 07:27AM,CSN announces 3Q15 results
+823,Nov-04-15 03:09PM,"Brazilian Industry Saw Largest Decline Since 2009, But It\'s Not As Bad As Anticipated"
+824,Oct-30-15 05:07PM,CSN Resources S.A. -- Moody\'s downgrades CSN to B1; outlook remains negative
+825,Oct-27-15 03:22PM,"S&P downgrades Brazil\'s steelmaker CSN, keeps outlook negative"
+826,Oct-14-15 06:03PM,How the World Economy Adjusts to Lower Commodity Prices
+827,Sep-22-15 08:14AM,Companhia Siderurgica (SID) Enters Overbought Territory
+828,Sep-16-15 11:40AM,"Companhia Siderurgica Nacional Earnings Q2, 2015"
+829,Sep-09-15 05:03PM,Brazilian Real Extends Losses as Manufacturing Plunges Deeper
+830,Sep-08-15 02:42PM,Brazil Keeps Rates Unchanged as Real Continues Free Fall
+831,Sep-03-15 08:06PM,"CSN cash crunch eases as it refinances 2016, 2017 bank debt"
+832,Aug-28-15 06:33PM,"Brazil Tops World Markets, Even As Q2 GDP Tumbles"
+833,Aug-26-15 06:28PM,"Real slump bites Brazil\'s CSN, others despite debt hedging efforts"
+834,Aug-19-15 12:36PM,Brazil\'s CSN mulls Rothschild or Lazard for asset sales-source
+835,Aug-14-15 11:00AM,Companhia Siderurgica: Q2 Loss on Soft Sales & High Costs
+836,Aug-13-15 11:34AM,Brazil\'s CSN swings to loss; asset sales to begin soon
+837,Aug-13-15 08:19AM,CSN announces 2Q15 results
+838,Aug-13-15 07:52AM,Brazil\'s CSN posts 2nd-qtr loss as mining division struggles
+839,Aug-12-15 09:55AM,"Vale SA Earnings Q2*, 2015"
+840,Jul-21-15 02:16PM,Uh Oh. These Beaten-Down Miners are Joy Global\'s Biggest Customers
+841,Jun-26-15 06:06PM,Lula Arrest Concerns Trigger Brazil Panic: 5 Biggest Losers - Analyst Blog
+842,Jun-12-15 03:00PM,"Companhia Siderurgica Shows Growth Potential, Runs Risks - Analyst Blog"
+843,May-26-15 11:56AM,Why an Increase in Housing Starts Is Positive for Steel Investors
+844,May-07-15 01:20PM,"Companhia Siderurgica Q1 Earnings Rise Y/Y, Revenues Fall - Analyst Blog"
+845,May-07-15 08:48AM,Steel Scrap Prices Moved Sideways in April
+846,May-06-15 11:11AM,CSN announces 1Q15 results
+847,May-06-15 09:44AM,"Brazil steelmaker CSN posts surprise Q1 profit, shares rise"
+848,May-06-15 07:59AM,1Q15 Earnings Release
+849,Apr-30-15 08:40PM,1Q15 Earnings Release Schedule
+850,Apr-30-15 06:13PM,CSN announces the filing of its 2014 form 20-F
+851,Apr-30-15 10:01AM,12 Steel Stocks You Should Sell Right Now
+852,Apr-29-15 10:24PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Ba2; outlook negative
+853,Apr-28-15 10:06AM,Latest Chinese Real Estate Demand Indicators Reflect Slowdown
+854,Apr-28-15 08:51AM,Companhia Siderurgica Nacional (SID) in Focus: Up 9.2% - Tale of the Tape
+855,Apr-20-15 04:09PM,Steel Inventories in US Service Centers Decline Slightly in March
+856,Apr-17-15 10:04AM,An Overview of the Global Steel Industry in April
+857,Apr-16-15 09:30AM,Zacks Rank #5 Additions for Thursday - Tale of the Tape
+858,Apr-13-15 02:50PM,Companhia Siderurgica: Risks Outweigh Growth Prospects - Analyst Blog
+859,Apr-11-15 02:06AM,How the Decline in Steel Production Impacts Steel Companies
+860,Apr-10-15 10:06AM,Annual and Extraordinary Shareholders\xc2\xb4 Meetings Call Notice
+861,Mar-27-15 03:06PM,U.S. Steel Brings Steel Industry Woes to Congresspeople
+862,Mar-25-15 08:13AM,Will Companhia Siderurgica (SID) Continue to Surge Higher? - Tale of the Tape
+863,Mar-23-15 02:20PM,Nucor (NUE) Shares Decline 6.4% after Q1 Guidance Cut - Analyst Blog
+864,Mar-20-15 12:00PM,"AK Steel Sees Loss in Q1 on Higher Imports, Shares Sag - Analyst Blog"
+865,Mar-18-15 12:00PM,"Valmont (VMI) Faces Challenges in Irrigation, Utility - Analyst Blog"
+866,Mar-18-15 11:50AM,Steel Dynamics Sees Lower Q1 Earnings as Shipments Fall - Analyst Blog
+867,Mar-17-15 02:20PM,Steel Dynamics (STLD) Repays Senior Notes Due 2020 - Analyst Blog
+868,Mar-16-15 03:10PM,LB Foster Rides on Inorganic Growth Trajectory with IOS Buy - Analyst Blog
+869,Mar-16-15 03:00PM,"Gerdau Set to Leverage Rising Steel Demand, Runs Risks - Analyst Blog"
+870,Mar-13-15 09:50AM,Companhia Siderurgica Posts Q4 Earnings as Expenses Fall - Analyst Blog
+871,Mar-12-15 07:44AM,CSN announces 4Q14 and 2014 results
+872,Mar-12-15 07:28AM,4Q14 and 2014 Earnings Release
+873,Mar-12-15 07:00AM,CSN announces 4Q14 and 2014 Results
+874,Mar-09-15 09:15AM,4Q14 and 2014 Earnings Release Schedule
+875,Mar-03-15 11:13AM,It Might Not Be The Time To Buy Into Steel and Iron
+876,Feb-28-15 03:14PM,Brazil Is Ready To Takeoff
+877,Jan-07-15 02:52PM,Companhia Siderurgica Nacional (SID) Stock Up Today as Brazilian Iron Ore Exports Climb
+878,Jan-06-15 11:54AM,Companhia Siderurgica Nacional (SID) Stock Rises Today as Brazilian Iron Ore Exports Climb
+879,Dec-30-14 05:30PM,Notice to Shareholders - Payment of Interim Dividends
+880,Dec-23-14 02:55PM,Companhia Siderurgica Nacional (SID) Stock Higher Today as Brent Oil Rises Above $60
+881,Dec-05-14 06:40AM,Companhia Siderurgica Nacion (SID) Downgraded From Hold to Sell
+882,Nov-17-14 08:30AM,Companhia Siderurgica Posts Q3 Loss on Weak Revenues
+883,Nov-14-14 12:09PM,3 Stocks Dragging The Metals & Mining Industry Downward
+884,Nov-14-14 06:53AM,CSN announces 3Q14 results
+885,Oct-27-14 09:47AM,Today\'s Perilous Reversal Stock: Companhia Siderurgica Nacional (SID)
+886,Sep-02-14 01:03PM,Today\'s Stocks Driving Success For The Metals & Mining Industry
+887,Aug-28-14 03:32PM,Still Time to Sell Cliffs Natural Resources?
+888,Aug-19-14 06:51PM,Colombia\'s Top Gas Distributor Shows Healthy Debut
+889,Aug-05-14 10:30AM,Companhia Siderurgica Nacional Q2 Earnings and Revenue Fall
+890,Aug-04-14 09:01AM,CSN Announces 2Q14 Results
+891,Jul-18-14 09:51AM,Today\'s Dead Cat Bounce Stock Is Companhia Siderurgica Nacional (SID)
+892,Jul-16-14 07:36AM,Companhia Siderurgica Nacional (SID) in Focus: Stock Rises 5.9% in Session
+893,Jul-11-14 08:14AM,Companhia Siderurgica Nacional (SID) is Overbought: Is A Drop Coming?
+894,Jul-09-14 10:02AM,Is Companhia Siderurgica\'s Dividend Safe for Your Portfolio?
+895,Jul-08-14 06:51AM,Companhia Siderurgica Nacional (SID) in Focus: Stock Rises 5.2%
+896,Jul-07-14 03:22PM,Why Companhia Siderugica Nacion (SID) Stock Is a \'Hold\'
+897,Jul-07-14 01:02PM,3 Stocks Driving The Metals & Mining Industry Higher
+898,Jul-01-14 11:48AM,UBS: Why Did Vale Regain Momentum?
+899,Jun-30-14 04:00PM,Companhia Siderurgica Nacional to Buy Back 27M shares
+900,Jul-17-17 07:46PM,CSN Islands XII Corporation -- Moody\'s downgrades CSN to Caa2; outlook remains negative
+901,Jul-05-17 10:09AM,First Asset Opens the Market
+902,Jul-05-17 07:00AM,NEW: First Asset U.S. TrendLeaders Index ETF
+903,Jun-07-17 01:13PM,Why Companhia Siderurgica Nacional Stock Dropped 12% in May
+904,May-19-17 06:31PM,"Why Gerdau, Cosan, and Companhia Siderurgica Nacional Stocks Soared Today"
+905,May-18-17 12:36PM,"Why Cia Energetica de Minas Gerais, Companhia Siderurgica Nacional, and Everything Else in Brazil Are Falling Apart Today"
+906,May-15-17 08:34PM,Brazil\'s CSN delays first-quarter results pending accounting review
+907,Apr-19-17 03:37PM,Brazil\'s CSN iron ore terminal not operating after accident -sources
+908,Apr-19-17 12:28PM,Brazil\'s CSN iron ore terminal not operating after accident - sources
+909,Mar-09-17 09:30AM,"The Zacks Analyst Blog Highlights: U.S. Steel, Ternium, ArcelorMittal and Companhia Siderurgica Nacional"
+910,Mar-08-17 05:03PM,4 Steel Stocks Poised to Run Higher Without Trump\'s Help
+911,Mar-01-17 10:36AM,Will Rising Commodity Prices Help Brazil Recover?
+912,Feb-10-17 08:55AM,Why National Steel Company (SID) Could Shock the Market Soon
+913,Jan-18-17 03:20PM,7 Stocks You Could Buy to Beat the Market
+914,Jan-03-17 09:04AM,Companhia Siderurgica Nacional (SID) Sees Hammer Chart Pattern: Time to Buy?
+915,Dec-27-16 06:06PM,Bruce Pile\'s Top Recommendations For 2017
+916,Dec-27-16 06:06PM,Bruce Pile\'s Top Recommendations For 2017
+917,Dec-23-16 08:15AM,"Post Earnings Coverage as Worthington Revenue up 4 Percent, Adjusted Earnings Climbed 25 Percent"
+918,Dec-20-16 07:08AM,What Makes Gerdau (GGB) an Attractive Pick for Long Term?
+919,Dec-12-16 07:48PM,Is Woodward Inc (WWD) a Good Stock to Buy?
+920,Dec-12-16 07:48PM,Is Woodward Inc (WWD) a Good Stock to Buy?
+921,Dec-07-16 07:30AM,Companhia Siderurgica\'s Prospects Strong: Should You Buy?
+922,Dec-01-16 10:47AM,Better Buy: Teck Resources Ltd. vs. Companhia Siderurgica Nacional
+923,Nov-27-16 03:41PM,Should You Be Concerned About Diamond Offshore Drilling Inc (DO)s Falling Hedge Fund Ownership?
+924,Nov-23-16 08:30AM,Companhia Siderurgica Nacional (SID) Jumps: Stock Up 9%
+925,Nov-22-16 11:15AM,Shark Bites: These Steel Names Are Looking Strong
+926,Nov-18-16 01:35PM,"ETFs with exposure to Companhia Siderurgica Nacional : November 18, 2016"
+927,Nov-17-16 10:10AM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q3, 2016 By the Numbers : November 17, 2016"
+928,Nov-15-16 08:47AM,"Companhia Siderurgica (SID) Q3 Loss Narrows Y/Y, Sales Up"
+929,Nov-14-16 06:41AM,CSN announces 3Q16 results
+930,Oct-05-16 07:23PM,Brazil\'s CSN says Usiminas shareholder rift is prejudicial to company
+931,Sep-30-16 08:30AM,Companhia Siderurgica\'s Growth Dimmed by Headwinds
+932,Sep-14-16 02:45PM,Here\'s Why These Steel Stocks Got Hammered
+933,Aug-19-16 08:18AM,Companhia Siderurgica\'s Potential Overshadowed by Risks
+934,Aug-16-16 08:19AM,"Companhia Siderurgica (SID) Q2 Loss Narrows Y/Y, Sales Up"
+935,Aug-15-16 06:34PM,Siderurgica Nacional reports 2Q loss
+936,Aug-15-16 05:54PM,CSN announces 2Q16 results
+937,Jul-19-16 01:07PM,"ETFs with exposure to Companhia Siderurgica Nacional : July 19, 2016"
+938,Jun-17-16 03:42PM,Brazil judge overturns bar on CSN appointees to Usiminas board
+939,Jun-17-16 07:07AM,Companhia Siderurgica\'s Future Dim on Micro & Macro Woes
+940,Jun-09-16 04:21PM,Companhia Siderurgica Nacional: Strong price momentum but will it sustain?
+941,Jun-03-16 03:40PM,"ETFs with exposure to Companhia Siderurgica Nacional : June 3, 2016"
+942,Jun-01-16 02:18PM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q1, 2016 By the Numbers : June 1, 2016"
+943,May-30-16 01:04AM,Brazilian Financial Markets in the Aftermath of the 5522 Vote
+944,May-26-16 01:04PM,NATIONAL STEEL CO Financials
+945,May-25-16 03:45PM,Chesapeake Energy Corporation (CHK)s Stock Extends Its Rally Into Second Day
+946,May-16-16 02:53PM,"Inflation in Brazil Has Slowed, but the Battle Is Far from Over"
+947,May-13-16 05:12PM,Companhia Siderurgica Plunges 13% After Earnings Disappoint Investors
+948,May-13-16 12:48PM,Why Are These Stocks Deep In Red on Friday?
+949,May-13-16 08:14AM,"Companhia Siderurgica (SID) Slips into Q1 Loss, Sales Weak"
+950,May-12-16 08:52AM,CSN announces 1Q16 results
+951,Apr-28-16 05:53PM,Brazil\'s Usiminas picks new chairman in rare consensus
+952,Apr-28-16 01:55PM,5 Stocks Below $10 That Have Crushed the Market
+953,Apr-13-16 02:20PM,Heres Why These 5 Stocks Are Grabbing Headlines Today
+954,Apr-12-16 04:24PM,Commodity Sectors Lead the Market\'s Charge
+955,Apr-08-16 09:30AM,"The Zacks Analyst Blog Highlights: GAMCO Investors, Companhia Siderurgica Nacional, NII Holdings, OCI Partners and James Hardie Industries"
+956,Apr-07-16 11:08AM,5 Stocks Brokers Have Given Up On: Why You Should Not
+957,Apr-07-16 10:00AM,5 Momentum Stocks to Play on a Strong Uptrend
+958,Apr-06-16 03:06PM,"Brazil\'s CSN gauges sale, partner for Tecon amid debt relief -sources"
+959,Apr-06-16 08:05AM,Companhia Siderurgica Nacional (SID) Moves 8.8% Higher
+960,Apr-05-16 02:20PM,ArcelorMittal (MT) Completes $3 Billion Rights Issue
+961,Apr-05-16 12:30PM,Reliance Steel & Aluminum (RS) Snaps Up Best Manufacturing
+962,Apr-05-16 09:30AM,"White Mountains Insurance Group, Bunge, Siderurgica Steel, Konami and AXA SA highlighted as Zacks Bull and Bear of the Day"
+963,Apr-04-16 05:25PM,What Makes Companhia Siderurgica (SID) an Attractive Pick?
+964,Apr-04-16 03:38PM,"ETFs with exposure to Companhia Siderurgica Nacional : April 4, 2016"
+965,Apr-04-16 03:38PM,"ETFs with exposure to Companhia Siderurgica Nacional : April 4, 2016"
+966,Apr-04-16 10:21AM,Ride Beaten-Down Shares Up the Wall of Worry: Global Week Ahead
+967,Apr-02-16 03:49PM,Five Top-Performering Stocks Hedge Funds Overlooked
+968,Mar-31-16 12:33PM,"Companhia Siderurgica Nacional :SID-US: Earnings Analysis: Q4, 2015 By the Numbers"
+969,Mar-31-16 11:51AM,Companhia Siderurgica Nacional :SID-US: Earnings Analysis: 2015 By the Numbers
+970,Mar-31-16 08:36AM,New Strong Buy Stocks for March 31st
+971,Mar-29-16 10:00AM,Companhia Siderurgica Q4 Net Income Up Y/Y; Sales Down
+972,Mar-29-16 12:28AM,CSN announces its 4Q15 results
+973,Mar-28-16 11:27PM,CSN announces 4Q15 and 2015 Results
+974,Mar-21-16 05:03PM,4Q15 and 2015 Earnings Release Schedule
+975,Mar-17-16 04:08PM,Why Brazilian Industrial Stocks Surged Higher Today
+976,Mar-17-16 01:54PM,3 Low-priced Stocks Set to Head Higher
+977,Mar-17-16 12:39PM,Is Brazil Economy Bottoming Out?
+978,Mar-01-16 08:10AM,Companhia Siderurgica Nacional (SID) Catches Eye: Stock Up 5.6%
+979,Feb-29-16 08:30AM,"Do GGB, CMC, SID, and TMST Weigh Their Weight in Gold?"
+980,Feb-12-16 02:50PM,Companhia Siderurgica Nacional Faces Micro & Macro Woes
+981,Feb-09-16 06:21AM,5 Commodity Stocks That Could Reverse Higher in February
+982,Feb-03-16 05:25PM,CSN Resources S.A. -- Moody\'s downgrades CSN to Caa1; outlook remains negative
+983,Feb-02-16 04:26PM,Brazil Steel Maker CSN On Verge Of Bankruptcy As China Demand Vanishes
+984,Dec-22-15 03:15PM,Companhia Siderurgica Shows Vital Strength Despite Risks
+985,Dec-03-15 11:00AM,"Companhia Siderurgica Nacional Earnings Q3, 2015"
+986,Dec-02-15 12:09PM,"ArcelorMittal: \'We Knew We Were Early, But Not This Early\'"
+987,Nov-27-15 05:26PM,Hedge Funds Arent Crazy About Companhia Siderurgica Nacional (ADR) (SID) Anymore
+988,Nov-21-15 11:47AM,Is TransAlta Corporation (USA) (TAC) Going to Power These Hedge Funds Returns?
+989,Nov-16-15 10:20AM,Companhia Siderurgica\'s Q3 Loss Widens on Higher Costs
+990,Nov-13-15 03:05PM,Brazil\'s CSN sinks as management fails to assuage debt worries
+991,Nov-13-15 12:17PM,What Factors Derailed the Steel Industrys Expected 2H15 Recovery?
+992,Nov-13-15 07:27AM,CSN announces 3Q15 results
+993,Nov-04-15 03:09PM,"Brazilian Industry Saw Largest Decline Since 2009, But It\'s Not As Bad As Anticipated"
+994,Oct-30-15 05:07PM,CSN Resources S.A. -- Moody\'s downgrades CSN to B1; outlook remains negative
+995,Oct-27-15 03:22PM,"S&P downgrades Brazil\'s steelmaker CSN, keeps outlook negative"
+996,Oct-14-15 06:03PM,How the World Economy Adjusts to Lower Commodity Prices
+997,Sep-22-15 08:14AM,Companhia Siderurgica (SID) Enters Overbought Territory
+998,Sep-16-15 11:40AM,"Companhia Siderurgica Nacional Earnings Q2, 2015"
+999,Sep-09-15 05:03PM,Brazilian Real Extends Losses as Manufacturing Plunges Deeper

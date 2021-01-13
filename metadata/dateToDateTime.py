@@ -10,3 +10,15 @@ def string_to_YYYYMMDD(string):
             print('20'+decomposed[2]+'-'+MONTHS[month]+'-'+decomposed[0])
             return '20'+decomposed[2]+'-'+MONTHS[month]+'-'+decomposed[0]
 
+def string_to_YYYYMMDD_HHMMP(dateTimeString):
+    months = ['Jan','Fev','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    date = dateTimeString.split(' ')[0]
+    time = dateTimeString.split(' ')[1]
+    decomposed = date.split('-')
+    for month in months:
+        if month == decomposed[0]:
+            return dateTimeString
+        if month == decomposed[1]:
+            return decomposed[1]+'-'+decomposed[0]+'-'+decomposed[2]+' '+time
+
+print(string_to_YYYYMMDD_HHMMP('Dec-01-13 05:28PM'))
