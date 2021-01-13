@@ -1,12 +1,13 @@
 import datetime as dt
 import os
-import logging
 import sqlite3
+import logging
+import logging.handlers
 
 import pandas as pd
 import pandas_datareader as pdr
 
-__all__ = ['Yahoo', 'MetaTrader']
+__all__ = ["Yahoo", "MetaTrader"]
 
 
 class Yahoo:
@@ -37,9 +38,12 @@ class Yahoo:
         self._logger.setLevel(logging.INFO)
         self._logger.addHandler(handler)
 
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        dir_name = os.path.dirname(db_path)
+        if dir_name != "":
+            os.makedirs(dir_name, exist_ok=True)
         self._conn = sqlite3.connect(db_path)
         self._cursor = self._conn.cursor()
+        self._std_init_day1 = dt.date(2010, 1, 2)
 
     def get_symbols(self):
         """
@@ -117,13 +121,15 @@ class Yahoo:
         errors = 0
         updated = 0
         non_updated = 0
-        init_day1 = self.get_date()
         final_day1 = dt.date.today() - dt.timedelta(days=1)
         for symbol in file_symbols:
             if symbol in db_symbols:
-                flag = self.update_known_symbol(symbol, final_day1)
+                init_day1 = self.get_date(symbol)
+                flag = self.update_known_symbol(init_day1, symbol, final_day1)
             else:
-                flag = self.update_symbol(init_day1, symbol, final_day1)
+                flag = self.update_symbol(
+                    self._std_init_day1, symbol, final_day1
+                )
 
             if flag == 1:
                 updated += 1
@@ -135,7 +141,7 @@ class Yahoo:
             "Data updated for {}"
             " with {} successful updates, "
             "{} skipped updates, and {} errors.".format(
-                updated, non_updated, errors, dt.datetime.now()
+                dt.datetime.now(), updated, non_updated, errors
             )
         )
 
@@ -440,8 +446,8 @@ class MetaTrader:
 
         Each company must have only one csv file in the path `dir_csv_path`. If
         there  are more than one, the files will be merged applying method
-        `parse_csv_files`. If `db_path` already exists,
-        a new file will be created
+        `parse_csv_files`. If `db_path` already exists, a new file will be
+        created.
 
         Parameters
         ----------
@@ -470,6 +476,9 @@ class MetaTrader:
             raise IOError(msg)
         if os.path.isfile(db_path):
             os.rename(db_path, db_path + ".{}.old".fromat(dt.datetime.now()))
+        dir_name = os.path.dirname(db_path)
+        if dir_name != "":
+            os.makedirs(dir_name, exist_ok=True)
         conn = sqlite3.connect(db_path)
         for csv_name in csv_name_list:
             symbol = csv_name.split("_")[0]
