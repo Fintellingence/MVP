@@ -1,20 +1,25 @@
-import datetime as dt
 import os
 import sqlite3
 import logging
 import logging.handlers
 
 import pandas as pd
+import datetime as dt
 import pandas_datareader as pdr
+
+from pathlib import Path
 
 __all__ = ["Yahoo", "MetaTrader"]
 
+# global variables to automate function calls
+STD_DB_PATH = str(Path.home()) + "/FintelligenceData/BRShares_Yahoo_D1.db"
+BIG_COMPANIES = ["PETR4","PETR3","VALE3","ITUB4",
+                 "BBAS3","BBDC4","ITSA4","B3SA3"]
 
 class Yahoo:
-    """Define a database in Sqlite using data from Yahoo databases for
-    collected shared prices.
-
-    For now, this implementation analysis the day-1 frequency of Yahoo data.
+    """
+    Define a database in Sqlite using Yahoo web API and pandas_datareader
+    to collect shares OHLC prices in 1-Day time-frame.
 
     Parameters
     ----------
@@ -23,7 +28,7 @@ class Yahoo:
 
     """
 
-    def __init__(self, db_path):
+    def __init__(self, db_path = STD_DB_PATH):
         os.makedirs("logs/", exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(
             "logs/yahoo.log", maxBytes=200 * 1024 * 1024, backupCount=1
@@ -44,8 +49,9 @@ class Yahoo:
         self._conn = sqlite3.connect(db_path)
         self._cursor = self._conn.cursor()
         self._std_init_day1 = dt.date(2010, 1, 2)
+        self._db_symbols = self.get_db_symbols()
 
-    def get_symbols(self):
+    def get_db_symbols(self):
         """
         Get all symbols for the connected Sqlite database.
 
@@ -58,95 +64,114 @@ class Yahoo:
 
     def get_date(self, symbol):
         """
-        Get date associated with `symbol` plus one day
+        Get date associated with `symbol` plus one day.  If  `symbol`
+        is not in database, return `self._std_init_day1` which is the
+        default initial date for all companies.
 
         """
-        full_date = self._cursor.execute(
-            "SELECT Date FROM {} ORDER BY Date DESC LIMIT 1".format(symbol)
-        ).fetchall()[0][0]
-        date_str = full_date.split(" ")[0]
-        last_date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
-        init_day1 = last_date + dt.timedelta(days=1)
-        return init_day1
+        if (symbol in self._db_symbols):
+            full_date = self._cursor.execute(
+                "SELECT Date FROM {} ORDER BY Date DESC LIMIT 1".format(symbol)
+            ).fetchall()[0][0]
+            date_str = full_date.split(" ")[0] # Take only YYYY-mm-dd part
+            last_date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
+            init_day1 = last_date + dt.timedelta(days=1)
+            return init_day1
+        return self._std_init_day1
 
-    def update_symbol(self, init_day1, symbol, final_day1, if_exist="fail"):
+    def update_symbol(self, symbol, final_day1 = None):
         """
-        Update data for the `symbol` in the interval
-        [`init_day1`, `final_day`].
+        Update data for the `symbol`. If the `symbol` is not in the
+        database, introduce it starting from `self._std_init_day1`.
+        `final_day1`(optional) must be datetime.date object. If not
+        provided use today's date.
 
         """
+        init_day1 = self.get_date(symbol)
+        if (final_day1 == None):
+            final_day1 = dt.date.today() - dt.timedelta(days=1)
+        elif (type(final_day1) != dt.date):
+            final_day1 = dt.date.today() - dt.timedelta(days=1)
+            self._logger.warn("final date type of share {} is invalid. "
+                    "Using today's date {}".format(symbols,final_day1))
+        if (init_day1 + dt.timedelta(days=3) > final_day1):
+            return 0    # flag for unecessary update
+        flag = 1        # flag for update
         try:
             df = pdr.DataReader(symbol + ".SA", "yahoo", init_day1, final_day1)
             df.rename(columns={"Adj Close": "AdjClose"}, inplace=True)
-            df.to_sql(symbol, con=self._conn, if_exists=if_exist)
-            self._logger.info("Share {} successfully updated.".format(symbol))
+            df.to_sql(symbol, con=self._conn, if_exists="append")
+            self._logger.info("{} successfully updated.".format(symbol))
+            if (symbol not in self._db_symbols):
+                self._db_symbols.append(symbol)
+                flag = 2    # flag for new symbol
         except Exception as e:
-            self._logger.error(
-                "{} : During the fetch for symbol {}.".format(e, symbol)
-            )
-            return -1
-        else:
-            return 1
+            self._logger.error("{} : Trying update {}.".format(e, symbol))
+            flag = -1       # flag for error
+        return flag
 
-    def update_known_symbol(self, init_day1, symbol, final_day1):
+    def update(self, company_path = ""):
         """
-        Update data for the `symbol` that already is in the connected database.
-
-        """
-        if init_day1 + dt.timedelta(days=3) >= final_day1:
-            print(
-                "Share {} will be not updated,"
-                " less than 3 days of delay.".format(symbol)
-            )
-            return 0
-        else:
-            return self.update_symbol(init_day1, symbol, final_day1, "append")
-
-    def update(self, company_path):
-        """Construct or update day-1 frequency for Yahoo database
+        Construct or update day-1 time-frame database within Yahoo API
 
         Parameters
         ----------
-        company_path : ``str``
-            The path to the company symbols associated with Yahoo database
+        `company_path` : ``str``
+            The path to the company symbols that must be updated  in
+            database. In case the file/path does not exist or is not
+            informed use default list `BIG_COMPANIES`.
 
         """
-        try:
-            file_symbols = list(pd.read_csv(company_path)["symbols"])
-        except FileNotFoundError as e:
-            print(e)
-            exit(1)
-        db_symbols = self.get_symbols()
-
+        self._logger.info("================== FULL UPDATE REQUESTED")
+        if (len(company_path) > 0):
+            try:
+                file_symbols = list(pd.read_csv(company_path)["symbols"])
+            except FileNotFoundError as e:
+                print(e,"Using list of biggest companies in IBOV index.")
+                file_symbols = BIG_COMPANIES
+        else:
+            print("Empty path to file with company symbols. "
+                    "Using biggest companies in IBOV index.")
+            file_symbols = BIG_COMPANIES
+        nsymbols = len(file_symbols)
+        i = 1
+        new = 0
         errors = 0
         updated = 0
         non_updated = 0
-        final_day1 = dt.date.today() - dt.timedelta(days=1)
         for symbol in file_symbols:
-            if symbol in db_symbols:
-                init_day1 = self.get_date(symbol)
-                flag = self.update_known_symbol(init_day1, symbol, final_day1)
-            else:
-                flag = self.update_symbol(
-                    self._std_init_day1, symbol, final_day1
-                )
-
-            if flag == 1:
+            print("[{:2d}/{}]".format(i, nsymbols), end=" ")
+            flag = self.update_symbol(symbol)
+            if flag == 2:
+                new += 1
+                print("{} new share introduced".format(symbol))
+            elif flag == 1:
                 updated += 1
+                print("{} updated".format(symbol))
             elif flag == 0:
                 non_updated += 1
+                print("{} skipped - less than 3 days of delay".format(symbol))
             else:
                 errors += 1
-        self._logger.info(
-            "Data updated for {}"
-            " with {} successful updates, "
-            "{} skipped updates, and {} errors.".format(
-                dt.datetime.now(), updated, non_updated, errors
-            )
+                print("{} ! FAILED - check yahoo.log file".format(symbol))
+            i += 1
+        result_msg = (
+            "\nData is up to date {}\n"
+            "From {:2d} symbols requested:\n"
+            "\t{:2d} new introduced;\n"
+            "\t{:2d} updated;\n"
+            "\t{:2d} skipped updates\n"
+            "\t{:2d} errors.\n"
+            "========================================"
+            "========================================".format(
+            dt.date.today(), nsymbols, new, updated, non_updated, errors)
         )
+        self._logger.info(result_msg)
+        print(result_msg)
 
     def __del__(self):
         self._conn.close()
+
 
 
 class MetaTrader:
