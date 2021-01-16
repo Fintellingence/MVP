@@ -1,7 +1,9 @@
 import os
+import sys
 import sqlite3
 import logging
 import logging.handlers
+import socket
 
 import pandas as pd
 import datetime as dt
@@ -9,10 +11,17 @@ import pandas_datareader as pdr
 
 from pathlib import Path
 
-__all__ = ["Yahoo", "MetaTrader"]
+__all__ = ["Yahoo", "MetaTrader", "SocketServer"]
 
 # global variables to automate function calls
-STD_DB_PATH = str(Path.home()) + "/FintelligenceData/BRShares_Yahoo_D1.db"
+
+DEFT_PORT = 9090
+DEFT_ADDRESS = "127.0.0.1"
+DEFT_DB_PATH = str(Path.home()) + "/FintelligenceData/"
+DEFT_SYMBOLS_PATH = DEFT_DB_PATH + "CompanySymbols_list.txt"
+DEFT_CSV_DIR_PATH = DEFT_DB_PATH + "csv_files/"
+DEFT_D1_DB_PATH = DEFT_DB_PATH + "Yahoo_D1.db"
+DEFT_M1_DB_PATH = DEFT_DB_PATH + "MetaTrader_M1.db"
 BIG_COMPANIES = ["PETR4","PETR3","VALE3","ITUB4",
                  "BBAS3","BBDC4","ITSA4","B3SA3"]
 
@@ -28,7 +37,7 @@ class Yahoo:
 
     """
 
-    def __init__(self, db_path = STD_DB_PATH):
+    def __init__(self, db_path = DEFT_D1_DB_PATH):
         os.makedirs("logs/", exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(
             "logs/yahoo.log", maxBytes=200 * 1024 * 1024, backupCount=1
@@ -176,7 +185,9 @@ class Yahoo:
 
 class MetaTrader:
     """
-    Deal with CSV files downloaded from MetaTrader.
+    Creation and update of 1-minute time frame database. This class
+    provide an interface to read data in csv files exported from
+    MetaTrader and also communicate using a socket connection.
 
     """
 
@@ -194,26 +205,28 @@ class MetaTrader:
         self._logger = logging.getLogger("Logger")
         self._logger.setLevel(logging.INFO)
         self._logger.addHandler(handler)
+        self._default_init_date = dt.datetime(2015,1,2)
 
-    def get_raw_name_initial_time(self, file_path):
-        name = os.path.basename(file_path)
-        return name.split("_")[-2]
+    def __get_filename_initial_time(self, file_name):
+        return file_name.split("_")[-2]
 
-    def get_raw_name_final_time(self, file_path):
-        name = os.path.basename(file_path)
-        return name.split("_")[-1].split(".")[0]
+    def __get_filename_final_time(self, file_name):
+        return file_name.split("_")[-1].split(".")[0]
 
-    def parse_raw_time(self, raw_time_str):
-        """Return `datetime` object based on `raw_time_str`
+    def __get_filename_symbol(self, file_name):
+        return file_name.split("_")[0]
+
+    def __parse_time(self, raw_time_str):
+        """
+        Return `datetime` object corresponding to `raw_time_str`
 
         Parameters
         ----------
-        raw_time_str : ``str``
-            Datetime string in format `YYYYmmddHHMM
+        raw_time_str : ``str`` Datetime string in format `YYYYmmddHHMM
 
-        Returns
-        -------
-        raw_time_str : ``datetime.datetime``.
+        Return
+        ------
+        ``datetime.datetime`` object.
         """
         time_str = (
             raw_time_str[:4]
@@ -230,228 +243,81 @@ class MetaTrader:
         return dt.datetime.strptime(time_str, "%Y.%m.%d %H:%M:%S")
 
     def get_period_from_name(self, file_path):
-        """Return an temporal interval based on a file path
+        """
+        Return an temporal interval based on a file path
 
         Parameters
         ----------
         file_path : ``str``
-            A path to the csv file with the meta trader share data. The
-            following format is required ``*._YYmmddHHMM_YYmmddHHMM.csv``
+            A path to the CSV file with the meta trader share data. The
+            following format is required ``*_YYmmddHHMM_YYmmddHHMM.csv``
+            where * stands for the share symbol
 
         Return
         ------
         interval : ``Dict[str, datetime.datetime]``
 
         """
-        raw_time_str_initial = self.get_raw_name_initial_time(file_path)
-        raw_time_str_final = self.get_raw_name_final_time(file_path)
-        initial = self.parse_raw_time(raw_time_str_initial)
-        final = self.parse_raw_time(raw_time_str_final)
+        file_name = os.path.basename(file_path)
+        raw_time_str_initial = self.__get_filename_initial_time(file_name)
+        raw_time_str_final = self.__get_filename_final_time(file_name)
+        initial = self.__parse_time(raw_time_str_initial)
+        final = self.__parse_time(raw_time_str_final)
         return {"initial": initial, "final": final}
 
-    def check_disjunction(self, interval_a, interval_b):
+    def csv_dataframe_parser(self, file_path, sep=None):
         """
-        Check if the intervals a and b are disjoint.
-
-        """
-        if (
-            interval_a["final"] < interval_b["initial"]
-            or interval_a["initial"] > interval_b["final"]
-        ):
-            self._logger.error("Disjoint intervals")
-            raise ValueError("Disjoint intervals")
-
-    def create_data_frame(self, file_path, sep=None):
-        """Create DataFrame using csv file in `file_path`. The miliseconds are
-        ignored during the processing of times.
+        Create DataFrame using CSV file in `file_path`.
+        Remove miliseconds in time column if present.
 
         Parameters
         ----------
-        file_path : ``str``
-            A path to the csv file with the meta trader share data.
+        file_path : ``str`` A path to the CSV file exported from MetaTrader.
 
         Return
         ------
         df : ``pandas.DataFrame``
 
         """
-        df = pd.read_csv(file_path, sep=sep)
+        df = pd.read_csv(file_path, sep=sep, engine='python')
         df["<TIME>"] = df[["<TIME>"]].applymap(lambda x: x.split(".")[0])
         return df
 
-    def get_datetime_series(self, df):
-        """Create Series concatenating date and time columns of `df`
+    def __get_datetime_series(self, raw_df):
+        """
+        Create Series concatenating date and time columns of `df`
         ignored during the processing of times.
 
         Parameters
         ----------
-        df : ``pandas.DataFrame``
-            A path to the csv file with the meta trader share data.
+        raw_df : ``pandas.DataFrame`` A raw dataframe obtained from csv parser.
 
         Return
         ------
         s : ``pandas.Series``
 
         """
-        s = df["<DATE>"] + " " + df["<TIME>"]
+        s = raw_df["<DATE>"] + " " + raw_df["<TIME>"]
         s = s.map(lambda x: dt.datetime.strptime(x, "%Y.%m.%d %H:%M:%S"))
         return s
 
-    def get_overlap_idx(self, df_a, df_b):
-        """Get the first index of df_b in which the datetime is not covered by
-        df_a.
-
-        Parameters
-        ----------
-        df_a and df_b : ``pandas.DataFrame``
-
-        Return
-        ------
-        index : ``Any``
-            A value associated with df_b index.
-
-        Raises
-        ------
-        ValueError
-            If nothing index are found.
-
-        """
-        s_a = self.get_datetime_series(df_a)
-        s_b = self.get_datetime_series(df_b)
-        indices = s_b[s_b > s_a[len(s_a) - 1]].index
-        if len(indices) == 0:
-            self._logger.error("The is not any ovelap between intervals.")
-            raise ValueError("The is not any ovelap between intervals.")
-        return indices[0]
-
-    def apply_merge(self, symbol, file_path_a, file_path_b):
-        """
-        Create a new csv file with the merge of data in the files `file_path_a`
-        and `file_path_b`. Non-empty intersection and
-        `interval_a["initial"] < interval_b["initial"]` are required.
-
-        """
-        period_str = (
-            self.get_raw_name_initial_time(file_path_a)
-            + "_"
-            + self.get_raw_name_initial_time(file_path_b)
-        )
-        merged_file_path = os.path.join(
-            "merged_csv", "{}_M1_{}".format(symbol, period_str)
-        )
-        df_a = self.share_data_frame(file_path_a)
-        df_b = self.share_data_frame(file_path_b)
-        idx = self.get_overlap_idx(df_a, df_b)
-
-        merged_df = df_a.append(df_b.loc[idx:], ignore_index=True, sort=False)
-        merged_df.to_csv(merged_file_path, index=False)
-        return merged_file_path
-
-    def resolve_overlap_and_merge(
-        self, symbol, interval_a, interval_b, file_path_a, file_path_b
-    ):
-        """
-        Merge of csv files `file_path_a` and `file_path_b` considering
-        the possible data overlaps.
-
-        """
-        if interval_a["initial"] < interval_b["initial"]:
-            if interval_a["final"] > interval_b["final"]:
-                return file_path_a
-            return self.apply_merge(symbol, file_path_a, file_path_b)
-        else:
-            if interval_b["final"] > interval_a["final"]:
-                return file_path_b
-            return self.apply_merge(symbol, file_path_b, file_path_a)
-
-    def merge_files(self, file_path_a, file_path_b):
-        """
-        Merge two csv files with overlap data in the period.
-
-        """
-        symbol = file_path_a.split("_")[0]
-        interval_a = self.get_interval_from_name(file_path_a)
-        interval_b = self.get_interval_from_name(file_path_b)
-        self.check_disjunction(interval_a, interval_b)
-        return self.resolve_overlap_and_merge(
-            symbol, interval_a, interval_b, file_path_a, file_path_b
-        )
-
-    def parse_csv_files(self, dir_csv_path):
-        """Perse csv files from MetaTrader.
-
-        When manually donwloaded, the csv files from MetaTrader may
-        become obsolete. Since the new csv files are simply added with
-        remaining files to present day. This function merge files in a
-        new csv with  a  continuous time ordering. It also informe
-        if there are time-gaps among csv files
-
-        Parameters
-        ----------
-        dir_csv_path : ``str``
-            A path to the directory containing the csv files for the meta
-            trader share data. The file names following this format
-            ``(*.)_*._YYmmddHHMM_YYmmddHHMM.csv``, in which the first group
-            is the symbol (or company name).
-
-        """
-        if not os.path.exists(dir_csv_path):
-            msg = "The path {} does not exist".format(dir_csv_path)
-            self._logger.error(msg)
-            raise IOError(msg)
-
-        csv_paths = [
-            name
-            for name in os.listdir(dir_csv_path)
-            if name.split(".")[-1] == "csv"
-        ]
-        symbols = [path.split("_")[0] for path in csv_paths]
-        if len(symbols) == 0:
-            self._logger.info(
-                "There is not any file in {} with expected format".format(
-                    dir_csv_path
-                )
-            )
-            return None
-
-        while len(symbols) > 0:
-            symbol = symbols[0]
-            symbols.remove(symbol)
-            file_path_a = csv_paths[0]
-            csv_paths.remove(file_path_a)
-            if symbol in symbols:
-                i = symbols.index(symbol)
-                file_path_b = csv_paths[i]
-                try:
-                    output_file_path = self.merge_files(
-                        file_path_a, file_path_b
-                    )
-                    if output_file_path == file_path_a:
-                        os.remove(file_path_b)
-                    elif output_file_path == file_path_b:
-                        os.remove(file_path_a)
-                    else:
-                        os.remove(file_path_a)
-                        os.remove(file_path_b)
-                    csv_paths[i] = output_file_path
-                except Exception as e:
-                    raise e
-
-    def parse_columns(df):
+    def refine_columns(self, df):
         """
         Drop `<SPREAD>`, convert columns `<DATE>` and `<TIME>` to the index
         composed of timestamp, and remove brackes from names of remaining
         columns.
 
+        Parameters
+        ----------
+        df : ``pandas.DataFrame`` A raw dataframe obtained from csv parser.
+
+        Return
+        ------
+        df : ``pandas.DataFrame`` With the labels conveniently changed
+
         """
-        datetime_index = [
-            dt.datetime.strptime(
-                "{} {}".format(df["<DATE>"][i], df["<TIME>"][i]),
-                "%Y.%m.%d %H:%M:%S",
-            )
-            for i in df.index
-        ]
-        df.set_index(pd.DatetimeIndex(datetime_index), inplace=True)
+        datetime_index = self.__get_datetime_series(df)
+        df.set_index(datetime_index, inplace=True)
         df.index.name = "DateTime"
         df.drop(["<DATE>", "<TIME>", "<SPREAD>"], axis=1, inplace=True)
         columns_rename = {
@@ -465,30 +331,40 @@ class MetaTrader:
         df.rename(columns=columns_rename, inplace=True)
         return df
 
-    def create_metratrader_m1_db(self, db_path, dir_csv_path):
-        """Create a Sqlite database composed of data from CSV files downloaded
-        from MetaTrader.
+    def csv_to_dataframe(self, csv_file_path):
+        """From a csv file path return a (refined)dataframe"""
+        return self.refine_columns(self.csv_dataframe_parser(csv_file_path))
 
-        Each company must have only one csv file in the path `dir_csv_path`. If
-        there  are more than one, the files will be merged applying method
-        `parse_csv_files`. If `db_path` already exists, a new file will be
-        created.
+    def create_new_m1_db(self, db_path = DEFT_M1_DB_PATH,
+            dir_csv_path = DEFT_CSV_DIR_PATH):
+        """
+        Create a Sqlite database from CSV files downloaded from MetaTrader.
+        Each company must have only one csv file in the path `dir_csv_path`
+        If `db_path` already exists, a new file will be created and the old
+        database file will be renamed by appending the suffix with today's
+        date and '.old'
 
         Parameters
         ----------
         db_path : ``str``
             The path to the dump file for a Sqlite database.
         dir_csv_path: ``str``
-            The path to the directory with CSV files for MetaTrader
+            The path to the directory with MetaTrader CSV files
 
         """
+        self._logger.info(
+                "======================================="
+                "======================================="
+                "New database from csv files requested\n"
+        )
         if not os.path.exists(dir_csv_path):
             msg = "The path {} does not exist in this computer".format(
                 dir_csv_path
             )
             self._logger.error("{}".format(msg))
             raise IOError(msg)
-        self.parse_csv_files(dir_csv_path)
+        if (dir_csv_path[-1] != "/"):
+            dir_csv_path = dir_csv_path + "/"
         csv_name_list = [
             name
             for name in os.listdir(dir_csv_path)
@@ -500,16 +376,401 @@ class MetaTrader:
             self._logger.error("{}".format(msg))
             raise IOError(msg)
         if os.path.isfile(db_path):
-            os.rename(db_path, db_path + ".{}.old".fromat(dt.datetime.now()))
+            os.rename(db_path, db_path + ".{}.old".format(dt.datetime.now()))
         dir_name = os.path.dirname(db_path)
         if dir_name != "":
             os.makedirs(dir_name, exist_ok=True)
         conn = sqlite3.connect(db_path)
+        i = 1
         for csv_name in csv_name_list:
-            symbol = csv_name.split("_")[0]
-            df = self.parse_columns(
-                pd.read_csv(dir_csv_path + csv_name, sep=None)
-            )
+            symbol = self.__get_filename_symbol(csv_name)
+            period = self.get_period_from_name(dir_csv_path + csv_name)
+            df = self.csv_to_dataframe(dir_csv_path + csv_name)
             df.to_sql(symbol, con=conn)
+            print("[{:2d}/{}] {} from {} to {} introduced".format(
+                i, num_files, symbol, period["initial"], period["final"])
+            )
+            i += 1
         conn.close()
-        self._logger.info("Process finished. DB-connection closed\n")
+        final_msg = (
+            "\nDB construction Process finished. "
+            "{} shares introduced from csv files\n".format(num_files)
+        )
+        print(final_msg)
+        self._logger.info(final_msg)
+
+    def update_m1_db(self,
+            db_path = DEFT_M1_DB_PATH,
+            sym_path = DEFT_SYMBOLS_PATH,
+            optional_csv_dir = DEFT_CSV_DIR_PATH):
+        """
+        Update or create (case it does not exist) the 1-minute time  frame
+        database. A socket connection is required to transfer data between
+        MetaTrader (client) and python (server), thus it requires the user
+        to also run a script (expert advisor) in MetaTrader where the user
+        also has to provide an account to properly access the share prices
+
+        Expert Advisor in MetaTrader : `SendListOfSymbols`
+
+        Execute the EA when a message informs it is waiting for the client
+
+        Parameters
+        ----------
+        `db_path` : ``str``
+            full path to database file to be updated. If no one is found
+            create it trying to use csv files in `optional_csv_dir`
+        `sym_path` : ``str``
+            full path to text file with list of symbols to be updated.
+            They do not need to match exactly the ones already in the
+            database file being updated and new ones can be included.
+            If the file is not provided use a default list of biggest
+            companies in IBOV index
+        `optional_csv_dir` : ``str``
+            full path to a directory to use in case the database file
+            is not found and must be created. If no CSV files are found
+            use directly the socket connection to retrieve data.
+
+        """
+        print("\nBuilding/Updating MetaTrader Minute-1 database")
+        if len(db_path) == 0:
+            self._logger.error("1-minute db path must be non-empty string")
+            raise IOError("1-minute db path must be non-empty string")
+        dir_name = os.path.dirname(db_path)
+        if dir_name != "":
+            os.makedirs(dir_name, exist_ok=True)
+        if (not os.path.isfile(db_path)):
+            warn_msg = ("No db file found to update. Building it from "
+                    "scratch. Trying to use CSV files ... ")
+            try:
+                self.create_new_m1_db(db_path,optional_csv_dir)
+                warn_msg += "Using CSV files from {}".format(optional_csv_dir)
+            except IOError:
+                warn_msg += "No CSV files found "
+                pass
+            print(warn_msg)
+            self._logger.warn(warn_msg)
+        try:
+            sym_file = open(sym_path, "r")
+            symbols = [symbol.strip() for symbol in sym_file.readlines()]
+            sym_file.close()
+        except FileNotFoundError:
+            warn_msg = ("\n! WARNING: CompanySymbols_list.txt file not found."
+                    " Using default list of important companies of IBOVESPA")
+            print(warn_msg)
+            self._logger.warn(warn_msg)
+            symbols = BIG_COMPANIES
+        nsymbols = len(symbols)
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' "
+                       "ORDER BY name"
+        )
+        db_symbols = [tabname[0] for tabname in cursor.fetchall()]
+        input_dict = dict()
+        final_date = dt.datetime.today()
+        for symbol in symbols:
+            if (symbol in db_symbols):
+                cursor = conn.cursor()
+                cursor.execute("SELECT DateTime FROM {} ORDER BY DateTime "
+                        "DESC LIMIT 1".format(symbol)
+                )
+                date_str = cursor.fetchall()[0][0]
+                last_update = dt.datetime.strptime(date_str,
+                        "%Y-%m-%d %H:%M:%S"
+                )
+                start_date = last_update + dt.timedelta(minutes=1)
+            else:
+                start_date = self._default_init_date
+            date_diff = final_date - start_date
+            if (date_diff > dt.timedelta(days = 1)):
+                input_dict[symbol] = (start_date,final_date)
+        mt_server = SocketServer()
+        data = mt_server.get_m1_ohlc_dataset(input_dict)
+        for symbol in data.keys():
+            if type(data[symbol]) is str: continue
+            data[symbol].to_sql(symbol, con=conn, if_exists = "append")
+        del mt_server
+        conn.close()
+
+        symbols_failed = [
+                sym
+                for sym in data.keys()
+                if type(data[sym]) is str
+        ]
+        symbols_ignored = [
+                sym
+                for sym in symbols
+                if sym not in input_dict.keys()
+        ]
+        new_symbols = [
+                sym
+                for sym in symbols 
+                if (sym not in db_symbols and sym not in symbols_failed)
+        ]
+        err_count = len(symbols_failed)
+        suc_count = len(symbols) - len(symbols_ignored) - len(symbols_failed)
+        new_count = len(new_symbols)
+        skp_count = len(symbols_ignored)
+        upd_count = suc_count - new_count
+        if (err_count > 0):
+            final_err_msg = ("\nFAILURE FETCHING THE FOLLOWING TICKERS "
+                    "IN DATE {}".format(dt.datetime.now())
+            )
+            for symbol in symbols_failed:
+                final_err_msg += ("\n{} {}".format(symbol,data[symbol]))
+            self._logger.error(final_err_msg)
+        final_info_msg = (
+                "\nFrom {} symbols requested\n"
+                "\t{} introduced\n"
+                "\t{} needed update\n"
+                "\t{} already up to date\n"
+                "\tand {} failed\n".format(
+                len(symbols), new_count, upd_count, skp_count, err_count)
+        )
+        self._logger.info(final_info_msg)
+        print(final_info_msg)
+        print("db-connection closed. Update finished.")
+
+
+
+class SocketServer:
+    """
+    Class to provide an interface to communicate directly with MetaTrader.
+    It create a server in python and accept connections from MetaTrader
+    that is referred as client. The methods must be used together with the
+    corresponding expert advisors in MetaTrader where an account must be
+    provided to be able to access data.
+    """
+    def __init__(self, address = DEFT_ADDRESS, port = DEFT_PORT,
+                 bytes_lim = 8192, listen = True):
+        self.sck = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # 'setsockopt' to avoid openned socket in TIME_WAIT state
+        self.sck.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.today = dt.datetime.today()
+        self.port = port
+        self.address = address
+        self.bytes_lim = bytes_lim  # max bytes in a single receive
+        self.sck.bind((self.address, self.port))
+        self.isListening = False    # socket server listening status
+        self.conn = None            # current openned connection service
+        self.addr = None            # address of current connection
+        if (listen): self.startListening()
+
+    def startListening(self):
+        self.sck.listen(1)
+        self.isListening = True
+
+    def stopListening(self):
+        try: self.sck.shutdown(socket.SHUT_RDWR)
+        except OSError: pass
+        self.isListening = False
+
+    def refresh(self):
+        """
+        Refresh server by shuting down and then setting it to listening
+        again. This is useful to clean any bytes stucked in buffer when
+        some error occurred in previous communications
+        """
+        self.stopListening()
+        self.startListening()
+
+    def __communicate(self, message):
+        """Send a `message` to MetaTrader Client and return the response"""
+        if (self.conn == None):
+            raise AttributeError("No openned connection in __communicate")
+        if (not self.isListening):
+            raise AttributeError("Server is not listening in __communicate")
+        self.conn.send(bytes(message,"utf-8"))
+        raw_data = self.conn.recv(self.bytes_lim)
+        return raw_data.decode("utf-8")
+
+    def __assertSymbol(self, symbol):
+        """Return True if company `symbol` exists in MetaTrader"""
+        if (self.__communicate(symbol).upper == "ERROR"): return False
+        return True
+
+    def get_raw_m1(self, symbol, initial_date, final_date, it = False):
+        """
+        Receive raw OHLC data from MetaTrader in a list of strings with
+        each element corresponding to a day
+
+        Parameters
+        ----------
+        `symbol` : ``str``
+            company share code, ex: "PETR4"
+        `initial_date` : ``datetime.datetime``
+            Initial date and time to start retrieving data
+        `final_date` : ``datetime.datetime``
+            final date to stop retrieving data
+        `it` : ``bool``
+            Indicate if this function is iteratively called in which
+            case supress information printing
+
+        Return
+        ------
+        `str_fulldata_list` : ``list``
+            Each element in the list has 1 day of OHLC data in string
+            format, separated by commas (each minute) and spaces (the
+            data OHLC fields)
+
+        """
+        if (type(symbol) != str):
+            raise TypeError("Symbol must be a string")
+        if (type(initial_date) == type(final_date) == dt.datetime):
+            str_dt1 = initial_date.strftime("%Y.%m.%d %H:%M")
+            str_dt2 = final_date.strftime("%Y.%m.%d %H:%M")
+        else:
+            raise TypeError("Initial and final date must be datetime objects.")
+        if (final_date < initial_date):
+            raise ValueError("Final date must be forward of initial one.")
+        if (not it):
+            print("\nWaiting for client (MetaTrader) connection ...",end=" ")
+            sys.stdout.flush()
+        # Wait connection from Client (MetaTrader)
+        if (not self.isListening):
+            self.startListening()
+        self.conn, self.addr = self.sck.accept()
+        if (not it):
+            print("Connected to", self.addr)
+        if (not self.__assertSymbol(symbol)):
+            self.conn.close()
+            raise ValueError("Some problem occurred fetching {} in "
+            "MetaTrader. Assert it exists".format(symbol))
+        str_fulldata_list = []
+        str_data = ""
+        # inform initial and final dates to MetaTrader
+        # in a string separated by a underscore
+        self.conn.send(bytes(str_dt1 + "_" + str_dt2,"utf-8"))
+        if (not it):
+            print("Transfering {} data through socket connection ...".format(
+            symbol), end=" ")
+            sys.stdout.flush()
+        while True:
+            raw_data = self.conn.recv(self.bytes_lim)
+            str_data += raw_data.decode("utf-8")
+            if not raw_data: break
+            # Underscore character _ separate data(string) set in days
+            if "_" in str_data:
+                str_split = str_data.split("_")
+                # split days as list elements
+                for part in str_split[:len(str_split)-1]:
+                    if len(part) > 0: str_fulldata_list.append(part)
+                str_data = str_split[-1]
+        if (not it): print("Done\n")
+        self.conn.close()
+        self.conn = None
+        self.addr = None
+        # Append remaining data after last receipt(break in while)
+        if (len(str_data) > 0): str_fulldata_list.append(str_data)
+        return str_fulldata_list
+
+    def get_m1_ohlc_dataframe(self, symbol, initial_date,
+                                final_date, it = False):
+        """
+        Retrieve share data from MetaTrader in 1-minute time frame.
+
+        Parameters
+        ----------
+        `symbol` : ``str``
+            company share code, ex: "PETR4"
+        `initial_date` : ``datetime.datetime``
+            Initial date and time to start retrieving data
+        `final_date` : ``datetime.datetime``
+            final date to stop retrieving data
+        `it` : ``bool``
+            Indicate if this function is iteratively called in which
+            case supress information printing
+
+        Return
+        ------
+        `df` : ``pandas.DataFrame``
+
+        """
+        str_list = self.get_raw_m1(symbol,initial_date,final_date,it)
+        ohlc_list = []  # core data of pandas data-frame
+        date_list = []  # indexing of pandas data-frame
+        for day_data in str_list:
+            for ohlc_str in day_data.split(","):
+                ohlc_split = ohlc_str.split(" ")
+                date_str = ohlc_split[0] + " " + ohlc_split[1]
+                ohlc_list.append([float(x) for x in ohlc_split[2:]])
+                date_list.append(pd.Timestamp(date_str))
+        df = pd.DataFrame(
+                ohlc_list,index=date_list,
+                columns=["Open","High","Low","Close","TickVol","Volume"]
+        )
+        df["TickVol"] = df["TickVol"].astype(int)
+        df["Volume"] = df["Volume"].astype(int)
+        df.index.name = "DateTime"
+        return df
+
+    def get_m1_ohlc_dataset(self, symbols_dict):
+        """
+        Retrieve data for a set of shares
+
+        Parameters
+        ----------
+        `symbols_dict` : ``dic[symbol : (initial_date, final_date)]``
+            provide the shares symbols as keys and values with the
+            corresponding period as a tuple of 2 ``datetime.datetime``
+
+        Return
+        ------
+        `data_dict` : ``pandas.DataFrame``
+            Use the shares symbols as keys and the values as dataframe
+            with Open-High-Low-Close-TickVol-Volume data per minute
+
+        """
+        AllSymbols_str = ""
+        if len(symbols_dict.keys()) == 0: return dict()
+        for symbol in symbols_dict.keys():
+            if (type(symbol) != str):
+                raise KeyError("Non string-type symbol found in "
+                               "input dictionary key: {}".format(symbol))
+            AllSymbols_str += "_" + symbol
+        AllSymbols_str = AllSymbols_str[1:]
+        if (len(AllSymbols_str) == 0):
+            raise ValueError("No symbols found in input symbol list")
+        print("\nWaiting for client (MetaTrader) connection ...", end = " ")
+        sys.stdout.flush()
+        symbols_requested = AllSymbols_str.split("_")
+        if (not self.isListening): self.startListening()
+        self.conn, self.addr = self.sck.accept()
+        # Send in message the list of requested symbols to MetaTrader
+        # and receive only the valid symbols as response
+        valid_symbols_str = self.__communicate(AllSymbols_str)
+        valid_symbols = valid_symbols_str.split("_")
+        self.conn.close()
+        print("Connected to", self.addr)
+
+        Nsymbols_requested = len(symbols_requested)
+        Nsymbols_valid = len(valid_symbols)
+        print("\n{} valid symbols of {} to be updated/created".format(
+               Nsymbols_valid,Nsymbols_requested))
+        data_dict = dict()
+        i = 0
+        print("Working in ...\n")
+        for symbol in symbols_requested:
+            i = i + 1
+            initial_date = symbols_dict[symbol][0]
+            final_date = symbols_dict[symbol][1]
+            print("[{:2d}/{}] {}".format(i,Nsymbols_requested,symbol),end=" ")
+            if (symbol not in valid_symbols):
+                err_msg = "Symbol not found in MetaTrader"
+                print("! ERROR.",err_msg)
+                data_dict[symbol] = "ERROR: " + err_msg
+                continue
+            if final_date < initial_date:
+                err_msg = ("Invalid initial and final dates"
+                " from {} to {}".format(initial_date,final_date))
+                print("! ERROR.",err_msg)
+                data_dict[symbol] = "ERROR: " + err_msg
+                continue
+            print("from",initial_date,"to",final_date)
+            sys.stdout.flush()
+            data_dict[symbol] = self.get_m1_ohlc_dataframe(symbol,
+                                initial_date,final_date,True)
+        return data_dict
+
+    def __del__(self):
+        self.sck.close()
