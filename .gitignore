@@ -1,5 +1,12 @@
+
 scripts/log/
+ignored_files/
+
+# database files
 *.db
+
+# swap files
+*.swp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

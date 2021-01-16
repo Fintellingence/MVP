@@ -119,36 +119,36 @@ class Yahoo:
             flag = -1       # flag for error
         return flag
 
-    def update(self, company_path = ""):
+    def update(self, sym_path = DEFT_SYMBOLS_PATH):
         """
         Construct or update day-1 time-frame database within Yahoo API
 
         Parameters
         ----------
-        `company_path` : ``str``
+        `sym_path` : ``str``
             The path to the company symbols that must be updated  in
             database. In case the file/path does not exist or is not
-            informed use default list `BIG_COMPANIES`.
+            informed use default list `BIG_COMPANIES`. The file must
+            be a text file with one symbol per line
 
         """
-        self._logger.info("================== FULL UPDATE REQUESTED")
-        if (len(company_path) > 0):
-            try:
-                file_symbols = list(pd.read_csv(company_path)["symbols"])
-            except FileNotFoundError as e:
-                print(e,"Using list of biggest companies in IBOV index.")
-                file_symbols = BIG_COMPANIES
-        else:
-            print("Empty path to file with company symbols. "
-                    "Using biggest companies in IBOV index.")
-            file_symbols = BIG_COMPANIES
-        nsymbols = len(file_symbols)
+        self._logger.info("\n================== FULL UPDATE REQUESTED")
+        try:
+            sym_file = open(sym_path, "r")
+            symbols = [symbol.strip() for symbol in sym_file.readlines()]
+            sym_file.close()
+        except FileNotFoundError as e:
+            print(e,"Using biggest companies in IBOV index.")
+            self._logger.warn("{} Using biggest companies"
+                    " in IBOV index.".format(e))
+            symbols = BIG_COMPANIES
+        nsymbols = len(symbols)
         i = 1
         new = 0
         errors = 0
         updated = 0
         non_updated = 0
-        for symbol in file_symbols:
+        for symbol in symbols:
             print("[{:2d}/{}]".format(i, nsymbols), end=" ")
             flag = self.update_symbol(symbol)
             if flag == 2:
@@ -335,7 +335,7 @@ class MetaTrader:
         """From a csv file path return a (refined)dataframe"""
         return self.refine_columns(self.csv_dataframe_parser(csv_file_path))
 
-    def create_new_m1_db(self, db_path = DEFT_M1_DB_PATH,
+    def create_new(self, db_path = DEFT_M1_DB_PATH,
             dir_csv_path = DEFT_CSV_DIR_PATH):
         """
         Create a Sqlite database from CSV files downloaded from MetaTrader.
@@ -399,7 +399,7 @@ class MetaTrader:
         print(final_msg)
         self._logger.info(final_msg)
 
-    def update_m1_db(self,
+    def update(self,
             db_path = DEFT_M1_DB_PATH,
             sym_path = DEFT_SYMBOLS_PATH,
             optional_csv_dir = DEFT_CSV_DIR_PATH):
@@ -442,7 +442,7 @@ class MetaTrader:
             warn_msg = ("No db file found to update. Building it from "
                     "scratch. Trying to use CSV files ... ")
             try:
-                self.create_new_m1_db(db_path,optional_csv_dir)
+                self.create_new(db_path,optional_csv_dir)
                 warn_msg += "Using CSV files from {}".format(optional_csv_dir)
             except IOError:
                 warn_msg += "No CSV files found "
@@ -454,7 +454,7 @@ class MetaTrader:
             symbols = [symbol.strip() for symbol in sym_file.readlines()]
             sym_file.close()
         except FileNotFoundError:
-            warn_msg = ("\n! WARNING: CompanySymbols_list.txt file not found."
+            warn_msg = ("! WARNING: CompanySymbols_list.txt file not found."
                     " Using default list of important companies of IBOVESPA")
             print(warn_msg)
             self._logger.warn(warn_msg)
