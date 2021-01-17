@@ -35,3 +35,15 @@ Remember,
 5. `git push <remote name> <branch name>` to save the work in Github
 6. Is your work fished? **Make a pull request**
 7. Do not play around with `git rebase`
+
+### finVizMiner Client
+Before running or after updating classes, one must run the Setup again by the following command:
+```
+python3 setup.py install --user
+```
+Run 
+```
+python3 finVizMiner.py
+```
+with a list of NYSE (New York Stock Exchange) tickers on a file "NYSEtickers.txt" (one for each line) in the Data directory. The script scrapes waybackmachine.org pages matching finviz.com URLs for the given ticker and produces two databases: News.db and Recommendations.db.
+The database News.db contains relevant news for the given ticker indexed by date-time, and the Recommendations.db contains historical recommendations as given by major investment agencies for that particular ticker. Both databases are output to the Data directory.
