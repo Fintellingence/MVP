@@ -1,6 +1,0 @@
-DateTime,Status,Company,Recommendation,Target
-2007-03-14,Upgrade,JP Morgan,Underweight  → Overweight,
-2007-03-20,Upgrade,Bear Stearns,Peer Perform → Outperform,
-2007-05-04,Downgrade,Bear Stearns,Outperform → Peer Perform,
-2015-05-20,Downgrade,JP Morgan,Overweight → Neutral,
-2016-05-24,Upgrade,BofA/Merrill,Neutral → Buy,

@@ -1,4 +1,0 @@
-wayback-machine-scraper wayback-machine-scraper -a 'finviz.com/quote.ashx?t=PBR$' finviz.com/quote.ashx?t=PBR
- 
-wayback-machine-scraper -a 'finviz.com/quote.ashx?t=VALE$' -f 20100101 -t 20200101 finviz.com/quote.ashx?t=VALE
-
