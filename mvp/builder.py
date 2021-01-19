@@ -98,7 +98,7 @@ class Yahoo(BaseBuilder):
 
         """
         init_day1 = self.get_date(symbol)
-        if final_day1 == None:
+        if final_day1 is None:
             final_day1 = dt.date.today() - dt.timedelta(days=1)
         elif type(final_day1) != dt.date:
             final_day1 = dt.date.today() - dt.timedelta(days=1)
@@ -585,7 +585,7 @@ class SocketServer:
 
     def __communicate(self, message):
         """Send a `message` to MetaTrader Client and return the response"""
-        if self.conn == None:
+        if self.conn is None:
             raise AttributeError("No openned connection in __communicate")
         if not self.isListening:
             raise AttributeError("Server is not listening in __communicate")
