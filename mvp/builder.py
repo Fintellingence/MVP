@@ -96,6 +96,22 @@ class Yahoo(BaseBuilder):
         `final_day1`(optional) must be datetime.date object. If not
         provided use today's date.
 
+        Parameters
+        ----------
+        file_path : ``str``
+            A path to the CSV file with the meta trader share data. The
+            following format is required ``*_YYmmddHHMM_YYmmddHHMM.csv``
+            where * stands for the share symbol
+
+        Return
+        ------
+        flag : ``int``
+            A integer that indicate the status of the update,
+                -1: Unsucccessful update
+                 0: Unecessary update
+                 1: Succcessful update
+                 2: Unecessary update, new symbol was introduced
+
         """
         init_day1 = self.get_date(symbol)
         if final_day1 is None:
@@ -107,8 +123,8 @@ class Yahoo(BaseBuilder):
                 "Using today's date {}".format(symbol, final_day1)
             )
         if init_day1 + dt.timedelta(days=3) > final_day1:
-            return 0  # flag for unecessary update
-        flag = 1  # flag for update
+            return 0
+        flag = 1
         try:
             df = pdr.DataReader(symbol + ".SA", "yahoo", init_day1, final_day1)
             df.rename(columns={"Adj Close": "AdjClose"}, inplace=True)
@@ -116,10 +132,10 @@ class Yahoo(BaseBuilder):
             self._logger.info("{} successfully updated.".format(symbol))
             if symbol not in self._db_symbols:
                 self._db_symbols.append(symbol)
-                flag = 2  # flag for new symbol
+                flag = 2
         except Exception as e:
             self._logger.error("{} : Trying update {}.".format(e, symbol))
-            flag = -1  # flag for error
+            flag = -1
         return flag
 
     def update(self, sym_path):
@@ -131,7 +147,7 @@ class Yahoo(BaseBuilder):
         `sym_path` : ``str``
             The path to the company symbols that must be updated  in
             database. In case the file/path does not exist or is not
-            informed use default list `BIG_COMPANIES`. The file must
+            informed use default list `big_companies`. The file must
             be a text file with one symbol per line
 
         """
@@ -141,47 +157,45 @@ class Yahoo(BaseBuilder):
             symbols = [symbol.strip() for symbol in sym_file.readlines()]
             sym_file.close()
         except FileNotFoundError as e:
-            print(e, "Using biggest companies in IBOV index.")
             self._logger.warn(
-                "{} Using biggest companies" " in IBOV index.".format(e)
+                "{} : Using biggest companies in IBOV index.".format(e)
             )
             symbols = Yahoo._big_companies
-        nsymbols = len(symbols)
-        i = 1
+
+        n_symbols = len(symbols)
         new = 0
         errors = 0
         updated = 0
         non_updated = 0
-        for symbol in symbols:
-            print("[{:2d}/{}]".format(i, nsymbols), end=" ")
+        for i, symbol in enumerate(symbols):
+            msg = "[{:2d}/{}] ".format(i, n_symbols)
             flag = self.update_symbol(symbol)
             if flag == 2:
                 new += 1
-                print("{} new share introduced".format(symbol))
+                msg += "{} new share introduced".format(symbol)
             elif flag == 1:
                 updated += 1
-                print("{} updated".format(symbol))
+                msg += "{} updated".format(symbol)
             elif flag == 0:
                 non_updated += 1
-                print("{} skipped - less than 3 days of delay".format(symbol))
+                msg += "{} skipped, less than 3 days of delay".format(symbol)
             else:
                 errors += 1
-                print("{} ! FAILED - check yahoo.log file".format(symbol))
-            i += 1
+                msg += "{} failed".format(symbol)
+            self._logger.info(msg)
         result_msg = (
             "\nData is up to date {}\n"
             "From {:2d} symbols requested:\n"
-            "\t{:2d} new introduced;\n"
-            "\t{:2d} updated;\n"
+            "\t{:2d} new introduced\n"
+            "\t{:2d} updated\n"
             "\t{:2d} skipped updates\n"
-            "\t{:2d} errors.\n"
+            "\t{:2d} errors\n"
             "========================================"
             "========================================".format(
-                dt.date.today(), nsymbols, new, updated, non_updated, errors
+                dt.date.today(), n_symbols, new, updated, non_updated, errors
             )
         )
         self._logger.info(result_msg)
-        print(result_msg)
 
     def __del__(self):
         self._conn.close()
@@ -465,7 +479,6 @@ class MetaTrader(BaseBuilder):
             print(warn_msg)
             self._logger.warn(warn_msg)
             symbols = MetaTrader._big_companies
-        nsymbols = len(symbols)
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute(
