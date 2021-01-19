@@ -9,32 +9,24 @@ import pandas as pd
 import datetime as dt
 import pandas_datareader as pdr
 
-from pathlib import Path
 
 __all__ = ["Yahoo", "MetaTrader", "SocketServer"]
 
-# global variables to automate function calls
 
-DEFT_PORT = 9090
-DEFT_ADDRESS = "127.0.0.1"
-DEFT_DB_PATH = str(Path.home()) + "/FintelligenceData/"
-DEFT_SYMBOLS_PATH = DEFT_DB_PATH + "CompanySymbols_list.txt"
-DEFT_CSV_DIR_PATH = DEFT_DB_PATH + "csv_files/"
-DEFT_D1_DB_PATH = DEFT_DB_PATH + "Yahoo_D1.db"
-DEFT_M1_DB_PATH = DEFT_DB_PATH + "MetaTrader_M1.db"
-BIG_COMPANIES = [
-    "PETR4",
-    "PETR3",
-    "VALE3",
-    "ITUB4",
-    "BBAS3",
-    "BBDC4",
-    "ITSA4",
-    "B3SA3",
-]
+class BaseBuilder:
+    _big_companies = [
+        "PETR4",
+        "PETR3",
+        "VALE3",
+        "ITUB4",
+        "BBAS3",
+        "BBDC4",
+        "ITSA4",
+        "B3SA3"
+    ]
 
 
-class Yahoo:
+class Yahoo(BaseBuilder):
     """
     Define a database in Sqlite using Yahoo web API and pandas_datareader
     to collect shares OHLC prices in 1-Day time-frame.
@@ -46,7 +38,7 @@ class Yahoo:
 
     """
 
-    def __init__(self, db_path=DEFT_D1_DB_PATH):
+    def __init__(self, db_path):
         os.makedirs("logs/", exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(
             "logs/yahoo.log", maxBytes=200 * 1024 * 1024, backupCount=1
@@ -112,7 +104,7 @@ class Yahoo:
             final_day1 = dt.date.today() - dt.timedelta(days=1)
             self._logger.warn(
                 "final date type of share {} is invalid. "
-                "Using today's date {}".format(symbols, final_day1)
+                "Using today's date {}".format(symbol, final_day1)
             )
         if init_day1 + dt.timedelta(days=3) > final_day1:
             return 0  # flag for unecessary update
@@ -130,7 +122,7 @@ class Yahoo:
             flag = -1  # flag for error
         return flag
 
-    def update(self, sym_path=DEFT_SYMBOLS_PATH):
+    def update(self, sym_path):
         """
         Construct or update day-1 time-frame database within Yahoo API
 
@@ -153,7 +145,7 @@ class Yahoo:
             self._logger.warn(
                 "{} Using biggest companies" " in IBOV index.".format(e)
             )
-            symbols = BIG_COMPANIES
+            symbols = Yahoo._big_companies
         nsymbols = len(symbols)
         i = 1
         new = 0
@@ -195,7 +187,7 @@ class Yahoo:
         self._conn.close()
 
 
-class MetaTrader:
+class MetaTrader(BaseBuilder):
     """
     Creation and update of 1-minute time frame database. This class
     provide an interface to read data in csv files exported from
@@ -347,9 +339,7 @@ class MetaTrader:
         """From a csv file path return a (refined)dataframe"""
         return self.refine_columns(self.csv_dataframe_parser(csv_file_path))
 
-    def create_new(
-        self, db_path=DEFT_M1_DB_PATH, dir_csv_path=DEFT_CSV_DIR_PATH
-    ):
+    def create_new(self, db_path, dir_csv_path):
         """
         Create a Sqlite database from CSV files downloaded from MetaTrader.
         Each company must have only one csv file in the path `dir_csv_path`
@@ -414,12 +404,7 @@ class MetaTrader:
         print(final_msg)
         self._logger.info(final_msg)
 
-    def update(
-        self,
-        db_path=DEFT_M1_DB_PATH,
-        sym_path=DEFT_SYMBOLS_PATH,
-        optional_csv_dir=DEFT_CSV_DIR_PATH,
-    ):
+    def update(self, db_path, sym_path, optional_csv_dir=""):
         """
         Update or create (case it does not exist) the 1-minute time  frame
         database. A socket connection is required to transfer data between
@@ -479,7 +464,7 @@ class MetaTrader:
             )
             print(warn_msg)
             self._logger.warn(warn_msg)
-            symbols = BIG_COMPANIES
+            symbols = MetaTrader._big_companies
         nsymbols = len(symbols)
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -562,7 +547,7 @@ class SocketServer:
     """
 
     def __init__(
-        self, address=DEFT_ADDRESS, port=DEFT_PORT, bytes_lim=8192, listen=True
+        self, address="127.0.0.1", port=9090, bytes_lim=8192, listen=True
     ):
         self.sck = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # 'setsockopt' to avoid openned socket in TIME_WAIT state

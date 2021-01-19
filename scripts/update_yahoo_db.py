@@ -1,3 +1,4 @@
+import os
 import argparse
 
 from mvp import builder
@@ -9,19 +10,18 @@ def run(db_path, sym_path):
 
 
 if __name__ == "__main__":
+    root_dir = os.path.join(os.path.expanduser('~'), "FintelligenceData")
     p = argparse.ArgumentParser()
     p.add_argument(
-        "-db_path",
-        dest="db_path",
+        "--db-path",
         type=str,
-        default=builder.DEFT_D1_DB_PATH,
+        default=os.path.join(root_dir, "Yahoo_D1.db"),
         help="path to database file",
     )
     p.add_argument(
-        "-sym_path",
-        dest="sym_path",
+        "--sym-path",
         type=str,
-        default=builder.DEFT_SYMBOLS_PATH,
+        default=os.path.join(root_dir, "CompanySymbols_list.txt"),
         help="path to symbols txt file",
     )
     args = p.parse_args()
