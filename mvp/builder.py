@@ -22,8 +22,17 @@ DEFT_SYMBOLS_PATH = DEFT_DB_PATH + "CompanySymbols_list.txt"
 DEFT_CSV_DIR_PATH = DEFT_DB_PATH + "csv_files/"
 DEFT_D1_DB_PATH = DEFT_DB_PATH + "Yahoo_D1.db"
 DEFT_M1_DB_PATH = DEFT_DB_PATH + "MetaTrader_M1.db"
-BIG_COMPANIES = ["PETR4","PETR3","VALE3","ITUB4",
-                 "BBAS3","BBDC4","ITSA4","B3SA3"]
+BIG_COMPANIES = [
+    "PETR4",
+    "PETR3",
+    "VALE3",
+    "ITUB4",
+    "BBAS3",
+    "BBDC4",
+    "ITSA4",
+    "B3SA3",
+]
+
 
 class Yahoo:
     """
@@ -37,7 +46,7 @@ class Yahoo:
 
     """
 
-    def __init__(self, db_path = DEFT_D1_DB_PATH):
+    def __init__(self, db_path=DEFT_D1_DB_PATH):
         os.makedirs("logs/", exist_ok=True)
         handler = logging.handlers.RotatingFileHandler(
             "logs/yahoo.log", maxBytes=200 * 1024 * 1024, backupCount=1
@@ -78,17 +87,17 @@ class Yahoo:
         default initial date for all companies.
 
         """
-        if (symbol in self._db_symbols):
+        if symbol in self._db_symbols:
             full_date = self._cursor.execute(
                 "SELECT Date FROM {} ORDER BY Date DESC LIMIT 1".format(symbol)
             ).fetchall()[0][0]
-            date_str = full_date.split(" ")[0] # Take only YYYY-mm-dd part
+            date_str = full_date.split(" ")[0]  # Take only YYYY-mm-dd part
             last_date = dt.datetime.strptime(date_str, "%Y-%m-%d").date()
             init_day1 = last_date + dt.timedelta(days=1)
             return init_day1
         return self._std_init_day1
 
-    def update_symbol(self, symbol, final_day1 = None):
+    def update_symbol(self, symbol, final_day1=None):
         """
         Update data for the `symbol`. If the `symbol` is not in the
         database, introduce it starting from `self._std_init_day1`.
@@ -97,29 +106,31 @@ class Yahoo:
 
         """
         init_day1 = self.get_date(symbol)
-        if (final_day1 == None):
+        if final_day1 == None:
             final_day1 = dt.date.today() - dt.timedelta(days=1)
-        elif (type(final_day1) != dt.date):
+        elif type(final_day1) != dt.date:
             final_day1 = dt.date.today() - dt.timedelta(days=1)
-            self._logger.warn("final date type of share {} is invalid. "
-                    "Using today's date {}".format(symbols,final_day1))
-        if (init_day1 + dt.timedelta(days=3) > final_day1):
-            return 0    # flag for unecessary update
-        flag = 1        # flag for update
+            self._logger.warn(
+                "final date type of share {} is invalid. "
+                "Using today's date {}".format(symbols, final_day1)
+            )
+        if init_day1 + dt.timedelta(days=3) > final_day1:
+            return 0  # flag for unecessary update
+        flag = 1  # flag for update
         try:
             df = pdr.DataReader(symbol + ".SA", "yahoo", init_day1, final_day1)
             df.rename(columns={"Adj Close": "AdjClose"}, inplace=True)
             df.to_sql(symbol, con=self._conn, if_exists="append")
             self._logger.info("{} successfully updated.".format(symbol))
-            if (symbol not in self._db_symbols):
+            if symbol not in self._db_symbols:
                 self._db_symbols.append(symbol)
-                flag = 2    # flag for new symbol
+                flag = 2  # flag for new symbol
         except Exception as e:
             self._logger.error("{} : Trying update {}.".format(e, symbol))
-            flag = -1       # flag for error
+            flag = -1  # flag for error
         return flag
 
-    def update(self, sym_path = DEFT_SYMBOLS_PATH):
+    def update(self, sym_path=DEFT_SYMBOLS_PATH):
         """
         Construct or update day-1 time-frame database within Yahoo API
 
@@ -138,9 +149,10 @@ class Yahoo:
             symbols = [symbol.strip() for symbol in sym_file.readlines()]
             sym_file.close()
         except FileNotFoundError as e:
-            print(e,"Using biggest companies in IBOV index.")
-            self._logger.warn("{} Using biggest companies"
-                    " in IBOV index.".format(e))
+            print(e, "Using biggest companies in IBOV index.")
+            self._logger.warn(
+                "{} Using biggest companies" " in IBOV index.".format(e)
+            )
             symbols = BIG_COMPANIES
         nsymbols = len(symbols)
         i = 1
@@ -173,14 +185,14 @@ class Yahoo:
             "\t{:2d} errors.\n"
             "========================================"
             "========================================".format(
-            dt.date.today(), nsymbols, new, updated, non_updated, errors)
+                dt.date.today(), nsymbols, new, updated, non_updated, errors
+            )
         )
         self._logger.info(result_msg)
         print(result_msg)
 
     def __del__(self):
         self._conn.close()
-
 
 
 class MetaTrader:
@@ -205,7 +217,7 @@ class MetaTrader:
         self._logger = logging.getLogger("Logger")
         self._logger.setLevel(logging.INFO)
         self._logger.addHandler(handler)
-        self._default_init_date = dt.datetime(2015,1,2)
+        self._default_init_date = dt.datetime(2015, 1, 2)
 
     def __get_filename_initial_time(self, file_name):
         return file_name.split("_")[-2]
@@ -279,7 +291,7 @@ class MetaTrader:
         df : ``pandas.DataFrame``
 
         """
-        df = pd.read_csv(file_path, sep=sep, engine='python')
+        df = pd.read_csv(file_path, sep=sep, engine="python")
         df["<TIME>"] = df[["<TIME>"]].applymap(lambda x: x.split(".")[0])
         return df
 
@@ -335,8 +347,9 @@ class MetaTrader:
         """From a csv file path return a (refined)dataframe"""
         return self.refine_columns(self.csv_dataframe_parser(csv_file_path))
 
-    def create_new(self, db_path = DEFT_M1_DB_PATH,
-            dir_csv_path = DEFT_CSV_DIR_PATH):
+    def create_new(
+        self, db_path=DEFT_M1_DB_PATH, dir_csv_path=DEFT_CSV_DIR_PATH
+    ):
         """
         Create a Sqlite database from CSV files downloaded from MetaTrader.
         Each company must have only one csv file in the path `dir_csv_path`
@@ -353,9 +366,9 @@ class MetaTrader:
 
         """
         self._logger.info(
-                "======================================="
-                "======================================="
-                "New database from csv files requested\n"
+            "======================================="
+            "======================================="
+            "New database from csv files requested\n"
         )
         if not os.path.exists(dir_csv_path):
             msg = "The path {} does not exist in this computer".format(
@@ -363,7 +376,7 @@ class MetaTrader:
             )
             self._logger.error("{}".format(msg))
             raise IOError(msg)
-        if (dir_csv_path[-1] != "/"):
+        if dir_csv_path[-1] != "/":
             dir_csv_path = dir_csv_path + "/"
         csv_name_list = [
             name
@@ -387,8 +400,10 @@ class MetaTrader:
             period = self.get_period_from_name(dir_csv_path + csv_name)
             df = self.csv_to_dataframe(dir_csv_path + csv_name)
             df.to_sql(symbol, con=conn)
-            print("[{:2d}/{}] {} from {} to {} introduced".format(
-                i, num_files, symbol, period["initial"], period["final"])
+            print(
+                "[{:2d}/{}] {} from {} to {} introduced".format(
+                    i, num_files, symbol, period["initial"], period["final"]
+                )
             )
             i += 1
         conn.close()
@@ -399,10 +414,12 @@ class MetaTrader:
         print(final_msg)
         self._logger.info(final_msg)
 
-    def update(self,
-            db_path = DEFT_M1_DB_PATH,
-            sym_path = DEFT_SYMBOLS_PATH,
-            optional_csv_dir = DEFT_CSV_DIR_PATH):
+    def update(
+        self,
+        db_path=DEFT_M1_DB_PATH,
+        sym_path=DEFT_SYMBOLS_PATH,
+        optional_csv_dir=DEFT_CSV_DIR_PATH,
+    ):
         """
         Update or create (case it does not exist) the 1-minute time  frame
         database. A socket connection is required to transfer data between
@@ -438,11 +455,13 @@ class MetaTrader:
         dir_name = os.path.dirname(db_path)
         if dir_name != "":
             os.makedirs(dir_name, exist_ok=True)
-        if (not os.path.isfile(db_path)):
-            warn_msg = ("No db file found to update. Building it from "
-                    "scratch. Trying to use CSV files ... ")
+        if not os.path.isfile(db_path):
+            warn_msg = (
+                "No db file found to update. Building it from "
+                "scratch. Trying to use CSV files ... "
+            )
             try:
-                self.create_new(db_path,optional_csv_dir)
+                self.create_new(db_path, optional_csv_dir)
                 warn_msg += "Using CSV files from {}".format(optional_csv_dir)
             except IOError:
                 warn_msg += "No CSV files found "
@@ -454,83 +473,83 @@ class MetaTrader:
             symbols = [symbol.strip() for symbol in sym_file.readlines()]
             sym_file.close()
         except FileNotFoundError:
-            warn_msg = ("! WARNING: CompanySymbols_list.txt file not found."
-                    " Using default list of important companies of IBOVESPA")
+            warn_msg = (
+                "! WARNING: CompanySymbols_list.txt file not found."
+                " Using default list of important companies of IBOVESPA"
+            )
             print(warn_msg)
             self._logger.warn(warn_msg)
             symbols = BIG_COMPANIES
         nsymbols = len(symbols)
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' "
-                       "ORDER BY name"
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "ORDER BY name"
         )
         db_symbols = [tabname[0] for tabname in cursor.fetchall()]
         input_dict = dict()
         final_date = dt.datetime.today()
         for symbol in symbols:
-            if (symbol in db_symbols):
+            if symbol in db_symbols:
                 cursor = conn.cursor()
-                cursor.execute("SELECT DateTime FROM {} ORDER BY DateTime "
-                        "DESC LIMIT 1".format(symbol)
+                cursor.execute(
+                    "SELECT DateTime FROM {} ORDER BY DateTime "
+                    "DESC LIMIT 1".format(symbol)
                 )
                 date_str = cursor.fetchall()[0][0]
-                last_update = dt.datetime.strptime(date_str,
-                        "%Y-%m-%d %H:%M:%S"
+                last_update = dt.datetime.strptime(
+                    date_str, "%Y-%m-%d %H:%M:%S"
                 )
                 start_date = last_update + dt.timedelta(minutes=1)
             else:
                 start_date = self._default_init_date
             date_diff = final_date - start_date
-            if (date_diff > dt.timedelta(days = 1)):
-                input_dict[symbol] = (start_date,final_date)
+            if date_diff > dt.timedelta(days=1):
+                input_dict[symbol] = (start_date, final_date)
         mt_server = SocketServer()
         data = mt_server.get_m1_ohlc_dataset(input_dict)
         for symbol in data.keys():
-            if type(data[symbol]) is str: continue
-            data[symbol].to_sql(symbol, con=conn, if_exists = "append")
+            if type(data[symbol]) is str:
+                continue
+            data[symbol].to_sql(symbol, con=conn, if_exists="append")
         del mt_server
         conn.close()
 
-        symbols_failed = [
-                sym
-                for sym in data.keys()
-                if type(data[sym]) is str
-        ]
+        symbols_failed = [sym for sym in data.keys() if type(data[sym]) is str]
         symbols_ignored = [
-                sym
-                for sym in symbols
-                if sym not in input_dict.keys()
+            sym for sym in symbols if sym not in input_dict.keys()
         ]
         new_symbols = [
-                sym
-                for sym in symbols 
-                if (sym not in db_symbols and sym not in symbols_failed)
+            sym
+            for sym in symbols
+            if (sym not in db_symbols and sym not in symbols_failed)
         ]
         err_count = len(symbols_failed)
         suc_count = len(symbols) - len(symbols_ignored) - len(symbols_failed)
         new_count = len(new_symbols)
         skp_count = len(symbols_ignored)
         upd_count = suc_count - new_count
-        if (err_count > 0):
-            final_err_msg = ("\nFAILURE FETCHING THE FOLLOWING TICKERS "
-                    "IN DATE {}".format(dt.datetime.now())
+        if err_count > 0:
+            final_err_msg = (
+                "\nFAILURE FETCHING THE FOLLOWING TICKERS "
+                "IN DATE {}".format(dt.datetime.now())
             )
             for symbol in symbols_failed:
-                final_err_msg += ("\n{} {}".format(symbol,data[symbol]))
+                final_err_msg += "\n{} {}".format(symbol, data[symbol])
             self._logger.error(final_err_msg)
         final_info_msg = (
-                "\nFrom {} symbols requested\n"
-                "\t{} introduced\n"
-                "\t{} needed update\n"
-                "\t{} already up to date\n"
-                "\tand {} failed\n".format(
-                len(symbols), new_count, upd_count, skp_count, err_count)
+            "\nFrom {} symbols requested\n"
+            "\t{} introduced\n"
+            "\t{} needed update\n"
+            "\t{} already up to date\n"
+            "\tand {} failed\n".format(
+                len(symbols), new_count, upd_count, skp_count, err_count
+            )
         )
         self._logger.info(final_info_msg)
         print(final_info_msg)
         print("db-connection closed. Update finished.")
-
 
 
 class SocketServer:
@@ -541,8 +560,10 @@ class SocketServer:
     corresponding expert advisors in MetaTrader where an account must be
     provided to be able to access data.
     """
-    def __init__(self, address = DEFT_ADDRESS, port = DEFT_PORT,
-                 bytes_lim = 8192, listen = True):
+
+    def __init__(
+        self, address=DEFT_ADDRESS, port=DEFT_PORT, bytes_lim=8192, listen=True
+    ):
         self.sck = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # 'setsockopt' to avoid openned socket in TIME_WAIT state
         self.sck.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -551,18 +572,21 @@ class SocketServer:
         self.address = address
         self.bytes_lim = bytes_lim  # max bytes in a single receive
         self.sck.bind((self.address, self.port))
-        self.isListening = False    # socket server listening status
-        self.conn = None            # current openned connection service
-        self.addr = None            # address of current connection
-        if (listen): self.startListening()
+        self.isListening = False  # socket server listening status
+        self.conn = None  # current openned connection service
+        self.addr = None  # address of current connection
+        if listen:
+            self.startListening()
 
     def startListening(self):
         self.sck.listen(1)
         self.isListening = True
 
     def stopListening(self):
-        try: self.sck.shutdown(socket.SHUT_RDWR)
-        except OSError: pass
+        try:
+            self.sck.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         self.isListening = False
 
     def refresh(self):
@@ -576,20 +600,21 @@ class SocketServer:
 
     def __communicate(self, message):
         """Send a `message` to MetaTrader Client and return the response"""
-        if (self.conn == None):
+        if self.conn == None:
             raise AttributeError("No openned connection in __communicate")
-        if (not self.isListening):
+        if not self.isListening:
             raise AttributeError("Server is not listening in __communicate")
-        self.conn.send(bytes(message,"utf-8"))
+        self.conn.send(bytes(message, "utf-8"))
         raw_data = self.conn.recv(self.bytes_lim)
         return raw_data.decode("utf-8")
 
     def __assertSymbol(self, symbol):
         """Return True if company `symbol` exists in MetaTrader"""
-        if (self.__communicate(symbol).upper == "ERROR"): return False
+        if self.__communicate(symbol).upper == "ERROR":
+            return False
         return True
 
-    def get_raw_m1(self, symbol, initial_date, final_date, it = False):
+    def get_raw_m1(self, symbol, initial_date, final_date, it=False):
         """
         Receive raw OHLC data from MetaTrader in a list of strings with
         each element corresponding to a day
@@ -614,58 +639,69 @@ class SocketServer:
             data OHLC fields)
 
         """
-        if (type(symbol) != str):
+        if type(symbol) != str:
             raise TypeError("Symbol must be a string")
-        if (type(initial_date) == type(final_date) == dt.datetime):
+        if type(initial_date) == type(final_date) == dt.datetime:
             str_dt1 = initial_date.strftime("%Y.%m.%d %H:%M")
             str_dt2 = final_date.strftime("%Y.%m.%d %H:%M")
         else:
             raise TypeError("Initial and final date must be datetime objects.")
-        if (final_date < initial_date):
+        if final_date < initial_date:
             raise ValueError("Final date must be forward of initial one.")
-        if (not it):
-            print("\nWaiting for client (MetaTrader) connection ...",end=" ")
+        if not it:
+            print("\nWaiting for client (MetaTrader) connection ...", end=" ")
             sys.stdout.flush()
         # Wait connection from Client (MetaTrader)
-        if (not self.isListening):
+        if not self.isListening:
             self.startListening()
         self.conn, self.addr = self.sck.accept()
-        if (not it):
+        if not it:
             print("Connected to", self.addr)
-        if (not self.__assertSymbol(symbol)):
+        if not self.__assertSymbol(symbol):
             self.conn.close()
-            raise ValueError("Some problem occurred fetching {} in "
-            "MetaTrader. Assert it exists".format(symbol))
+            raise ValueError(
+                "Some problem occurred fetching {} in "
+                "MetaTrader. Assert it exists".format(symbol)
+            )
         str_fulldata_list = []
         str_data = ""
         # inform initial and final dates to MetaTrader
         # in a string separated by a underscore
-        self.conn.send(bytes(str_dt1 + "_" + str_dt2,"utf-8"))
-        if (not it):
-            print("Transfering {} data through socket connection ...".format(
-            symbol), end=" ")
+        self.conn.send(bytes(str_dt1 + "_" + str_dt2, "utf-8"))
+        if not it:
+            print(
+                "Transfering {} data through socket connection ...".format(
+                    symbol
+                ),
+                end=" ",
+            )
             sys.stdout.flush()
         while True:
             raw_data = self.conn.recv(self.bytes_lim)
             str_data += raw_data.decode("utf-8")
-            if not raw_data: break
+            if not raw_data:
+                break
             # Underscore character _ separate data(string) set in days
             if "_" in str_data:
                 str_split = str_data.split("_")
                 # split days as list elements
-                for part in str_split[:len(str_split)-1]:
-                    if len(part) > 0: str_fulldata_list.append(part)
+                for part in str_split[: len(str_split) - 1]:
+                    if len(part) > 0:
+                        str_fulldata_list.append(part)
                 str_data = str_split[-1]
-        if (not it): print("Done\n")
+        if not it:
+            print("Done\n")
         self.conn.close()
         self.conn = None
         self.addr = None
         # Append remaining data after last receipt(break in while)
-        if (len(str_data) > 0): str_fulldata_list.append(str_data)
+        if len(str_data) > 0:
+            str_fulldata_list.append(str_data)
         return str_fulldata_list
 
-    def get_m1_ohlc_dataframe(self, symbol, initial_date,
-                                final_date, it = False):
+    def get_m1_ohlc_dataframe(
+        self, symbol, initial_date, final_date, it=False
+    ):
         """
         Retrieve share data from MetaTrader in 1-minute time frame.
 
@@ -686,7 +722,7 @@ class SocketServer:
         `df` : ``pandas.DataFrame``
 
         """
-        str_list = self.get_raw_m1(symbol,initial_date,final_date,it)
+        str_list = self.get_raw_m1(symbol, initial_date, final_date, it)
         ohlc_list = []  # core data of pandas data-frame
         date_list = []  # indexing of pandas data-frame
         for day_data in str_list:
@@ -696,8 +732,9 @@ class SocketServer:
                 ohlc_list.append([float(x) for x in ohlc_split[2:]])
                 date_list.append(pd.Timestamp(date_str))
         df = pd.DataFrame(
-                ohlc_list,index=date_list,
-                columns=["Open","High","Low","Close","TickVol","Volume"]
+            ohlc_list,
+            index=date_list,
+            columns=["Open", "High", "Low", "Close", "TickVol", "Volume"],
         )
         df["TickVol"] = df["TickVol"].astype(int)
         df["Volume"] = df["Volume"].astype(int)
@@ -722,19 +759,23 @@ class SocketServer:
 
         """
         AllSymbols_str = ""
-        if len(symbols_dict.keys()) == 0: return dict()
+        if len(symbols_dict.keys()) == 0:
+            return dict()
         for symbol in symbols_dict.keys():
-            if (type(symbol) != str):
-                raise KeyError("Non string-type symbol found in "
-                               "input dictionary key: {}".format(symbol))
+            if type(symbol) != str:
+                raise KeyError(
+                    "Non string-type symbol found in "
+                    "input dictionary key: {}".format(symbol)
+                )
             AllSymbols_str += "_" + symbol
         AllSymbols_str = AllSymbols_str[1:]
-        if (len(AllSymbols_str) == 0):
+        if len(AllSymbols_str) == 0:
             raise ValueError("No symbols found in input symbol list")
-        print("\nWaiting for client (MetaTrader) connection ...", end = " ")
+        print("\nWaiting for client (MetaTrader) connection ...", end=" ")
         sys.stdout.flush()
         symbols_requested = AllSymbols_str.split("_")
-        if (not self.isListening): self.startListening()
+        if not self.isListening:
+            self.startListening()
         self.conn, self.addr = self.sck.accept()
         # Send in message the list of requested symbols to MetaTrader
         # and receive only the valid symbols as response
@@ -745,8 +786,11 @@ class SocketServer:
 
         Nsymbols_requested = len(symbols_requested)
         Nsymbols_valid = len(valid_symbols)
-        print("\n{} valid symbols of {} to be updated/created".format(
-               Nsymbols_valid,Nsymbols_requested))
+        print(
+            "\n{} valid symbols of {} to be updated/created".format(
+                Nsymbols_valid, Nsymbols_requested
+            )
+        )
         data_dict = dict()
         i = 0
         print("Working in ...\n")
@@ -754,22 +798,27 @@ class SocketServer:
             i = i + 1
             initial_date = symbols_dict[symbol][0]
             final_date = symbols_dict[symbol][1]
-            print("[{:2d}/{}] {}".format(i,Nsymbols_requested,symbol),end=" ")
-            if (symbol not in valid_symbols):
+            print(
+                "[{:2d}/{}] {}".format(i, Nsymbols_requested, symbol), end=" "
+            )
+            if symbol not in valid_symbols:
                 err_msg = "Symbol not found in MetaTrader"
-                print("! ERROR.",err_msg)
+                print("! ERROR.", err_msg)
                 data_dict[symbol] = "ERROR: " + err_msg
                 continue
             if final_date < initial_date:
-                err_msg = ("Invalid initial and final dates"
-                " from {} to {}".format(initial_date,final_date))
-                print("! ERROR.",err_msg)
+                err_msg = (
+                    "Invalid initial and final dates"
+                    " from {} to {}".format(initial_date, final_date)
+                )
+                print("! ERROR.", err_msg)
                 data_dict[symbol] = "ERROR: " + err_msg
                 continue
-            print("from",initial_date,"to",final_date)
+            print("from", initial_date, "to", final_date)
             sys.stdout.flush()
-            data_dict[symbol] = self.get_m1_ohlc_dataframe(symbol,
-                                initial_date,final_date,True)
+            data_dict[symbol] = self.get_m1_ohlc_dataframe(
+                symbol, initial_date, final_date, True
+            )
         return data_dict
 
     def __del__(self):
