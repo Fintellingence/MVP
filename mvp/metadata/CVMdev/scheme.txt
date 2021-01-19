@@ -1,0 +1,6 @@
+Goal: extract all Block4 data and store in a .db indexed by CNPJ
+- For each {Period} take CNPJ list from cda_fi_PL_{Period} and form CNPJ_Space list
+- For each CNPJ in CNPJ_Space query all Block4 *.csv for CNPJ and "acao" data and append to CNPJ_df
+- Keep ['DT_ComPTC','QT_VENDA_NEGOC', 'VL_VENDA_NEGOC', 'QT_AQUIS_NEGOC', 'VL_AQUIS_NEGOC', 'QT_POS_FINAL','VL_MERC_POS_FINAL',
+        'CD_ATIVO']
+- Save in CNPJ_Data.db
