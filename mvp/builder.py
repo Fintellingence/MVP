@@ -189,6 +189,24 @@ class MetaTrader:
     provide an interface to read data in csv files exported from
     MetaTrader and also communicate using a socket connection.
 
+    MAIN METHODS
+    ------------
+    ``MetaTrader.create_new(db_path = DEFT_M1_DB_PATH,
+                            dir_csv_path = DEFT_CSV_DIR_PATH)``
+        Create a new database specified by the full file path given
+        in `db_path` argument using csv files in `dir_csv_path` argument
+
+    ``MetaTrader.update(db_path = DEFT_M1_DB_PATH,
+                        sym_path = DEFT_SYMBOLS_PATH,
+                        optional_csv_dir = DEFT_CSV_DIR_PATH)``
+        Update symbols in an existing database file located at `db_path`.
+        The list of symbols to be updated must be in `sym_path` and be a
+        text file with one symbol per line. In case the file is not found
+        use the list o biggest companies in IBOVESPA index. Additionally,
+        if the database file does not exist in `db_path`, create it first
+        trying to use csv files in `optional_csv_dir` folder and in case
+        csv files are not found/provided, use only the socket connection.
+
     """
 
     def __init__(self):
