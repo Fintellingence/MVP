@@ -22,7 +22,7 @@ class BaseBuilder:
         "BBAS3",
         "BBDC4",
         "ITSA4",
-        "B3SA3"
+        "B3SA3",
     ]
 
 
@@ -151,7 +151,7 @@ class Yahoo(BaseBuilder):
             be a text file with one symbol per line
 
         """
-        self._logger.info("\n================== FULL UPDATE REQUESTED")
+        self._logger.info("Update started")
         try:
             sym_file = open(sym_path, "r")
             symbols = [symbol.strip() for symbol in sym_file.readlines()]
@@ -184,14 +184,12 @@ class Yahoo(BaseBuilder):
                 msg += "{} failed".format(symbol)
             self._logger.info(msg)
         result_msg = (
-            "\nData is up to date {}\n"
-            "From {:2d} symbols requested:\n"
+            "Data is up to date {} from {:2d} symbols requested:\n"
             "\t{:2d} new introduced\n"
             "\t{:2d} updated\n"
             "\t{:2d} skipped updates\n"
             "\t{:2d} errors\n"
-            "========================================"
-            "========================================".format(
+            "Updated done".format(
                 dt.date.today(), n_symbols, new, updated, non_updated, errors
             )
         )
@@ -369,19 +367,11 @@ class MetaTrader(BaseBuilder):
             The path to the directory with MetaTrader CSV files
 
         """
-        self._logger.info(
-            "======================================="
-            "======================================="
-            "New database from csv files requested\n"
-        )
+        self._logger.info("Database creation started")
         if not os.path.exists(dir_csv_path):
-            msg = "The path {} does not exist in this computer".format(
-                dir_csv_path
-            )
+            msg = "The path {} does not exist".format(dir_csv_path)
             self._logger.error("{}".format(msg))
             raise IOError(msg)
-        if dir_csv_path[-1] != "/":
-            dir_csv_path = dir_csv_path + "/"
         csv_name_list = [
             name
             for name in os.listdir(dir_csv_path)
@@ -398,25 +388,21 @@ class MetaTrader(BaseBuilder):
         if dir_name != "":
             os.makedirs(dir_name, exist_ok=True)
         conn = sqlite3.connect(db_path)
-        i = 1
-        for csv_name in csv_name_list:
+        for i, csv_name in enumerate(csv_name_list):
             symbol = self.__get_filename_symbol(csv_name)
             period = self.get_period_from_name(dir_csv_path + csv_name)
             df = self.csv_to_dataframe(dir_csv_path + csv_name)
             df.to_sql(symbol, con=conn)
-            print(
+            self._logger.info(
                 "[{:2d}/{}] {} from {} to {} introduced".format(
                     i, num_files, symbol, period["initial"], period["final"]
                 )
             )
-            i += 1
         conn.close()
-        final_msg = (
-            "\nDB construction Process finished. "
-            "{} shares introduced from csv files\n".format(num_files)
+        self._logger.info(
+            "{} shares introduced from csv files".format(num_files)
         )
-        print(final_msg)
-        self._logger.info(final_msg)
+        self._logger.info("Database construction done.")
 
     def update(self, db_path, sym_path, optional_csv_dir=""):
         """
@@ -447,37 +433,30 @@ class MetaTrader(BaseBuilder):
             use directly the socket connection to retrieve data.
 
         """
-        print("\nBuilding/Updating MetaTrader Minute-1 database")
-        if len(db_path) == 0:
-            self._logger.error("1-minute db path must be non-empty string")
-            raise IOError("1-minute db path must be non-empty string")
+        self._logger.info("Update started")
         dir_name = os.path.dirname(db_path)
         if dir_name != "":
             os.makedirs(dir_name, exist_ok=True)
         if not os.path.isfile(db_path):
-            warn_msg = (
-                "No db file found to update. Building it from "
-                "scratch. Trying to use CSV files ... "
-            )
+            self._logger.warn("No db file found to update.")
             try:
+                self._logger.warn(
+                    "Building db using CSV files from {}".format(
+                        optional_csv_dir
+                    )
+                )
                 self.create_new(db_path, optional_csv_dir)
-                warn_msg += "Using CSV files from {}".format(optional_csv_dir)
             except IOError:
-                warn_msg += "No CSV files found "
                 pass
-            print(warn_msg)
-            self._logger.warn(warn_msg)
+            self._logger.warn("Building db from scratch")
         try:
             sym_file = open(sym_path, "r")
             symbols = [symbol.strip() for symbol in sym_file.readlines()]
             sym_file.close()
         except FileNotFoundError:
-            warn_msg = (
-                "! WARNING: CompanySymbols_list.txt file not found."
-                " Using default list of important companies of IBOVESPA"
+            self._logger.warn(
+                "{} file not found. Using default list `big_companies`."
             )
-            print(warn_msg)
-            self._logger.warn(warn_msg)
             symbols = MetaTrader._big_companies
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -536,18 +515,16 @@ class MetaTrader(BaseBuilder):
             for symbol in symbols_failed:
                 final_err_msg += "\n{} {}".format(symbol, data[symbol])
             self._logger.error(final_err_msg)
-        final_info_msg = (
-            "\nFrom {} symbols requested\n"
+        self._logger.info(
+            "From {} symbols requested:\n"
             "\t{} introduced\n"
             "\t{} needed update\n"
             "\t{} already up to date\n"
-            "\tand {} failed\n".format(
+            "\tand {} failed\n"
+            "Updaate done".format(
                 len(symbols), new_count, upd_count, skp_count, err_count
             )
         )
-        self._logger.info(final_info_msg)
-        print(final_info_msg)
-        print("db-connection closed. Update finished.")
 
 
 class SocketServer:
@@ -557,6 +534,7 @@ class SocketServer:
     that is referred as client. The methods must be used together with the
     corresponding expert advisors in MetaTrader where an account must be
     provided to be able to access data.
+
     """
 
     def __init__(
@@ -592,6 +570,7 @@ class SocketServer:
         Refresh server by shuting down and then setting it to listening
         again. This is useful to clean any bytes stucked in buffer when
         some error occurred in previous communications
+
         """
         self.stopListening()
         self.startListening()
