@@ -129,7 +129,6 @@ class Yahoo(BaseBuilder):
             df = pdr.DataReader(symbol + ".SA", "yahoo", init_day1, final_day1)
             df.rename(columns={"Adj Close": "AdjClose"}, inplace=True)
             df.to_sql(symbol, con=self._conn, if_exists="append")
-            self._logger.info("{} successfully updated.".format(symbol))
             if symbol not in self._db_symbols:
                 self._db_symbols.append(symbol)
                 flag = 2
@@ -168,7 +167,7 @@ class Yahoo(BaseBuilder):
         updated = 0
         non_updated = 0
         for i, symbol in enumerate(symbols):
-            msg = "[{:2d}/{}] ".format(i, n_symbols)
+            msg = "[{:2d}/{}] ".format(i + 1, n_symbols)
             flag = self.update_symbol(symbol)
             if flag == 2:
                 new += 1
@@ -369,7 +368,7 @@ class MetaTrader(BaseBuilder):
         """From a csv file path return a (refined)dataframe"""
         return self.refine_columns(self.csv_dataframe_parser(csv_file_path))
 
-    def create_new(self, db_path, dir_csv_path):
+    def create_new_from_csv(self, db_path, dir_csv_path):
         """
         Create a Sqlite database from CSV files downloaded from MetaTrader.
         Each company must have only one csv file in the path `dir_csv_path`
@@ -390,6 +389,8 @@ class MetaTrader(BaseBuilder):
             msg = "The path {} does not exist".format(dir_csv_path)
             self._logger.error("{}".format(msg))
             raise IOError(msg)
+        if dir_csv_path[-1] != "/":
+            dir_csv_path += "/"
         csv_name_list = [
             name
             for name in os.listdir(dir_csv_path)
@@ -413,7 +414,11 @@ class MetaTrader(BaseBuilder):
             df.to_sql(symbol, con=conn)
             self._logger.info(
                 "[{:2d}/{}] {} from {} to {} introduced".format(
-                    i, num_files, symbol, period["initial"], period["final"]
+                    i + 1,
+                    num_files,
+                    symbol,
+                    period["initial"],
+                    period["final"]
                 )
             )
         conn.close()
@@ -463,7 +468,7 @@ class MetaTrader(BaseBuilder):
                         optional_csv_dir
                     )
                 )
-                self.create_new(db_path, optional_csv_dir)
+                self.create_new_from_csv(db_path, optional_csv_dir)
             except IOError:
                 pass
             self._logger.warn("Building db from scratch")
@@ -794,7 +799,8 @@ class SocketServer:
             initial_date = symbols_dict[symbol][0]
             final_date = symbols_dict[symbol][1]
             print(
-                "[{:2d}/{}] {}".format(i, Nsymbols_requested, symbol), end=" "
+                    "[{:2d}/{}] {:7}".format(
+                    i, Nsymbols_requested, symbol), end=" "
             )
             if symbol not in valid_symbols:
                 err_msg = "Symbol not found in MetaTrader"

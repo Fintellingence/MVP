@@ -13,13 +13,13 @@ if __name__ == "__main__":
     root_dir = os.path.join(os.path.expanduser('~'), "FintelligenceData")
     p = argparse.ArgumentParser()
     p.add_argument(
-        "--db-path",
+        "--db_path",
         type=str,
         default=os.path.join(root_dir, "Yahoo_D1.db"),
         help="path to database file",
     )
     p.add_argument(
-        "--sym-path",
+        "--sym_path",
         type=str,
         default=os.path.join(root_dir, "CompanySymbols_list.txt"),
         help="path to symbols txt file",
