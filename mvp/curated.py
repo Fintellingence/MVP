@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 
 class CuratedData:
@@ -27,5 +28,24 @@ class CuratedData:
 
     def get_RSI(self, param_RSI):
         next_df = self.df_curated["Close"].shift(periods=1)
-        delta_df = self.df_curated["Close"] - next_df
-        return delta_df
+        rsi_df = pd.DataFrame(
+            columns=[
+                "Delta",
+                "Gain",
+                "Loss",
+                "AvgGain",
+                "AvgLoss",
+                "RS",
+                "RSI" + str(param_RSI),
+            ]
+        )
+        rsi_df["Delta"] = self.df_curated["Close"] - next_df
+        rsi_df["Gain"] = rsi_df["Delta"].apply(lambda x: 0 if x < 0 else x)
+        rsi_df["Loss"] = rsi_df["Delta"].apply(lambda x: 0 if x > 0 else -x)
+        rsi_df["AvgGain"] = rsi_df["Gain"].rolling(window=param_RSI).mean(skipna=True)
+        rsi_df["AvgLoss"] = rsi_df["Loss"].rolling(window=param_RSI).mean(skipna=True)
+        rsi_df["RS"] = rsi_df["AvgGain"].div(rsi_df["AvgLoss"])
+        rsi_df["RSI" + str(param_RSI)] = rsi_df["RS"].apply(
+            lambda x: 100 - 100 / (1 + x)
+        )
+        return rsi_df["RSI" + str(param_RSI)]

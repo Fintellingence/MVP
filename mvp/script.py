@@ -18,7 +18,7 @@ parameters = {
     "DEV": [10],
     "ACF": [10, 500, 30000],
     "FD": 0.3,
-    "RSI": [20],
+    "RSI": [5, 15],
     "STAT": False,
 }
 
