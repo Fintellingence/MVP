@@ -149,5 +149,10 @@ cython_debug/
 
 # Our database
 scripts/database/BRShares_Intraday1M.db
+scripts/database/stocks.txt
+
 # Poetry miscellaneous files
 poetry.lock
+
+# MacOS system files
+scripts/database/.DS_Store
