@@ -194,7 +194,7 @@ bool SendOHLCData()
          wait_period(1000);
          symbol = socketreceive(socket,10);
          n_sec++;
-         if (n_sec > 10)
+         if (n_sec > 60)
          {
             Print("Error. Could not receive symbol in acceptable time.");
             SocketClose(socket);
@@ -295,8 +295,6 @@ void OnStart()
 {
    uint
       Nsymbols;
-   int
-      trials;
 
    Nsymbols = AssertSymbols();
 
@@ -304,11 +302,11 @@ void OnStart()
 
    for (uint i = 0; i < Nsymbols; i++)
    {
-      trials = 0;
-      // if socket conn is not opened in python or the symbol received
-      // does not exist sendOHLCData will return false. Wait for 1 sec
-      // among attempts up to 10 trials.
-      if (!SendOHLCData()) Print("Error occurred in symbol ", i + 1);
+      if (!SendOHLCData())
+      {
+         Print("Error occurred in symbol ", i + 1);
+         break;
+      }
    }
 
 }
