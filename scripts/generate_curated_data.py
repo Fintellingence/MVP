@@ -2,13 +2,28 @@ import os
 import mvp
 import numpy as np
 import argparse
+import ast
 
 
 def run(db_path, sym_path, parameters):
+    """
+    This first section is for handling error regarding to failed parameters inputs via terminal.
+    """
     if not os.path.isfile(db_path):
         raise IOError("Database file {} not found".format(db_path))
     if not os.path.isfile(sym_path):
-        raise IOError("symbols txt file {} not found".format(sym_path))
+        raise IOError("Symbols txt file {} not found".format(sym_path))
+
+    parameters_dict = parameters
+    if type(parameters) == str:
+        parameters_dict = ast.literal_eval(parameters)
+        if len(parameters_dict) == 0:
+            raise IOError("Parameters needed to continue")
+
+    """
+    This section is focused in generating curated data from a .db file and a "symbols" text file providing \
+        us curated data including new features like Moving Averages, Standard Deviations and RSI indicator. 
+    """
     symbols = mvp.helper.get_symbols(sym_path)[1:]
 
     list_raw_data_objects = []
@@ -18,7 +33,7 @@ def run(db_path, sym_path, parameters):
 
     list_curated_data_objects = []
     for raw_data in list_raw_data_objects:
-        temp = mvp.curated.CuratedData(raw_data, parameters)
+        temp = mvp.curated.CuratedData(raw_data, parameters_dict)
         list_curated_data_objects.append(temp)
 
     # TODO: generate a new .db or update the existing .db. For now, the code is simply printing the result.
@@ -43,16 +58,16 @@ if __name__ == "__main__":
         help="path to symbols txt file",
     )
     p.add_argument(
-        "--features parameters",
+        "--features-parameters",
         dest="parameters",
-        type=dict,
+        type=str,
         default={
             "MA": [10],
             "DEV": [10],
             "RSI": [5, 15],
         },
         help="parameters for the feature columns using the following convention: \
-        {'MA':[PERIODS],'DEV':[PERIODS],'RSI':[PERIODS]'}",
+        \"{'MA':[PERIODS],'DEV':[PERIODS],'RSI':[PERIODS]'}\" ",
     )
     args = p.parse_args()
     run(**vars(args))
