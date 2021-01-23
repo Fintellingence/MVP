@@ -43,3 +43,13 @@ It's important to notice that, when we update the content, we must run the Setup
 ```
 python3 setup.py install --user
 ```
+
+### Database
+
+Database files in general have a prohibitive memory demand to store
+remotely in the git repository. Thus, each one must provide a local
+copy of the database files, which can be taken in the google drive.
+By default, when the function to build db are called without a db
+file path specification, `$HOME/FintelligenceData/` path is used.
+Check out the available scripts to automatically build and update
+databases in `scripts/` folder.
