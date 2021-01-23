@@ -156,3 +156,5 @@ poetry.lock
 
 # MacOS system files
 scripts/database/.DS_Store
+mvp/.DS_Store
+.DS_Store
