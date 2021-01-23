@@ -10,19 +10,19 @@ class RawData:
     which may exhibit better statistical properties.
     """
 
-    def __init__(self, ticker, db_path):
+    def __init__(self, symbol, db_path):
         """
         Initialize a class with a simple 1-minute time frame stock prices data
 
         Parameters
         ----------
-        `ticker` : ``str``
+        `symbol` : ``str``
             symbol code of the company
         `db_path` : ``str``
             full path to database file
 
         """
-        self.ticker = ticker
+        self.symbol = symbol
         if not os.path.isfile(db_path):
             raise IOError("Database file {} not found".format(db_path))
         self.db_path = db_path
@@ -30,12 +30,12 @@ class RawData:
             self.df = self.__get_data_from_db()
         except:
             raise ValueError(
-                "symbol {} not found in database {}".format(ticker, db_path)
+                "symbol {} not found in database {}".format(symbol, db_path)
             )
 
     def __get_data_from_db(self):
         conn = sql3.connect(self.db_path)
-        df = pd.read_sql("SELECT * FROM {}".format(self.ticker), conn)
+        df = pd.read_sql("SELECT * FROM {}".format(self.symbol), conn)
         conn.close()
         df.index = pd.to_datetime(df["DateTime"])
         df.drop(["DateTime"], axis=1, inplace=True)
@@ -98,7 +98,6 @@ class RawData:
         )
         newDF.index.name = "BarOpenTime"
         return newDF
-
 
     def volume_bars_df(self, bar_size_th=1e6):
         """
