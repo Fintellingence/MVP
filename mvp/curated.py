@@ -4,9 +4,13 @@ import numpy as np
 
 class CuratedData:
     # In this model, data is provided as a class.
-    def __init__(self, data, parameters):
+    def __init__(self, data, parameters, daily=False):
         self.symbol = data.symbol
-        self.df_curated = data.df
+        if daily:
+            self.df_curated = data.daily_bars()
+        if not daily:
+            self.df_curated = data.df
+
         self.parameters = parameters
         # =========================================
         # Statistics #

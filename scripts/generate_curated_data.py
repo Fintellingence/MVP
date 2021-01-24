@@ -33,7 +33,7 @@ def run(db_path, sym_path, parameters):
 
     list_curated_data_objects = []
     for raw_data in list_raw_data_objects:
-        temp = mvp.curated.CuratedData(raw_data, parameters_dict)
+        temp = mvp.curated.CuratedData(raw_data, parameters_dict, daily=True)
         list_curated_data_objects.append(temp)
 
     # TODO: generate a new .db or update the existing .db. For now, the code is simply printing the result and returning None.
@@ -67,8 +67,8 @@ if __name__ == "__main__":
             "MA": [10],
             "DEV": [10],
             "RSI": [5, 15],
-            "AC_WINDOW": [100, 200, 300, 400, 500],
-            "AC_SHIFT": [5, 10, 15, 20],
+            "AC_WINDOW": [100],
+            "AC_SHIFT": list(range(1, 61)),
         },
         help="parameters for the feature columns using the following convention: \
         \"{'MA':[PERIODS],'DEV':[PERIODS],'RSI':[PERIODS],'AC_WINDOW':[WINDOWS_TO_LOOK],'AC_SHIFT':[SHIFTS]}\" ",
