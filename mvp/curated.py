@@ -15,7 +15,6 @@ class CuratedData:
         # =========================================
         # Statistics #
         # =========================================
-        self.autocorr_values = None
         try:
             self.parameters["MA"]
             for param_MA in self.parameters["MA"]:
@@ -40,36 +39,6 @@ class CuratedData:
                 self.df_curated["RSI_" + str(param_RSI)] = self.get_RSI(
                     param_RSI
                 )
-        except:
-            pass
-
-        try:
-            self.parameters["AC_WINDOW"]
-            self.parameters["AC_SHIFT"]
-
-            self.autocorr_values = pd.concat(
-                [
-                    pd.DataFrame(
-                        ["SHIFT_" + str(param_AC_SHIFT)], columns=["SHIFTS"]
-                    )
-                    for param_AC_SHIFT in self.parameters["AC_SHIFT"]
-                ],
-                ignore_index=True,
-            )
-
-            for param_AC_WINDOW in parameters["AC_WINDOW"]:
-                temp = []
-                for param_AC_SHIFT in parameters["AC_SHIFT"]:
-                    temp.append(
-                        self.get_autocorr(param_AC_WINDOW, param_AC_SHIFT)
-                    )
-                temp_df = pd.DataFrame(
-                    temp, columns=["WINDOW_" + str(param_AC_WINDOW)]
-                )
-                self.autocorr_values[
-                    "WINDOW_" + str(param_AC_WINDOW)
-                ] = temp_df
-
         except:
             pass
 
@@ -107,7 +76,42 @@ class CuratedData:
         )
         return rsi_df["RSI" + str(param_RSI)]
 
-    def get_autocorr(self, window_autocorr, shift):
+    def autocorr_calculations(self, window_autocorr, shift):
         slice_time_series_df = self.df_curated["Close"].tail(window_autocorr)
         autocorr_value = slice_time_series_df.autocorr(lag=shift)
         return autocorr_value
+
+    def get_autocorr(self):
+        try:
+            self.parameters["AC_WINDOW"]
+            self.parameters["AC_SHIFT_MAX"]
+
+            self.autocorr_values = pd.concat(
+                [
+                    pd.DataFrame(
+                        ["SHIFT_" + str(param_AC_SHIFT_MAX)],
+                        columns=["SHIFTS"],
+                    )
+                    for param_AC_SHIFT_MAX in self.parameters["AC_SHIFT_MAX"]
+                ],
+                ignore_index=True,
+            )
+
+            for param_AC_WINDOW in self.parameters["AC_WINDOW"]:
+                temp = []
+                for param_AC_SHIFT_MAX in self.parameters["AC_SHIFT_MAX"]:
+                    temp.append(
+                        self.autocorr_calculations(
+                            param_AC_WINDOW, param_AC_SHIFT_MAX
+                        )
+                    )
+                temp_df = pd.DataFrame(
+                    temp, columns=["WINDOW_" + str(param_AC_WINDOW)]
+                )
+                self.autocorr_values[
+                    "WINDOW_" + str(param_AC_WINDOW)
+                ] = temp_df
+                return self.autocorr_values
+
+        except:
+            return None
