@@ -36,8 +36,10 @@ def run(db_path, sym_path, parameters):
         temp = mvp.curated.CuratedData(raw_data, parameters_dict)
         list_curated_data_objects.append(temp)
 
-    # TODO: generate a new .db or update the existing .db. For now, the code is simply printing the result.
-    return print(list_curated_data_objects[0].df_curated.tail(20))
+    # TODO: generate a new .db or update the existing .db. For now, the code is simply printing the result and returning None.
+    print(list_curated_data_objects[0].df_curated.tail(20))
+    print(list_curated_data_objects[0].autocorr_values)
+    return None
 
 
 if __name__ == "__main__":
@@ -65,9 +67,11 @@ if __name__ == "__main__":
             "MA": [10],
             "DEV": [10],
             "RSI": [5, 15],
+            "AC_WINDOW": [100, 200, 300, 400, 500],
+            "AC_SHIFT": [5, 10, 15, 20],
         },
         help="parameters for the feature columns using the following convention: \
-        \"{'MA':[PERIODS],'DEV':[PERIODS],'RSI':[PERIODS]'}\" ",
+        \"{'MA':[PERIODS],'DEV':[PERIODS],'RSI':[PERIODS],'AC_WINDOW':[WINDOWS_TO_LOOK],'AC_SHIFT':[SHIFTS]}\" ",
     )
     args = p.parse_args()
     run(**vars(args))

@@ -38,6 +38,36 @@ class CuratedData:
         except:
             pass
 
+        try:
+            self.parameters["AC_WINDOW"]
+            self.parameters["AC_SHIFT"]
+
+            self.autocorr_values = pd.concat(
+                [
+                    pd.DataFrame(
+                        ["SHIFT_" + str(param_AC_SHIFT)], columns=["SHIFTS"]
+                    )
+                    for param_AC_SHIFT in self.parameters["AC_SHIFT"]
+                ],
+                ignore_index=True,
+            )
+
+            for param_AC_WINDOW in parameters["AC_WINDOW"]:
+                temp = []
+                for param_AC_SHIFT in parameters["AC_SHIFT"]:
+                    temp.append(
+                        self.get_autocorr(param_AC_WINDOW, param_AC_SHIFT)
+                    )
+                temp_df = pd.DataFrame(
+                    temp, columns=["WINDOW_" + str(param_AC_WINDOW)]
+                )
+                self.autocorr_values[
+                    "WINDOW_" + str(param_AC_WINDOW)
+                ] = temp_df
+
+        except:
+            pass
+
     def get_simple_MA(self, param_MA):
         return self.df_curated["Close"].rolling(window=param_MA).mean()
 
@@ -71,3 +101,8 @@ class CuratedData:
             lambda x: 100 - 100 / (1 + x)
         )
         return rsi_df["RSI" + str(param_RSI)]
+
+    def get_autocorr(self, window_autocorr, shift):
+        slice_time_series_df = self.df_curated["Close"].tail(window_autocorr)
+        autocorr_value = slice_time_series_df.autocorr(lag=shift)
+        return autocorr_value
