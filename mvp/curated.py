@@ -15,10 +15,11 @@ class CuratedData:
         # =========================================
         # Statistics #
         # =========================================
+        self.autocorr_values = None
         try:
             self.parameters["MA"]
             for param_MA in self.parameters["MA"]:
-                self.df_curated["MA" + str(param_MA)] = self.get_simple_MA(
+                self.df_curated["MA_" + str(param_MA)] = self.get_simple_MA(
                     param_MA
                 )
         except:
@@ -27,7 +28,7 @@ class CuratedData:
         try:
             self.parameters["DEV"]
             for param_dev in self.parameters["DEV"]:
-                self.df_curated["DEV" + str(param_dev)] = self.get_deviation(
+                self.df_curated["DEV_" + str(param_dev)] = self.get_deviation(
                     param_dev
                 )
         except:
@@ -36,7 +37,7 @@ class CuratedData:
         try:
             self.parameters["RSI"]
             for param_RSI in self.parameters["RSI"]:
-                self.df_curated["RSI" + str(param_RSI)] = self.get_RSI(
+                self.df_curated["RSI_" + str(param_RSI)] = self.get_RSI(
                     param_RSI
                 )
         except:
