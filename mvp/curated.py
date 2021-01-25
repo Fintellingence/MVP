@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from statsmodels.tsa.stattools import adfuller
 
 
 class CuratedData:
@@ -136,3 +137,7 @@ class CuratedData:
             lambda x: self.apply_weights(w, x), raw=True
         )
         return fracdiff_series.dropna()
+
+    def adf_test(self, frac_diff):
+        adf = adfuller(frac_diff, maxlag=1, regression="c", autolag=None)
+        return adf

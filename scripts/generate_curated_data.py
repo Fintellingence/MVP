@@ -3,7 +3,6 @@ import mvp
 import numpy as np
 import argparse
 import ast
-from matplotlib import pyplot
 
 
 def run(db_path, sym_path, parameters, daily_option):
@@ -57,11 +56,10 @@ def run(db_path, sym_path, parameters, daily_option):
         list_curated_data_objects.append(temp)
 
     # TODO: generate a new .db or update the existing .db. For now, the code is simply printing the result and returning None.
-    frac_diff_test = list_curated_data_objects[0].frac_diff(0.1, 1e-4)
-    original = list_curated_data_objects[0].df_curated["Close"]
-    original.plot()
-    frac_diff_test.plot()
-    pyplot.show()
+    frac_diff_test = list_curated_data_objects[0].frac_diff(0.3, 1e-5)
+    mvp.helper.plot_two_series(
+        frac_diff_test, list_curated_data_objects[0].df_curated["Close"]
+    )
 
     return None
 
@@ -101,7 +99,7 @@ if __name__ == "__main__":
         "--daily-option",
         dest="daily_option",
         type=str,
-        default=True,
+        default=False,
         help="Choose if you want to see the data in daily resolution or not: Boolean Variable(True or False))",
     )
     args = p.parse_args()
