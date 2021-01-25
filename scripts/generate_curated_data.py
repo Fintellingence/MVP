@@ -18,7 +18,7 @@ def run(db_path, sym_path, parameters, daily_option):
     if type(parameters) == str:
         parameters_dict = ast.literal_eval(parameters)
         if len(parameters_dict) == 0:
-            raise IOError("Parameters needed to continue")
+            raise IOError("Parameters are needed in order to continue")
         try:
             parameters_dict["AC_SHIFT_MAX"] = list(
                 range(1, parameters_dict["AC_SHIFT_MAX"][0])
@@ -32,7 +32,7 @@ def run(db_path, sym_path, parameters, daily_option):
         elif daily_option == "False":
             daily_option = ast.literal_eval(daily_option)
         else:
-            raise IOError("Daily option needed to be Boolean")
+            raise IOError("Daily option needs to be Boolean")
 
     """
     This section is focused in generating curated data from a .db file and a "symbols" text file providing \
@@ -56,8 +56,7 @@ def run(db_path, sym_path, parameters, daily_option):
         list_curated_data_objects.append(temp)
 
     # TODO: generate a new .db or update the existing .db. For now, the code is simply printing the result and returning None.
-    print(list_curated_data_objects[0].df_curated.tail(20))
-    print(list_curated_data_objects[0].get_autocorr())
+    print(list_curated_data_objects[0].frac_diff(0.3, 1e-2))
     return None
 
 

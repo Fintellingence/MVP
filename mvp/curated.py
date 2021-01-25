@@ -115,3 +115,25 @@ class CuratedData:
 
         except:
             return None
+
+    def get_weights(self, d, thresh):
+        w = [1.0]
+        k = 1
+        while abs(w[-1]) > thresh:
+            w_ = -(w[-1] / k) * (d - k + 1)
+            w.append(w_)
+            k += 1
+        return w
+
+    def frac_diff(self, d, thresh):
+        w = self.get_weights(d, thresh)
+        l_star = len(w)
+        i = 0
+        fracdiff_series = []
+        while i + l_star < len(self.df_curated):
+            x_vector = self.df_curated["Close"].iloc[i : l_star + i].to_list()
+            x_fracdiff = np.dot(w, x_vector)
+            i += 1
+            fracdiff_series.append(x_fracdiff)
+        print(fracdiff_series)
+        return None
