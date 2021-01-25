@@ -273,6 +273,57 @@ class RawData:
         return new_df
 
 
+    def change_time_window(self, time_step=60):
+        """
+        Return a dataframe resizing the sample time interval
+
+        Parameters
+        ----------
+        `time_step` : ``int``
+            New time interval of the sample in minutes.
+            Available ones are 5, 10, 15, 30, 60
+
+        """
+        available_step = [5, 10, 15, 30, 60]
+        if time_step not in available_step:
+            raise ValueError("New time step requested not in ", available_step)
+        last_index = 0
+        bar_list = []
+        close_time_index = []
+        n_bars = 0
+        current_day = self.df.index[0].hour
+        new_day_first_minute = True
+        for idx in range(self.df.index.size):
+            if (current_day != self.df.index[idx].day):
+                current_day = self.df.index[idx].day
+                new_day_first_minute = True
+            if (self.df.index[idx].minute % time_step == 0
+                    and not new_day_first_minute):
+                bar_final_time = self.df.iloc[idx].name
+                bar_vol = self.df.iloc[last_index : (idx + 1)]["Volume"].sum()
+                bar_tck = self.df.iloc[last_index : (idx + 1)]["TickVol"].sum()
+                bar_max = self.df.iloc[last_index : (idx + 1)]["High"].max()
+                bar_min = self.df.iloc[last_index : (idx + 1)]["Low"].min()
+                bar_opn = self.df.iloc[last_index]["Open"]
+                bar_cls = self.df.iloc[idx]["Close"]
+                bar_list.append(
+                    [bar_opn, bar_max, bar_min, bar_cls, bar_tck, bar_vol]
+                )
+                close_time_index.append(bar_final_time)
+                last_index = idx + 1
+                n_bars = n_bars + 1
+                minutes_elapsed = 0
+            new_day_first_minute = False
+
+        new_df = pd.DataFrame(
+            bar_list,
+            columns=["Open", "High", "Low", "Close", "TickVol", "Volume"],
+            index=close_time_index,
+        )
+        new_df.index.name = "DateTime"
+        return new_df
+
+
 class DailyDataYahoo():
     """
     Class to read symbol from day-1 Yahoo database and set as data-frame
