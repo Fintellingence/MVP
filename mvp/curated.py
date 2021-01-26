@@ -127,7 +127,7 @@ class CuratedData:
         return w
 
     def apply_weights(self, weights, x_vector):
-        return np.dot(weights, x_vector)
+        return np.dot(weights[::-1], x_vector)
 
     def frac_diff(self, d, thresh):
         w = self.get_weights(d, thresh)
