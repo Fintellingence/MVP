@@ -33,3 +33,23 @@ Remember,
 5. `git push <remote name> <branch name>` to save the work in Github
 6. Is your work fished? **Make a pull request**
 7. Do not play around with `git rebase`
+
+## How to update this repo?
+
+By changing and creating PRs. If they are approved, they will be merged into `main`.
+
+It's important to notice that, when we update the content, we must run the Setup again by the following command:
+
+```
+python3 setup.py install --user
+```
+
+### Database
+
+Database files in general have a prohibitive memory demand to store
+remotely in the git repository. Thus, each one must provide a local
+copy of the database files, which can be taken in the google drive.
+By default, when the function to build db are called without a db
+file path specification, `$HOME/FintelligenceData/` path is used.
+Check out the available scripts to automatically build and update
+databases in `scripts/` folder.
