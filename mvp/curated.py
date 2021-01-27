@@ -1,6 +1,17 @@
 import pandas as pd
 import numpy as np
 from statsmodels.tsa.stattools import adfuller
+from numba import njit, prange, int32, float64;
+
+
+@njit(int32(float64, float64, float64[:], int32, int32))
+def numba_weights(d, thresh, w_array, w_size, last_index):
+    for k in prange(last_index + 1, w_size):
+        w_array[k] = - (w_array[k - 1] / k) * (d - k + 1)
+        # k += 1
+        if (abs(w_array[k]) < thresh):
+            return k + 1
+    return -1
 
 
 class CuratedData:
@@ -117,6 +128,18 @@ class CuratedData:
         except:
             return None
 
+    def new_get_weights(self, d, thresh, max_weights = 1E7):
+        w_array = np.empty(100)
+        w_array[0] = 1.0
+        flag = -1
+        last_i = 0
+        while flag < 0:
+            flag = numba_weights(d, thresh, w_array, w_array.size, last_i)
+            if (flag < 0):
+                last_i = w_array.size - 1
+                w_array = np.concatenate([w_array, np.empty(10 * last_i)])
+        return w_array[:flag]
+
     def get_weights(self, d, thresh):
         w = [1.0]
         k = 1
@@ -129,8 +152,11 @@ class CuratedData:
     def apply_weights(self, weights, x_vector):
         return np.dot(weights[::-1], x_vector)
 
-    def frac_diff(self, d, thresh):
-        w = self.get_weights(d, thresh)
+    def frac_diff(self, d, thresh, improve = False):
+        if improve:
+            w = self.new_get_weights(d, thresh)
+        else:
+            w = self.get_weights(d, thresh)
         l_star = len(w)
         fracdiff_series = self.df_curated["Close"]
         fracdiff_series = fracdiff_series.rolling(window=l_star).apply(
