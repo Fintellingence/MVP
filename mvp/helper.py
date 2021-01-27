@@ -13,6 +13,7 @@ def get_db_symbols(db_path):
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
     ).fetchall()
     db_symbols = [name[0] for name in table_names]
+    _conn.close()
     return db_symbols
 
 

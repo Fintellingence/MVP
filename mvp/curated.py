@@ -123,7 +123,7 @@ class CuratedData:
                 self.autocorr_values[
                     "WINDOW_" + str(param_AC_WINDOW)
                 ] = temp_df
-            return self.autocorr_values
+            return self.autocorr_values.drop(columns=["SHIFTS"])
 
         except:
             return None
