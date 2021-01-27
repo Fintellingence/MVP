@@ -274,39 +274,46 @@ class RawData:
         return new_df
 
 
-    def change_time_window(self, time_step=60):
+    def time_window(self, start, stop, time_step=1):
         """
-        Return a dataframe resizing the sample time interval
+        Return a dataframe resizing the sample time window
+        and possibly changing the data time step.
 
         Parameters
         ----------
-        `time_step` : ``int``
-            New time interval of the sample in minutes.
-            Available ones are 5, 10, 15, 30, 60
+        start : ``datetime.datetime``
+            Initial time instant (pandas.Timestamp).
+        stop : ``datetime.datetime``
+            Final time instant (pandas.Timestamp).
+        time_step : ``int``
+            In minutes. Available values are [1,5,10,15,30,60] (default 1)
 
         """
-        available_step = [5, 10, 15, 30, 60]
-        if time_step not in available_step:
-            raise ValueError("New time step requested not in ", available_step)
+        available_steps = [1, 5, 10, 15, 30, 60]
+        if time_step not in available_steps:
+            raise ValueError("Time step requested not in ", available_steps)
+        work_df = self.df.loc[start:stop].copy()
+        if (time_step == 1):
+            return work_df
         last_index = 0
         bar_list = []
         close_time_index = []
         n_bars = 0
-        current_day = self.df.index[0].hour
+        current_day = work_df.index[0].day
         new_day_first_minute = True
-        for idx in range(self.df.index.size):
-            if (current_day != self.df.index[idx].day):
-                current_day = self.df.index[idx].day
+        for idx in range(work_df.index.size):
+            if (current_day != work_df.index[idx].day):
+                current_day = work_df.index[idx].day
                 new_day_first_minute = True
-            if (self.df.index[idx].minute % time_step == 0
+            if (work_df.index[idx].minute % time_step == 0
                     and not new_day_first_minute):
-                bar_final_time = self.df.iloc[idx].name
-                bar_vol = self.df.iloc[last_index : (idx + 1)]["Volume"].sum()
-                bar_tck = self.df.iloc[last_index : (idx + 1)]["TickVol"].sum()
-                bar_max = self.df.iloc[last_index : (idx + 1)]["High"].max()
-                bar_min = self.df.iloc[last_index : (idx + 1)]["Low"].min()
-                bar_opn = self.df.iloc[last_index]["Open"]
-                bar_cls = self.df.iloc[idx]["Close"]
+                bar_final_time = work_df.iloc[idx].name
+                bar_vol = work_df.iloc[last_index : (idx + 1)]["Volume"].sum()
+                bar_tck = work_df.iloc[last_index : (idx + 1)]["TickVol"].sum()
+                bar_max = work_df.iloc[last_index : (idx + 1)]["High"].max()
+                bar_min = work_df.iloc[last_index : (idx + 1)]["Low"].min()
+                bar_opn = work_df.iloc[last_index]["Open"]
+                bar_cls = work_df.iloc[idx]["Close"]
                 bar_list.append(
                     [bar_opn, bar_max, bar_min, bar_cls, bar_tck, bar_vol]
                 )
