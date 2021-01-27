@@ -15,44 +15,65 @@ def numba_weights(d, thresh, w_array, w_size, last_index):
 
 
 class CuratedData:
-    # In this model, data is provided as a class.
-    def __init__(self, data, parameters, daily=False):
-        self.symbol = data.symbol
+    """
+    Integrate to the raw data with open-high-low-close values
+    some simple statistical features which provide more tools
+    to analyze the data and support primary models
+
+    Parameters
+    ----------
+    `raw_data` : `` rawdata.RawData class``
+    `requested_features : `` dict ``
+        Dictionary with features as strings in keys and the
+        evaluation feature paramter as values or list of values
+        The (keys)strings corresponding to features must be:
+        "MA" = Moving Average
+        "DEV" = standart DEViation
+        "RSI" = RSI indicator
+    `daily` : `` bool `` (optional)
+        Automatically convert 1-minute raw data to daily data
+
+    """
+
+    def __init__(self, raw_data, requested_features, daily=False):
+        self.symbol = raw_data.symbol
         if daily:
-            self.df_curated = data.daily_bars()
-        if not daily:
-            self.df_curated = data.df
+            self.df_curated = raw_data.daily_bars()
+        else:
+            self.df_curated = raw_data.df
+        self.initial_features = {
+            "MA": "get_simple_MA",
+            "DEV": "get_deviation",
+            "RSI": "get_RSI",
+        }
+        self.parameters = requested_features
 
-        self.parameters = parameters
-        # =========================================
-        # Statistics #
-        # =========================================
-        try:
-            self.parameters["MA"]
-            for param_MA in self.parameters["MA"]:
-                self.df_curated["MA_" + str(param_MA)] = self.get_simple_MA(
-                    param_MA
-                )
-        except:
-            pass
-
-        try:
-            self.parameters["DEV"]
-            for param_dev in self.parameters["DEV"]:
-                self.df_curated["DEV_" + str(param_dev)] = self.get_deviation(
-                    param_dev
-                )
-        except:
-            pass
-
-        try:
-            self.parameters["RSI"]
-            for param_RSI in self.parameters["RSI"]:
-                self.df_curated["RSI_" + str(param_RSI)] = self.get_RSI(
-                    param_RSI
-                )
-        except:
-            pass
+        for feature in requested_features.keys():
+            if feature not in self.initial_features.keys():
+                continue
+            if type(requested_features[feature]) is list:
+                feature_parameters = requested_features[feature]
+                for parameter in feature_parameters:
+                    try:
+                        self.df_curated[
+                            "{}_{}".format(feature, parameter)
+                        ] = self.__getattribute__(
+                            self.initial_features[feature]
+                        )(
+                            parameter
+                        )
+                    except ValueError as err:
+                        print(err, ": {} given".format(parameter))
+            else:
+                parameter = requested_features[feature]
+                try:
+                    self.df_curated[
+                        "{}_{}".format(feature, parameter)
+                    ] = self.__getattribute__(self.initial_features[feature])(
+                        parameter
+                    )
+                except ValueError as err:
+                    print(err, "{} given".format(paramter))
 
     def get_simple_MA(self, param_MA):
         return self.df_curated["Close"].rolling(window=param_MA).mean()
