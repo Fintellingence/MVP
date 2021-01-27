@@ -1,11 +1,19 @@
 import matplotlib.pyplot as plt
+import sqlite3
 
 
-def get_symbols(file):
-    with open(file) as f:
-        tickers = f.readlines()
-    stripper = lambda x: (x.strip())
-    return list(map(stripper, tickers))
+def get_db_symbols(db_path):
+    """
+    Get all symbols for the connected Sqlite database.
+
+    """
+    _conn = sqlite3.connect(db_path)
+    _cursor = _conn.cursor()
+    table_names = _cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    ).fetchall()
+    db_symbols = [name[0] for name in table_names]
+    return db_symbols
 
 
 def plot_two_series(series_a, series_b):

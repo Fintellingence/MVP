@@ -156,3 +156,6 @@ poetry.lock
 
 # MacOS system files
 **/.DS_Store
+
+# Python interpreter VSCode
+.vscode/settings.json
