@@ -40,48 +40,57 @@ class CuratedData:
         if daily:
             self.df_curated = raw_data.daily_bars()
         else:
-            self.df_curated = raw_data.df
+            self.df_curated = raw_data.df.copy()
         self.initial_features = {
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
             "RSI": "get_RSI",
         }
-        self.parameters = requested_features
+        self.parameters = {}
 
         for feature in requested_features.keys():
+            self.parameters[feature] = []
             if feature not in self.initial_features.keys():
                 continue
             if type(requested_features[feature]) is list:
                 feature_parameters = requested_features[feature]
                 for parameter in feature_parameters:
                     try:
-                        self.df_curated[
-                            "{}_{}".format(feature, parameter)
-                        ] = self.__getattribute__(
-                            self.initial_features[feature]
-                        )(
-                            parameter
+                        self.__getattribute__(self.initial_features[feature])(
+                            parameter, append=True
                         )
                     except ValueError as err:
                         print(err, ": {} given".format(parameter))
             else:
                 parameter = requested_features[feature]
                 try:
-                    self.df_curated[
-                        "{}_{}".format(feature, parameter)
-                    ] = self.__getattribute__(self.initial_features[feature])(
-                        parameter
+                    self.__getattribute__(self.initial_features[feature])(
+                        parameter, append=True
                     )
                 except ValueError as err:
-                    print(err, "{} given".format(paramter))
+                    print(err, "{} given".format(parameter))
 
-    def get_simple_MA(self, param_MA):
-        return self.df_curated["Close"].rolling(window=param_MA).mean()
+    def get_simple_MA(self, window, append=False):
+        moving_avg = self.df_curated["Close"].rolling(window=window).mean()
+        if not append:
+            return moving_avg
+        if "MA" not in self.parameters.keys():
+            self.parameters["MA"] = []
+        if window not in self.parameters["MA"]:
+            self.df_curated["MA_{}".format(window)] = moving_avg
+            self.parameters["MA"].append(window)
 
-    def get_deviation(self, param_DEV):
-        return self.df_curated["Close"].rolling(window=param_DEV).std()
+    def get_deviation(self, window, append=False):
+        moving_std = self.df_curated["Close"].rolling(window=window).std()
+        if not append:
+            return moving_std
+        if "DEV" not in self.parameters.keys():
+            self.parameters["DEV"] = []
+        if window not in self.parameters["DEV"]:
+            self.df_curated["DEV_{}".format(window)] = moving_std
+            self.parameters["DEV"].append(window)
 
-    def get_RSI(self, param_RSI):
+    def get_RSI(self, param_RSI, append=False):
         next_df = self.df_curated["Close"].shift(periods=1)
         rsi_df = pd.DataFrame(
             columns=[
@@ -107,7 +116,15 @@ class CuratedData:
         rsi_df["RSI" + str(param_RSI)] = rsi_df["RS"].apply(
             lambda x: 100 - 100 / (1 + x)
         )
-        return rsi_df["RSI" + str(param_RSI)]
+        if not append:
+            return rsi_df["RSI" + str(param_RSI)]
+        if "RSI" not in self.parameters.keys():
+            self.parameters["RSI"] = []
+        if param_RSI not in self.parameters["RSI"]:
+            self.df_curated["RSI_{}".format(param_RSI)] = rsi_df[
+                "RSI" + str(param_RSI)
+            ]
+            self.parameters["RSI"].append(param_RSI)
 
     def autocorr_calculations(self, window_autocorr, shift):
         slice_time_series_df = self.df_curated["Close"].tail(window_autocorr)
