@@ -55,6 +55,12 @@ def run(db_path, parameters, daily_option):
 
     # TODO: generate a new .db or update the existing .db. For now, the code is simply printing some results and returning None.
     print(list_curated_data_objects[0].get_autocorr())
+    frac_diff_test = list_curated_data_objects[0].frac_diff(
+        0.4, 1e-4, improve=True
+    )
+    mvp.helper.plot_two_series(
+        frac_diff_test, list_curated_data_objects[0].df_curated["Close"]
+    )
 
     return None
 
@@ -87,7 +93,7 @@ if __name__ == "__main__":
         "--daily-option",
         dest="daily_option",
         type=str,
-        default=True,
+        default=False,
         help="Choose if you want to see the data in daily resolution or not: Boolean Variable(True or False))",
     )
     args = p.parse_args()
