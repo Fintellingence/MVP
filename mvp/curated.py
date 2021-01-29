@@ -5,11 +5,11 @@ from numba import njit, prange, int32, float64
 
 
 @njit(int32(float64, float64, float64[:], int32, int32))
-def numba_weights(d, thresh, w_array, w_size, last_index):
+def numba_weights(d, tolerance, w_array, w_size, last_index):
     for k in prange(last_index + 1, w_size):
         w_array[k] = -(w_array[k - 1] / k) * (d - k + 1)
         # k += 1
-        if abs(w_array[k]) < thresh:
+        if abs(w_array[k]) < tolerance:
             return k + 1
     return -1
 
@@ -166,41 +166,59 @@ class CuratedData:
         except:
             return None
 
-    def new_get_weights(self, d, thresh, max_weights=1e7):
+    def __frac_diff_weights(self, d, tolerance, max_weights=1e8):
         w_array = np.empty(100)
         w_array[0] = 1.0
         flag = -1
         last_i = 0
         while flag < 0:
-            flag = numba_weights(d, thresh, w_array, w_array.size, last_i)
+            flag = numba_weights(d, tolerance, w_array, w_array.size, last_i)
+            if w_array.size > max_weights:
+                print(
+                    "WARNING : could not achieved required weights "
+                    "accuracy in frac_diff. Last weight = {}".format(
+                        w_array[-1]
+                    )
+                )
+                return w_array
             if flag < 0:
                 last_i = w_array.size - 1
                 w_array = np.concatenate([w_array, np.empty(10 * last_i)])
         return w_array[:flag]
 
-    def get_weights(self, d, thresh):
-        w = [1.0]
-        k = 1
-        while abs(w[-1]) > thresh:
-            w_ = -(w[-1] / k) * (d - k + 1)
-            w.append(w_)
-            k += 1
-        return w
-
-    def apply_weights(self, weights, x_vector):
+    def __apply_weights(self, weights, x_vector):
         return np.dot(weights[::-1], x_vector)
 
-    def frac_diff(self, d, thresh, improve=False):
-        if improve:
-            w = self.new_get_weights(d, thresh)
-        else:
-            w = self.get_weights(d, thresh)
-        l_star = len(w)
+    def frac_diff(self, d, weights_tol=1e-5, append=False):
+        """
+        Compute fractional differentiation of a series with the binomial
+        expansion formula for an arbitrary derivative order. Uses the
+        close value of the dataframe.
+
+        Parameters
+        ----------
+        `d` : ``float``
+            derivative order (d = 1 implies daily returns)
+        `weights_tol` : `` float `` (default 10^-5)
+            minimum value for a weight in the binomial series expansion
+            to apply a cutoff
+        `append` : `` bool `` (default False)
+            To append or not in self.df_curated data-frame
+
+        """
+        w = self.__frac_diff_weights(d, weights_tol)
+        l_star = w.size
         fracdiff_series = self.df_curated["Close"]
         fracdiff_series = fracdiff_series.rolling(window=l_star).apply(
-            lambda x: self.apply_weights(w, x), raw=True
+            lambda x: self.__apply_weights(w, x), raw=True
         )
-        return fracdiff_series.dropna()
+        if not append:
+            return fracdiff_series.dropna()
+        if "FRAC_DIFF" not in self.parameters.keys():
+            self.parameters["FRAC_DIFF"] = []
+        if d not in self.parameters["FRAC_DIFF"]:
+            self.df_curated["fracdiff_{}".format(d)] = fracdiff_series.dropna()
+            self.parameters["FRAC_DIFF"].append(d)
 
     def adf_test(self, frac_diff):
         adf = adfuller(frac_diff, maxlag=1, regression="c", autolag=None)
