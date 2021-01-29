@@ -7,6 +7,40 @@ import ast
 
 def run(db_path, parameters, daily_option):
     """
+    This function is a script that gives us a collection of objects containing the statistical features
+    related to the raw data extracted from public sources. These statistical features are:
+    - Moving Average
+    - Standard Deviations
+    - Relative Strength Index(RSI)
+    - Autocorrelation
+    - Fractionally Differentiated Series
+    - ADF Test
+
+    Parameters
+    ----------
+    `db_path` : ``str``
+        full path to database file
+
+    `parameters` : `` dict ``
+        Dictionary with features as strings in keys and the
+        evaluation feature paramter as values or list of values
+        The (keys)strings corresponding to features must be:
+        "MA" = Moving Average
+        "DEV" = Standart Deviation
+        "RSI" = Relative Strenght Index (RSI) indicator
+        "AC_WINDOW": Observation window using the last point as reference
+        "AC_SHIFT_MAX": The max value of lag values list (using step=1)
+
+    `daily_option` : `` bool `` (optional)
+        Automatically convert 1-minute raw data to daily data
+
+    Return
+    ------
+    `dict_curated_data_objects` : ``dict``
+        dictionary of CuratedData objects with SYMBOL as key values.
+    """
+
+    """
     This first section is for handling error regarding to failed parameters inputs via terminal.
     """
     if not os.path.isfile(db_path):
@@ -33,7 +67,7 @@ def run(db_path, parameters, daily_option):
             raise IOError("Daily option needs to be Boolean")
 
     """
-    This section is focused in generating curated data from a .db file and a "symbols" text file providing \
+    This section is focused in generating curated data from a .db file providing \
         us curated data including new features like Moving Averages, Standard Deviations and RSI indicator. 
     """
     symbols = mvp.helper.get_db_symbols(db_path)[1:]
@@ -46,23 +80,14 @@ def run(db_path, parameters, daily_option):
         )
         list_raw_data_objects.append(temp)
 
-    list_curated_data_objects = []
+    dict_curated_data_objects = {}
     for raw_data in list_raw_data_objects:
         temp = mvp.curated.CuratedData(
             raw_data, parameters_dict, daily=daily_option
         )
-        list_curated_data_objects.append(temp)
+        dict_curated_data_objects[temp.symbol] = temp
 
-    # TODO: generate a new .db or update the existing .db. For now, the code is simply printing some results and returning None.
-    print(list_curated_data_objects[0].get_autocorr())
-    frac_diff_test = list_curated_data_objects[0].frac_diff(
-        0.4, 1e-4, improve=True
-    )
-    mvp.helper.plot_two_series(
-        frac_diff_test, list_curated_data_objects[0].df_curated["Close"]
-    )
-
-    return None
+    return dict_curated_data_objects
 
 
 if __name__ == "__main__":
