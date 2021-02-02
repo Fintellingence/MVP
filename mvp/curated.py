@@ -223,3 +223,41 @@ class CuratedData:
     def adf_test(self, frac_diff):
         adf = adfuller(frac_diff, maxlag=1, regression="c", autolag=None)
         return adf
+
+    def interval_count_occurrence(bar_index, horizon, interval):
+        """
+        Determine the occurrence of any part of the interval in a horizon.
+
+        Parameters
+        ----------
+        `bar_index` : ``Index``
+            The timestamp of the maximum value of the bars
+        `horizon` : ``DataFrame``
+            The start and end of each horizon
+        `interval` : ``list``
+            The timestamps that compose the interval od interest
+
+        Return
+        ------
+        count : ``Series``
+            The number of occurrence of the `interval` in all horizons
+        """
+        horizon = horizon.copy()
+        horizon = horizon.loc[
+            (horizon["start"] >= interval[0])
+            & (horizon["end"] <= interval[-1])
+        ]
+        idx_of_interest = bar_index.searchsorted(
+            [horizon["start"].min(), horizon["end"].max()]
+        )
+        count = pd.Series(
+            0, index=bar_index[idx_of_interest[0] : idx_of_interest[1] + 1]
+        )
+        horizon_np = horizon.values
+        for s, e in horizon_np:
+            count.loc[s:e] += 1
+        down_cut = bar_index.searchsorted(interval[0])
+        up_cut = bar_index.searchsorted(
+            horizon[horizon["start"] <= interval[-1]]["start"].max()
+        )
+        return count.iloc[down_cut : up_cut + 1]
