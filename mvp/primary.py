@@ -1,6 +1,7 @@
 import pandas as pd
 import mvp
 import numpy as np
+import datetime as dt
 
 
 class PrimaryModel:
@@ -18,6 +19,15 @@ class PrimaryModel:
             return 1
         else:
             return -1
+
+    def labels(self, touches):
+        if touches[0] == touches[1]:
+            return 0
+        else:
+            if touches[0] < touches[1]:
+                return 1
+            else:
+                return -1
 
     def events_crossing_MA(self):
         MA_params = list(set(self.model_parameters["MA"]))
@@ -51,7 +61,7 @@ class PrimaryModel:
     def events_bollinger(self):
         pass
 
-    def get_labels_standard(self, events):
+    def labels_standard(self, events):
         stop_loss = self.operation_parameters["SL"]
         take_profit = self.operation_parameters["TP"]
         horizon = self.operation_parameters["IH"]
@@ -67,20 +77,30 @@ class PrimaryModel:
                 .reset_index()
                 .drop(columns="index")
             )
-            profit_touch = pd.DataFrame()
-            loss_touch = pd.DataFrame()
+            profit_touch = None
+            loss_touch = None
             if event == 1:
-                profit_touch = horizon_data[
+                profits = horizon_data[
                     horizon_data["Close"].gt(
-                        horizon_data["Close"][0] + take_profit
+                        horizon_data.iloc[0]["Close"] + take_profit
                     )
                 ]
-                print(horizon_data["Close"][0])
-                loss_touch = horizon_data[
+                losses = horizon_data[
                     horizon_data["Close"].lt(
-                        horizon_data["Close"][0] + stop_loss
+                        horizon_data.iloc[0]["Close"] - stop_loss
                     )
                 ]
-            print(profit_touch)
-            print(loss_touch)
-        pass
+                if not profits.empty:
+                    profit_touch = profits.iloc[0]["DateTime"]
+                if not losses.empty:
+                    loss_touch = losses.iloc[0]["DateTime"]
+                touches = list(
+                    map(
+                        lambda x: dt.datetime(3000, 1, 1, 0, 0, 0)
+                        if x == None
+                        else x,
+                        [profit_touch, loss_touch],
+                    )
+                )
+                self.labels(touches)
+        return horizon_data
