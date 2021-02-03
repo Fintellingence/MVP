@@ -20,14 +20,49 @@ class PrimaryModel:
         else:
             return -1
 
-    def labels(self, touches):
+    def horizon_data(self, event_datetime):
+        horizon = self.operation_parameters["IH"]
+        close_data = self.feature_data.df_curated["Close"].reset_index()
+        signal_position = close_data[
+            close_data["DateTime"] == event_datetime
+        ].index[0]
+        horizon_data = (
+            close_data.iloc[signal_position : signal_position + horizon]
+            .reset_index()
+            .drop(columns="index")
+        )
+        return horizon_data
+
+    def touches(self, horizon_df):
+        stop_loss = self.operation_parameters["SL"]
+        take_profit = self.operation_parameters["TP"]
+        profit_touch = None
+        loss_touch = None
+        entry_position = horizon_df.iloc[0]["Close"]
+        profits = horizon_df[
+            horizon_df["Close"].gt(entry_position + take_profit)
+        ]
+        losses = horizon_df[horizon_df["Close"].lt(entry_position - stop_loss)]
+        if not profits.empty:
+            profit_touch = profits.iloc[0]["DateTime"]
+        if not losses.empty:
+            loss_touch = losses.iloc[0]["DateTime"]
+        touches = list(
+            map(
+                lambda x: dt.datetime(3000, 1, 1, 0, 0, 0) if x == None else x,
+                [profit_touch, loss_touch],
+            ),
+        )
+        return touches
+
+    def labels(self, touches, event_trigger):
         if touches[0] == touches[1]:
             return 0
         else:
             if touches[0] < touches[1]:
-                return 1
+                return event_trigger
             else:
-                return -1
+                return -event_trigger
 
     def events_crossing_MA(self):
         MA_params = list(set(self.model_parameters["MA"]))
@@ -53,7 +88,7 @@ class PrimaryModel:
             )
             .dropna()
         )
-        return events_MA
+        return pd.DataFrame(events_MA).reset_index()
 
     def events_classical_filter(self):
         pass
@@ -61,46 +96,11 @@ class PrimaryModel:
     def events_bollinger(self):
         pass
 
-    def labels_standard(self, events):
-        stop_loss = self.operation_parameters["SL"]
-        take_profit = self.operation_parameters["TP"]
-        horizon = self.operation_parameters["IH"]
-
-        event_date_time = events.keys()
-        close_data = self.feature_data.df_curated["Close"].reset_index()
-        for event in event_date_time[:2]:
-            signal_position = close_data.index[
-                close_data["DateTime"] == event
-            ][0]
-            horizon_data = (
-                close_data.iloc[signal_position : signal_position + horizon]
-                .reset_index()
-                .drop(columns="index")
-            )
-            profit_touch = None
-            loss_touch = None
-            if event == 1:
-                profits = horizon_data[
-                    horizon_data["Close"].gt(
-                        horizon_data.iloc[0]["Close"] + take_profit
-                    )
-                ]
-                losses = horizon_data[
-                    horizon_data["Close"].lt(
-                        horizon_data.iloc[0]["Close"] - stop_loss
-                    )
-                ]
-                if not profits.empty:
-                    profit_touch = profits.iloc[0]["DateTime"]
-                if not losses.empty:
-                    loss_touch = losses.iloc[0]["DateTime"]
-                touches = list(
-                    map(
-                        lambda x: dt.datetime(3000, 1, 1, 0, 0, 0)
-                        if x == None
-                        else x,
-                        [profit_touch, loss_touch],
-                    )
-                )
-                self.labels(touches)
-        return horizon_data
+    def event_labels(self, events_df):
+        labels = []
+        for event in events_df.values:
+            event_datetime = event[0]
+            event_trigger = event[1]
+            horizon_df = self.horizon_data(event_datetime)
+            labels.append(self.labels(self.touches(horizon_df), event_trigger))
+        return labels
