@@ -96,7 +96,6 @@ def run(db_path, parameters, daily_option):
             raw_data, parameters, daily=daily_option
         )
         dict_curated_data_objects[temp.symbol] = temp
-        print(dict_curated_data_objects)
     return dict_curated_data_objects
 
 
