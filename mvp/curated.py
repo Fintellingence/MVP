@@ -6,6 +6,38 @@ from numba import njit, prange, int32, float64
 
 @njit(int32(float64, float64, float64[:], int32, int32))
 def numba_weights(d, tolerance, w_array, w_size, last_index):
+    """
+    Compiled function to compute weights of frac_diff method efficiently
+    This function must be called until a positive number is returned,
+    which indicate that convergence was achieve accordint to `tolerance`
+
+    Parameters
+    ----------
+    `d` : ``float``
+        order of fractional differentiation. Usually between 0 and 1
+    `tolerance` : ``float``
+        minimum value for weights
+    `w_array` : ``numpy.array``
+        values of all weights computed so far
+    `w_size` : ``int``
+        current size of `w_array`
+    `last_index` : ``int``
+        index of last weight set in `w_array` and from which must continue
+
+    Modified
+    --------
+    `w_array`
+        with new weights
+
+    Return
+    ------
+    ``int``
+        If positive, convergence was achieved and the value is the number
+        of weights computed. If negative, weights are above the `tolerance`
+        provided, the weights array must be resized adding empty entries,
+        and this function must be called again
+
+    """
     for k in prange(last_index + 1, w_size):
         w_array[k] = -(w_array[k - 1] / k) * (d - k + 1)
         # k += 1
@@ -126,47 +158,107 @@ class CuratedData:
             ]
             self.parameters["RSI"].append(param_RSI)
 
-    def autocorr_calculations(self, window_autocorr, shift):
-        slice_time_series_df = self.df_curated["Close"].tail(window_autocorr)
-        autocorr_value = slice_time_series_df.autocorr(lag=shift)
-        return autocorr_value
+    def autocorr_period(self, start, end, shift):
+        """
+        Compute auto-correlation function in
+        a time interval which fix the window
 
-    def get_autocorr(self):
-        try:
-            self.parameters["AC_WINDOW"]
-            self.parameters["AC_SHIFT_MAX"]
+        Parameters
+        ----------
+        `start` : ``pandas.Timestamp``
+            first date/minute of the period
+        `end` : ``pandas.Timestamp``
+            end of the period
+        `shift` : ``int``
+            displacement to separate the two data samples
 
-            self.autocorr_values = pd.concat(
-                [
-                    pd.DataFrame(
-                        ["SHIFT_" + str(param_AC_SHIFT_MAX)],
-                        columns=["SHIFTS"],
-                    )
-                    for param_AC_SHIFT_MAX in self.parameters["AC_SHIFT_MAX"]
-                ],
-                ignore_index=True,
-            )
-
-            for param_AC_WINDOW in self.parameters["AC_WINDOW"]:
-                temp = []
-                for param_AC_SHIFT_MAX in self.parameters["AC_SHIFT_MAX"]:
-                    temp.append(
-                        self.autocorr_calculations(
-                            param_AC_WINDOW, param_AC_SHIFT_MAX
-                        )
-                    )
-                temp_df = pd.DataFrame(
-                    temp, columns=["WINDOW_" + str(param_AC_WINDOW)]
+        """
+        df_close_chunk = self.df_curated["Close"].loc[start:end]
+        if shift > df_close_chunk.shape[0] - 1:
+            raise ValueError(
+                "Period enclosed from {} to {} provided {} "
+                "data points, while {} shift was required".format(
+                    start, end, df_close_chunk.shape[0], shift
                 )
-                self.autocorr_values[
-                    "WINDOW_" + str(param_AC_WINDOW)
-                ] = temp_df
-            return self.autocorr_values.drop(columns=["SHIFTS"])
+            )
+        return df_close_chunk.autocorr(lag=shift)
 
-        except:
-            return None
+    def autocorr_tail(self, window, shift):
+        """
+        Compute auto-correlation function using the last(recent) data points
+
+        Parameters
+        ----------
+        `window` : ``int``
+            How many data points to take from bottom of dataframe
+        `shift` : ``int``
+            displacement to separate the two data samples
+
+        """
+        if shift > window - 1:
+            raise ValueError("shift must be greater than window")
+        df_close_chunk = self.df_curated["Close"].tail(window)
+        return df_close_chunk.autocorr(lag=shift)
+
+    def moving_autocorr(self, window, shift, append=False, start=None):
+        """
+        Compute auto-correlation in a moving window along the dataframe
+
+        Parameters
+        ----------
+        `window` : ``int``
+            size of moving window
+        `shift` : ``int``
+            displacement to separate the two data samples in moving window
+        `append` : ``bool`` (default False)
+            Whether to append resulting series in self.df_curated
+        `start` : wither ``pd.Timestamp`` or ``int``
+            start in a location different from the first index
+
+        """
+        if start != None:
+            if isinstance(start, pd.Timestamp):
+                close_series = self.df_curated["Close"].loc[start:]
+            elif isinstance(start, pd.Timestamp):
+                close_series = self.df_curated["Close"].iloc[start:]
+            else:
+                raise ValueError(
+                    "start index type {} not valid".format(type(start))
+                )
+        else:
+            close_series = self.df_curated["Close"]
+
+        moving_corr = close_series.rolling(window=window).apply(
+            lambda x: x.autocorr(lag=shift), raw=False
+        )
+        if not append:
+            return moving_corr
+        new_feature_name = "AUTOCORR_{}_{}".format(window, shift)
+        if "AUTOCORR" not in self.parameters.keys():
+            self.parameters["AUTOCORR"] = []
+        if [window, shift] not in self.parameters["AUTOCORR"]:
+            self.df_curated[new_feature_name] = moving_corr
+            self.parameters["AUTOCORR"].append([window, shift])
 
     def __frac_diff_weights(self, d, tolerance, max_weights=1e8):
+        """
+        Compute weights of frac_diff binomial-expansion formula
+
+        Parameters
+        ----------
+        `d` : ``float``
+            order of fractional differentiation. Usually between 0 and 1
+        `tolerance` : ``float``
+            minumum accepted value for weights to compute in series
+        `max_weights` : ``int``
+            max number of weights (to avoid excessive memory consumption)
+
+        Return
+        ------
+        ``numpy.array``
+            wegiths/coefficients of binomial series expansion
+
+        """
         w_array = np.empty(100)
         w_array[0] = 1.0
         flag = -1
@@ -198,7 +290,7 @@ class CuratedData:
         Parameters
         ----------
         `d` : ``float``
-            derivative order (d = 1 implies daily returns)
+            derivative order (d = 1 implies daily returns = lose all memory)
         `weights_tol` : `` float `` (default 10^-5)
             minimum value for a weight in the binomial series expansion
             to apply a cutoff
