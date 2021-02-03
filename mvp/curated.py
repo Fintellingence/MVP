@@ -224,7 +224,7 @@ class CuratedData:
         adf = adfuller(frac_diff, maxlag=1, regression="c", autolag=None)
         return adf
 
-    def interval_count_occurrence(bar_index, horizon, interval):
+    def interval_count_occurrence(self, bar_index, horizon, interval):
         """
         Determine the occurrence of any part of the interval in a horizon.
 
