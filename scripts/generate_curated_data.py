@@ -1,8 +1,41 @@
 import os
 import mvp
-import numpy as np
 import argparse
-import ast
+
+
+def check_keys(p):
+    expected_keys = ["MA", "DEV", "RSI", "AC_WINDOW", "AC_SHIFT_MAX"]
+    for k in p.keys():
+        if k not in expected_keys:
+            raise argparse.ArgumentTypeError(
+                "The key {} is not expected. Use one of following keys\n"
+                "\t{}".format(k, expected_keys)
+            )
+
+
+def parameters(s):
+    p = {}
+    s = s.strip()
+    if s[-1] == ":":
+        s = s[:-1]
+    try:
+        key_values_str = s.split(":")
+        if len(key_values_str) % 2 != 0:
+            raise argparse.ArgumentTypeError(
+                "All keys must have a associated value"
+            )
+        keys = key_values_str[::2]
+        values = key_values_str[1::2]
+        for k, v in zip(keys, values):
+            p[k] = list(map(int, v.split(",")))
+    except:
+        raise argparse.ArgumentTypeError(
+            "Parameters must be inserted as\n"
+            "\tKEY1:V11,V12,...,V1N:[KEY2:V21,V22,...,V2N]\n"
+            "where [...] is optional."
+        )
+    check_keys(p)
+    return p
 
 
 def run(db_path, parameters, daily_option):
@@ -39,39 +72,17 @@ def run(db_path, parameters, daily_option):
     `dict_curated_data_objects` : ``dict``
         dictionary of CuratedData objects with SYMBOL as key values.
     """
-
-    """
-    This first section is for handling error regarding to failed parameters inputs via terminal.
-    """
     if not os.path.isfile(db_path):
         raise IOError("Database file {} not found".format(db_path))
 
-    parameters_dict = parameters
-    if type(parameters) == str:
-        parameters_dict = ast.literal_eval(parameters)
-        if len(parameters_dict) == 0:
-            raise IOError("Parameters are needed in order to continue")
-        try:
-            parameters_dict["AC_SHIFT_MAX"] = list(
-                range(1, parameters_dict["AC_SHIFT_MAX"][0])
-            )
-        except:
-            pass
+    try:
+        parameters["AC_SHIFT_MAX"] = list(
+            range(1, parameters["AC_SHIFT_MAX"][0])
+        )
+    except:
+        pass
 
-    if type(daily_option) == str:
-        if daily_option == "True":
-            daily_option = ast.literal_eval(daily_option)
-        elif daily_option == "False":
-            daily_option = ast.literal_eval(daily_option)
-        else:
-            raise IOError("Daily option needs to be Boolean")
-
-    """
-    This section is focused in generating curated data from a .db file providing \
-        us curated data including new features like Moving Averages, Standard Deviations and RSI indicator. 
-    """
     symbols = mvp.helper.get_db_symbols(db_path)[1:]
-
     list_raw_data_objects = []
     for symbol in symbols[:1]:
         temp = mvp.rawdata.RawData(
@@ -79,14 +90,12 @@ def run(db_path, parameters, daily_option):
             db_path,
         )
         list_raw_data_objects.append(temp)
-
     dict_curated_data_objects = {}
     for raw_data in list_raw_data_objects:
         temp = mvp.curated.CuratedData(
-            raw_data, parameters_dict, daily=daily_option
+            raw_data, parameters, daily=daily_option
         )
         dict_curated_data_objects[temp.symbol] = temp
-
     return dict_curated_data_objects
 
 
@@ -95,31 +104,22 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument(
         "--db-path",
-        dest="db_path",
         type=str,
         default=os.path.join(root_dir, "MetaTrader_M1.db"),
-        help="path to database file",
+        help="Path to database file",
     )
     p.add_argument(
-        "--features-parameters",
-        dest="parameters",
-        type=str,
-        default={
-            "MA": [10],
-            "DEV": [10],
-            "RSI": [5, 14, 30],
-            "AC_WINDOW": [100, 200, 300],
-            "AC_SHIFT_MAX": list(range(1, 11)),
-        },
-        help="parameters for the feature columns using the following convention: \
-        \"{'MA':[PERIODS],'DEV':[PERIODS],'RSI':[PERIODS],'AC_WINDOW':[WINDOWS_TO_LOOK],'AC_SHIFT_MAX':[SHIFT_MAX]}\" ",
+        "--parameters",
+        type=parameters,
+        default="MA:10:DEV:10:RSI:4,14,30:AC_WINDOW:100,200,300:AC_SHIFT_MAX:11",
+        help="Parameters for the feature columns using the following convention:\n"
+        "\tKEY1:V11,V12,...,V1N:[KEY2:V21,V22,...,V2N]\n"
+        "where [...] is optional.",
     )
     p.add_argument(
         "--daily-option",
-        dest="daily_option",
-        type=str,
-        default=False,
-        help="Choose if you want to see the data in daily resolution or not: Boolean Variable(True or False))",
+        action="store_true",
+        help="Indicate the use of date in daily resolution",
     )
     args = p.parse_args()
     run(**vars(args))
