@@ -170,7 +170,7 @@ class CuratedData:
         `end` : ``pandas.Timestamp``
             end of the period
         `shift` : ``int``
-            displacement to separate the two data samples
+            displacement to separate the two data samples in minutes
 
         """
         df_close_chunk = self.df_curated["Close"].loc[start:end]
@@ -182,6 +182,40 @@ class CuratedData:
                 )
             )
         return df_close_chunk.autocorr(lag=shift)
+
+    def autocorr_period_matrix(self, starts, ends, shift):
+        """
+        Compute auto-correlation function in many time intervals
+        for various values of start and end
+
+        Parameters
+        ----------
+        `start` : ``list pandas.Timestamp``
+            list of first date/minute of the period
+        `end` : ``list of pandas.Timestamp``
+            list of end of the period
+        `shift` : ``int``
+            displacement to separate the two data samples in minutes
+
+        """
+        n_starts = len(starts)
+        n_ends = len(ends)
+        autocorr = np.empty([n_starts, n_ends])
+        invalid_values = False
+        for i in range(n_starts):
+            for j in range(n_ends):
+                try:
+                    autocorr[i, j] = self.autocorr_period(
+                        starts[i], ends[j], shift
+                    )
+                except:
+                    invalid_values = True
+                    autocorr[i, j] = np.nan
+        if invalid_values:
+            print("Some invalid entries for start and end occurred.")
+        autocorr_df = pd.DataFrame(autocorr, columns=ends, index=starts)
+        autocorr_df.index.name = "start_date"
+        return autocorr_df
 
     def autocorr_tail(self, window, shift):
         """
@@ -199,6 +233,41 @@ class CuratedData:
             raise ValueError("shift must be greater than window")
         df_close_chunk = self.df_curated["Close"].tail(window)
         return df_close_chunk.autocorr(lag=shift)
+
+    def autocorr_tail_matrix(self, windows, shifts):
+        """
+        Compute auto-correlation function using the last(recent) data points
+        for several `windows` and `shifts` provided in lists
+
+        Parameters
+        ----------
+        `windows` : ``list``
+            Various number of data points to take from bottom of dataframe
+        `shifts` : ``list``
+            Various displacement to separate the two data samples
+
+        Return
+        ------
+        ``pandas.dataframe``
+            windows in indexes and shifts in columns
+
+        """
+        n_windows = len(windows)
+        n_shifts = len(shifts)
+        autocorr = np.empty([n_windows, n_shifts])
+        invalid_values = False
+        for i in range(n_windows):
+            for j in range(n_shifts):
+                try:
+                    autocorr[i, j] = self.autocorr_tail(windows[i], shifts[j])
+                except:
+                    invalid_values = True
+                    autocorr[i, j] = np.nan
+        if invalid_values:
+            print("Some invalid entries for window and shift occurred")
+        autocorr_df = pd.DataFrame(autocorr, columns=shifts, index=windows)
+        autocorr_df.index.name = "window"
+        return autocorr_df
 
     def moving_autocorr(self, window, shift, append=False, start=None):
         """
