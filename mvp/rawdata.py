@@ -6,6 +6,7 @@ import pandas_datareader as pdr
 
 __all__ = ["RawData", "DailyDataYahoo"]
 
+
 class RawData:
     """
     Class to read symbol from minute-1 database and set as data-frame. Provide
@@ -35,7 +36,7 @@ class RawData:
             raise ValueError(
                 "symbol {} not found in database {}".format(symbol, db_path)
             )
-
+        self.available_dates = self.df.index.normalize()
 
     def __get_data_from_db(self):
         conn = sql3.connect(self.db_path)
@@ -44,7 +45,6 @@ class RawData:
         df.index = pd.to_datetime(df["DateTime"])
         df.drop(["DateTime"], axis=1, inplace=True)
         return df
-
 
     def tick_bars(self, bar_size_th=1000):
         """
@@ -168,7 +168,6 @@ class RawData:
         new_df.index.name = "BarOpenTime"
         return new_df
 
-
     def money_bars(self, bar_size_th=1e6):
         """
         Convert 1-minute time spaced data-frame to
@@ -191,7 +190,7 @@ class RawData:
         initial_time_index = []
         for idx in range(self.df.index.size):
             mean_price = 0.5 * (
-                    self.df.iloc[idx]["Close"] + self.df.iloc[idx]["Open"]
+                self.df.iloc[idx]["Close"] + self.df.iloc[idx]["Open"]
             )
             money = money + self.df.iloc[idx]["Volume"] * mean_price
             if money > bar_size_th:
@@ -234,7 +233,6 @@ class RawData:
         new_df.index.name = "BarOpenTime"
         return new_df
 
-
     def daily_bars(self):
         """
         Convert 1-minute time spaced data-frame to daily spaced
@@ -273,7 +271,6 @@ class RawData:
         new_df.index.name = "Date"
         return new_df
 
-
     def time_window(self, start, stop, time_step=1):
         """
         Return a dataframe resizing the sample time window
@@ -293,7 +290,7 @@ class RawData:
         if time_step not in available_steps:
             raise ValueError("Time step requested not in ", available_steps)
         work_df = self.df.loc[start:stop].copy()
-        if (time_step == 1):
+        if time_step == 1:
             return work_df
         last_index = 0
         bar_list = []
@@ -302,11 +299,13 @@ class RawData:
         current_day = work_df.index[0].day
         new_day_first_minute = True
         for idx in range(work_df.index.size):
-            if (current_day != work_df.index[idx].day):
+            if current_day != work_df.index[idx].day:
                 current_day = work_df.index[idx].day
                 new_day_first_minute = True
-            if (work_df.index[idx].minute % time_step == 0
-                    and not new_day_first_minute):
+            if (
+                work_df.index[idx].minute % time_step == 0
+                and not new_day_first_minute
+            ):
                 bar_final_time = work_df.iloc[idx].name
                 bar_vol = work_df.iloc[last_index : (idx + 1)]["Volume"].sum()
                 bar_tck = work_df.iloc[last_index : (idx + 1)]["TickVol"].sum()
@@ -332,7 +331,7 @@ class RawData:
         return new_df
 
 
-class DailyDataYahoo():
+class DailyDataYahoo:
     """
     Class to read symbol from day-1 Yahoo database and set as data-frame
     """
@@ -351,14 +350,13 @@ class DailyDataYahoo():
         except Exception as e:
             init_day = dt.date(2010, 1, 2)
             final_day = dt.date.today()
-            print(e, "Trying to download with pandas-datareader"
-                    " from {} to {}".format(init_day, final_day)
+            print(
+                e,
+                "Trying to download with pandas-datareader"
+                " from {} to {}".format(init_day, final_day),
             )
             df = pdr.DataReader(
-                    self.symbol + ".SA",
-                    "yahoo",
-                    init_day,
-                    final_day
+                self.symbol + ".SA", "yahoo", init_day, final_day
             )
             df.rename(columns={"Adj Close": "AdjClose"}, inplace=True)
         conn.close()

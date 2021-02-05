@@ -76,13 +76,13 @@ class CuratedData:
             self.df_curated = raw_data.daily_bars()
         else:
             self.df_curated = raw_data.df.copy()
+        self.available_dates = raw_date.available_dates
         self.initial_features = {
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
             "RSI": "get_RSI",
         }
         self.parameters = {}
-
         for feature in requested_features.keys():
             self.parameters[feature] = []
             if feature not in self.initial_features.keys():
