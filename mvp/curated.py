@@ -12,7 +12,7 @@ def numba_weights(d, tolerance, w_array, w_size, last_index):
     """
     Compiled function to compute weights of frac_diff method efficiently
     This function must be called until a positive number is returned,
-    which indicate that convergence was achieve accordint to `tolerance`
+    which indicate that convergence was achieve according to `tolerance`
 
     Parameters
     ----------
@@ -30,7 +30,7 @@ def numba_weights(d, tolerance, w_array, w_size, last_index):
     Modified
     --------
     `w_array`
-        with new weights
+        with new weights starting from `last_index`
 
     Return
     ------
@@ -38,12 +38,11 @@ def numba_weights(d, tolerance, w_array, w_size, last_index):
         If positive, convergence was achieved and the value is the number
         of weights computed. If negative, weights are above the `tolerance`
         provided, the weights array must be resized adding empty entries,
-        and this function must be called again
+        and this function must be called again from the last weight set
 
     """
     for k in prange(last_index + 1, w_size):
         w_array[k] = -(w_array[k - 1] / k) * (d - k + 1)
-        # k += 1
         if abs(w_array[k]) < tolerance:
             return k + 1
     return -1
@@ -62,36 +61,39 @@ class CuratedData:
         Dictionary with features as strings in keys and the
         evaluation feature paramter as values or list of values
         The (keys)strings corresponding to features must be:
-        "MA" = Moving Average
-        "DEV" = standart DEViation
-        "RSI" = RSI indicator
+        "MA" = Moving Average -> Value = window size
+        "DEV" = standart DEViation -> Value = window_size
+        "RSI" = RSI indicator -> Value = window_size
+        "FRAC_DIFF" = Fractional Diff. -> Value = float in [0,1]
     `daily` : `` bool `` (optional)
         Automatically convert 1-minute raw data to daily data
 
     """
 
-    def __init__(self, raw_data, requested_features, daily=False):
+    def __init__(self, raw_data, requested_features={}, daily=False):
         self.symbol = raw_data.symbol
         if daily:
             self.df_curated = raw_data.daily_bars()
         else:
             self.df_curated = raw_data.df.copy()
-        self.available_dates = raw_date.available_dates
-        self.initial_features = {
+        self.available_dates = raw_data.available_dates
+        self.__volume_density()
+        self.features_attr = {
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
             "RSI": "get_RSI",
+            "FRAC_DIFF": "frac_diff",
         }
         self.parameters = {}
         for feature in requested_features.keys():
-            self.parameters[feature] = []
-            if feature not in self.initial_features.keys():
+            if feature not in self.features_attr.keys():
                 continue
+            self.parameters[feature] = []
             if type(requested_features[feature]) is list:
                 feature_parameters = requested_features[feature]
                 for parameter in feature_parameters:
                     try:
-                        self.__getattribute__(self.initial_features[feature])(
+                        self.__getattribute__(self.features_attr[feature])(
                             parameter, append=True
                         )
                     except ValueError as err:
@@ -99,22 +101,20 @@ class CuratedData:
             else:
                 parameter = requested_features[feature]
                 try:
-                    self.__getattribute__(self.initial_features[feature])(
+                    self.__getattribute__(self.features_attr[feature])(
                         parameter, append=True
                     )
                 except ValueError as err:
                     print(err, "{} given".format(parameter))
 
-    def volume_density(self, append=False):
+    def __volume_density(self):
         vol_den = self.df_curated["Volume"] / self.df_curated["TickVol"]
-        if not append:
-            return vol_den
-        self.df_curated["VolDen"] = vol_den
+        self.df_curated["VolDen"] = vol_den.astype(int)
 
     def get_simple_MA(self, window, append=False):
         moving_avg = self.df_curated["Close"].rolling(window=window).mean()
         if not append:
-            return moving_avg
+            return moving_avg.dropna()
         if "MA" not in self.parameters.keys():
             self.parameters["MA"] = []
         if window not in self.parameters["MA"]:
@@ -124,7 +124,7 @@ class CuratedData:
     def get_deviation(self, window, append=False):
         moving_std = self.df_curated["Close"].rolling(window=window).std()
         if not append:
-            return moving_std
+            return moving_std.dropna()
         if "DEV" not in self.parameters.keys():
             self.parameters["DEV"] = []
         if window not in self.parameters["DEV"]:
@@ -158,7 +158,7 @@ class CuratedData:
             lambda x: 100 - 100 / (1 + x)
         )
         if not append:
-            return rsi_df["RSI" + str(param_RSI)]
+            return rsi_df["RSI" + str(param_RSI)].dropna()
         if "RSI" not in self.parameters.keys():
             self.parameters["RSI"] = []
         if param_RSI not in self.parameters["RSI"]:
@@ -221,9 +221,9 @@ class CuratedData:
                     invalid_values = True
                     autocorr[i, j] = np.nan
         if invalid_values:
-            print("Some invalid entries for start and end occurred.")
+            print("Some invalid periods (end > start) occurred.")
         autocorr_df = pd.DataFrame(autocorr, columns=ends, index=starts)
-        autocorr_df.index.name = "start_date"
+        autocorr_df.index.name = "start_dates"
         return autocorr_df
 
     def autocorr_tail(self, window, shift):
@@ -278,7 +278,7 @@ class CuratedData:
         autocorr_df.index.name = "window"
         return autocorr_df
 
-    def moving_autocorr(self, window, shift, append=False, start=None):
+    def moving_autocorr(self, window, shift, append=False, start=0, end=-1):
         """
         Compute auto-correlation in a moving window along the dataframe
 
@@ -290,33 +290,37 @@ class CuratedData:
             displacement to separate the two data samples in moving window
         `append` : ``bool`` (default False)
             Whether to append resulting series in self.df_curated
-        `start` : wither ``pd.Timestamp`` or ``int``
-            start in a location different from the first index
+        `start` :``pd.Timestamp`` or ``int`` (optional)
+            First index/date. Default is the beginning of dataframe
+        `end` :``pd.Timestamp`` or ``int`` (optional)
+            Last index/date. Default is the end of dataframe
 
         """
-        if start != None:
-            if isinstance(start, pd.Timestamp):
-                close_series = self.df_curated["Close"].loc[start:]
-            elif isinstance(start, pd.Timestamp):
-                close_series = self.df_curated["Close"].iloc[start:]
-            else:
-                raise ValueError(
-                    "start index type {} not valid".format(type(start))
-                )
+        if isinstance(start, int) and isinstance(end, int):
+            close_series = self.df_curated["Close"].iloc[start:end]
+        elif isinstance(start, pd.Timestamp) and isinstance(end, pd.Timestamp):
+            close_series = self.df_curated["Close"].loc[start:end]
         else:
-            close_series = self.df_curated["Close"]
+            raise ValueError(
+                "start/end index type {}/{} not valid".format(
+                    type(start), type(end))
+            )
+        if end == -1:
+            end = self.df_curated.shape[0]
 
         moving_corr = close_series.rolling(window=window).apply(
             lambda x: x.autocorr(lag=shift), raw=False
         )
         if not append:
-            return moving_corr
-        new_feature_name = "AUTOCORR_{}_{}".format(window, shift)
+            return moving_corr.dropna()
+        new_feature_name = "AUTOCORR_({},{},{},{})".format(
+            start, end, window, shift
+        )
         if "AUTOCORR" not in self.parameters.keys():
             self.parameters["AUTOCORR"] = []
-        if [window, shift] not in self.parameters["AUTOCORR"]:
+        if (start, end, window, shift) not in self.parameters["AUTOCORR"]:
             self.df_curated[new_feature_name] = moving_corr
-            self.parameters["AUTOCORR"].append([window, shift])
+            self.parameters["AUTOCORR"].append((start, end, window, shift))
 
     def __frac_diff_weights(self, d, tolerance, max_weights=1e8):
         """
@@ -377,9 +381,8 @@ class CuratedData:
 
         """
         w = self.__frac_diff_weights(d, weights_tol)
-        l_star = w.size
-        fracdiff_series = self.df_curated["Close"]
-        fracdiff_series = fracdiff_series.rolling(window=l_star).apply(
+        close_series = self.df_curated["Close"]
+        fracdiff_series = close_series.rolling(window=w.size).apply(
             lambda x: self.__apply_weights(w, x), raw=True
         )
         if not append:
@@ -387,7 +390,7 @@ class CuratedData:
         if "FRAC_DIFF" not in self.parameters.keys():
             self.parameters["FRAC_DIFF"] = []
         if d not in self.parameters["FRAC_DIFF"]:
-            self.df_curated["fracdiff_{}".format(d)] = fracdiff_series.dropna()
+            self.df_curated["fracdiff_{}".format(d)] = fracdiff_series
             self.parameters["FRAC_DIFF"].append(d)
 
     def adf_test(self, frac_diff):
