@@ -5,6 +5,35 @@ import datetime as dt
 
 
 class PrimaryModel:
+    """
+    Define a dataframe containing events of buy/sell recommentadions, also provide a way of labelling these events.
+    This class uses curated data to process two models:
+
+    - Crossing Averages Model
+    - Bollinger Bands Model
+
+    Parameters
+    ----------
+    raw_data : ``RawData Object``
+        A RawData object from the file rawdata.py
+    model_type : ``str``
+        Two available types: `crossing-MA` or `bollinger-bands``
+    parameters : ``dict```
+        A dict containing two keys: `ModelParameters` and `OperationParameters`
+        Inside `ModelParameters` key we have to provide another dict in one of two available options:
+            For Crossing Averages Model it should be like:
+                {'MA':[500,1000]}
+            For Bollinger Bands Model it should be like:
+                {'MA':[500],'DEV':[20],'K_value':2}
+        Inside `OperationParameters` key we have to provide another dict containing three values:
+            - StopLoss (SL)
+            - TakeProfit (TP)
+            - InvestmentHorizon (IH)
+        These values should be provided like the following:
+            {'SL': 0.01, 'TP': 0.01, 'IH': 1000}}
+
+    """
+
     def __init__(self, raw_data, model_type, parameters):
 
         self.model_type = model_type
@@ -19,6 +48,21 @@ class PrimaryModel:
             return 1
         else:
             return -1
+
+    def states_condition(self, x):
+        x = x.tolist()
+        close = x[0]
+        plusK = x[1]
+        minusK = x[2]
+
+        if close < plusK and close > minusK:
+            return 0
+        if close >= plusK:
+            return 1
+        if close <= minusK:
+            return -1
+
+        return np.nan
 
     def horizon_data(self, event_datetime):
         horizon = self.operation_parameters["IH"]
@@ -94,7 +138,52 @@ class PrimaryModel:
         pass
 
     def events_bollinger(self):
-        pass
+        MA_param = self.model_parameters["MA"]
+        if len(MA_param) > 1:
+            raise IOError(
+                "[+] Aborting strategy: Number of Moving Average parameters exceeded maximum of one: {}".format(
+                    MA_param
+                )
+            )
+        DEV_param = self.model_parameters["DEV"]
+        if len(DEV_param) > 1:
+            raise IOError(
+                "[+] Aborting strategy: Number of Standard Deviation parameters exceeded maximum of one: {}".format(
+                    DEV_param
+                )
+            )
+        K_value = self.model_parameters["K_value"]
+        if type(K_value) != int:
+            raise IOError(
+                "[+] Aborting strategy: K value parameter needs to be an integer"
+            )
+        temp = pd.DataFrame()
+        temp["Close"] = self.feature_data.df_curated["Close"]
+        temp["plusK"] = (
+            self.feature_data.df_curated["MA_" + str(MA_param[0])]
+            + K_value
+            * self.feature_data.df_curated["DEV_" + str(DEV_param[0])]
+        ).dropna()
+        temp["minusK"] = (
+            self.feature_data.df_curated["MA_" + str(MA_param[0])]
+            - K_value
+            * self.feature_data.df_curated["DEV_" + str(DEV_param[0])]
+        ).dropna()
+
+        temp["state"] = temp.apply(self.states_condition, raw=True, axis=1)
+
+        events_bol = (
+            temp["state"]
+            .rolling(window=2)
+            .apply(
+                lambda x: -1
+                if x[0] == 0 and x[1] == 1
+                else (1 if x[0] == 0 and x[1] == -1 else np.nan),
+                raw=True,
+            )
+        ).dropna()
+
+        return pd.DataFrame(events_bol).reset_index()
 
     def event_labels(self, events_df):
         labels = []
