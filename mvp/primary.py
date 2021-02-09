@@ -134,8 +134,65 @@ class PrimaryModel:
         )
         return pd.DataFrame(events_MA).reset_index()
 
-    def events_classical_filter(self):
-        pass
+    def events_classical_filter(self, threshold=0.1):
+        close_data = self.feature_data.df_curated[["Close"]]
+        close_data["Min"] = close_data[
+            (close_data["Close"].shift(1) > close_data["Close"])
+            & (close_data["Close"].shift(-1) > close_data["Close"])
+        ]["Close"]
+        close_data["Max"] = close_data[
+            (close_data["Close"].shift(1) < close_data["Close"])
+            & (close_data["Close"].shift(-1) < close_data["Close"])
+        ]["Close"]
+        saddle_events = (
+            (close_data[close_data["Max"] >= 0].index)
+            .append(close_data[close_data["Min"] >= 0].index)
+            .sort_values()
+        )
+        if close_data.loc[saddle_events[0]]["Max"] != np.nan:
+            side = -1
+        else:
+            side = 1
+        events_CF = []
+        for start, end in list(zip(saddle_events, saddle_events[1:])):
+            inter_saddle_df = close_data[start:end]
+            inter_saddle_df["Returns"] = (
+                inter_saddle_df["Close"] / inter_saddle_df["Close"].shift(1)
+                - 1
+            )
+            inter_saddle_df["Cusum"] = 0
+            if side == 1:
+                for i in range(1, len(inter_saddle_df["Cusum"].values)):
+                    inter_saddle_df["Cusum"].iloc[i] = max(
+                        (
+                            inter_saddle_df["Cusum"].iloc[i - 1]
+                            + inter_saddle_df["Returns"].iloc[i]
+                        ),
+                        0,
+                    )
+                occurances = inter_saddle_df[
+                    inter_saddle_df["Cusum"] > threshold
+                ]
+            if side == -1:
+                for i in range(1, len(inter_saddle_df["Cusum"].values)):
+                    inter_saddle_df["Cusum"].iloc[i] = -max(
+                        -(
+                            inter_saddle_df["Cusum"].iloc[i - 1]
+                            + inter_saddle_df["Returns"].iloc[i]
+                        ),
+                        0,
+                    )
+                occurances = inter_saddle_df[
+                    inter_saddle_df["Cusum"] < -threshold
+                ]
+            if not occurances.empty:
+                event = [occurances.index[0], side]
+                events_CF.append(event)
+            side = -side
+
+        return pd.DataFrame(
+            events_CF, columns=["DateTime", "Trigger"]
+        ).set_index(["DateTime"])
 
     def events_bollinger(self):
         MA_param = self.model_parameters["MA"]
