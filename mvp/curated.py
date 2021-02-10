@@ -109,7 +109,7 @@ class CuratedData:
 
     def __volume_density(self):
         vol_den = self.df_curated["Volume"] / self.df_curated["TickVol"]
-        self.df_curated["VolDen"] = vol_den.astype(int)
+        self.df_curated["VolDen"] = vol_den.dropna().astype(int)
 
     def get_simple_MA(self, window, append=False):
         moving_avg = self.df_curated["Close"].rolling(window=window).mean()
@@ -303,7 +303,8 @@ class CuratedData:
         else:
             raise ValueError(
                 "start/end index type {}/{} not valid".format(
-                    type(start), type(end))
+                    type(start), type(end)
+                )
             )
         if end == -1:
             end = self.df_curated.shape[0]
