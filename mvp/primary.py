@@ -132,7 +132,11 @@ class PrimaryModel:
             )
             .dropna()
         )
-        return pd.DataFrame(events_MA).reset_index()
+        return (
+            pd.DataFrame(events_MA)
+            .rename(columns={"Delta": "Trigger"})
+            .reset_index()
+        )
 
     def events_classical_filter(self, threshold=0.1):
         close_data = self.feature_data.df_curated[["Close"]]
