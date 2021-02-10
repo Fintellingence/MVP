@@ -4,7 +4,7 @@ import argparse
 
 
 def check_keys(p):
-    expected_keys = ["MA", "DEV", "RSI", "AC_WINDOW", "AC_SHIFT_MAX"]
+    expected_keys = ["MA", "DEV", "RSI"]
     for k in p.keys():
         if k not in expected_keys:
             raise argparse.ArgumentTypeError(
@@ -31,7 +31,7 @@ def parameters(s):
     except:
         raise argparse.ArgumentTypeError(
             "Parameters must be inserted as\n"
-            "\tKEY1:V11,V12,...,V1N:[KEY2:V21,V22,...,V2N]\n"
+            "\tKEY1:V11,V12,...,V1N:KEY2:V21,V22,...\n"
             "where [...] is optional."
         )
     check_keys(p)
@@ -40,8 +40,9 @@ def parameters(s):
 
 def run(db_path, parameters, daily_option):
     """
-    This function is a script that gives us a collection of objects containing the statistical features
-    related to the raw data extracted from public sources. These statistical features are:
+    This function is a script that gives us a collection of objects
+    containing the statistical features related to the raw data
+    extracted from public sources. These statistical features are:
     - Moving Average
     - Standard Deviations
     - Relative Strength Index(RSI)
@@ -82,9 +83,9 @@ def run(db_path, parameters, daily_option):
     except:
         pass
 
-    symbols = mvp.helper.get_db_symbols(db_path)[1:]
+    symbols = mvp.rawdata.get_db_symbols(db_path)
     list_raw_data_objects = []
-    for symbol in symbols[:1]:
+    for symbol in symbols[:5]:
         temp = mvp.rawdata.RawData(
             symbol,
             db_path,
@@ -92,6 +93,7 @@ def run(db_path, parameters, daily_option):
         list_raw_data_objects.append(temp)
     dict_curated_data_objects = {}
     for raw_data in list_raw_data_objects:
+        print(raw_data.symbol)
         temp = mvp.curated.CuratedData(
             raw_data, parameters, daily=daily_option
         )
@@ -105,15 +107,15 @@ if __name__ == "__main__":
     p.add_argument(
         "--db-path",
         type=str,
-        default=os.path.join(root_dir, "MetaTrader_M1.db"),
+        default=os.path.join(root_dir, "minute1_database_v1.db"),
         help="Path to database file",
     )
     p.add_argument(
         "--parameters",
         type=parameters,
-        default="MA:10:DEV:10:RSI:4,14,30:AC_WINDOW:100,200,300:AC_SHIFT_MAX:11",
-        help="Parameters for the feature columns using the following convention:\n"
-        "\tKEY1:V11,V12,...,V1N:[KEY2:V21,V22,...,V2N]\n"
+        default="MA:10:DEV:10:RSI:4,14,30",
+        help="Feature parameters using the following convention:\n"
+        "\tKEY1:V11,V12,...:KEY2:V21,V22,...\n"
         "where [...] is optional.",
     )
     p.add_argument(
