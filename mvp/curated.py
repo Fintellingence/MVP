@@ -77,7 +77,7 @@ class CuratedData:
         else:
             self.df_curated = raw_data.df.copy()
         self.available_dates = raw_data.available_dates
-        self.__volume_density()
+        self.volume_density()
         self.features_attr = {
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
@@ -107,9 +107,10 @@ class CuratedData:
                 except ValueError as err:
                     print(err, "{} given".format(parameter))
 
-    def __volume_density(self):
+    def volume_density(self):
         vol_den = self.df_curated["Volume"] / self.df_curated["TickVol"]
-        self.df_curated["VolDen"] = vol_den.dropna().astype(int)
+        regular_vol_den = vol_den.replace([-np.inf, np.inf], np.nan).dropna()
+        self.df_curated["VolDen"] = regular_vol_den.astype(int)
 
     def get_simple_MA(self, window, append=False):
         moving_avg = self.df_curated["Close"].rolling(window=window).mean()
