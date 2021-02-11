@@ -231,10 +231,10 @@ class PrimaryModel:
             * self.feature_data.df_curated["DEV_" + str(DEV_param[0])]
         ).dropna()
 
-        temp["state"] = temp.apply(self.states_condition, raw=True, axis=1)
+        temp["Trigger"] = temp.apply(self.states_condition, raw=True, axis=1)
 
         events_bol = (
-            temp["state"]
+            temp["Trigger"]
             .rolling(window=2)
             .apply(
                 lambda x: -1
