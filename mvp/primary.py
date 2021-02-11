@@ -17,14 +17,16 @@ class PrimaryModel:
     raw_data : ``RawData Object``
         A RawData object from the file rawdata.py
     model_type : ``str``
-        Two available types: `crossing-MA` or `bollinger-bands``
+        Three available types: ``crossing-MA``, `bollinger-bands``, ``classical-filter``
     parameters : ``dict```
         A dict containing two keys: `ModelParameters` and `OperationParameters`
-        Inside `ModelParameters` key we have to provide another dict in one of two available options:
+        Inside `ModelParameters` key we have to provide another dict in one of three available options:
             For Crossing Averages Model it should be like:
                 {'MA':[500,1000]}
             For Bollinger Bands Model it should be like:
                 {'MA':[500],'DEV':[20],'K_value':2}
+            For Classical Model it should be like
+            {'threshold': 0.01}
         Inside `OperationParameters` key we have to provide another dict containing three values:
             - StopLoss (SL)
             - TakeProfit (TP)
@@ -254,3 +256,13 @@ class PrimaryModel:
             horizon_df = self.horizon_data(event_datetime)
             labels.append(self.labels(self.touches(horizon_df), event_trigger))
         return labels
+
+    def events(self):
+        if self.model_type == "crossing-MA":
+            return self.events_crossing_MA()
+        elif self.model_type == "bollinger-bands":
+            return self.events_bollinger()
+        elif self.model_type == "classical-filter":
+            return self.events_classical_filter(
+                self.model_parameters["threshold"]
+            )
