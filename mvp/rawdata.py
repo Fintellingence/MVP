@@ -7,6 +7,21 @@ import pandas_datareader as pdr
 __all__ = ["RawData", "DailyDataYahoo"]
 
 
+def get_db_symbols(db_path):
+    """
+    Get all symbols for the connected Sqlite database.
+
+    """
+    _conn = sql3.connect(db_path)
+    _cursor = _conn.cursor()
+    table_names = _cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    ).fetchall()
+    db_symbols = [name[0] for name in table_names]
+    _conn.close()
+    return db_symbols
+
+
 class RawData:
     """
     Class to read symbol from minute-1 database and set as data-frame. Provide

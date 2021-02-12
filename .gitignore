@@ -159,3 +159,4 @@ poetry.lock
 
 # Python interpreter VSCode
 .vscode/settings.json
+.python-version
