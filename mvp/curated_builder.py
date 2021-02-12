@@ -93,7 +93,6 @@ class CuratedSet:
             raise argparse.ArgumentTypeError(
                 "Parameters must be inserted as\n"
                 "\tKEY1:V11,V12,...,V1N:KEY2:V21,V22,...\n"
-                "where [...] is optional."
             )
         self.check_keys(p)
         return p
