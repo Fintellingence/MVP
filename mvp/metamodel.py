@@ -1,7 +1,12 @@
-from multiprocessing import Pool
+import os
+import logging
+import logging.handlers
+from functools import partial
 
 import numpy as np
 import pandas as pd
+
+from multiprocessing import Pool
 
 
 def parallel_map_df(func, data, num_of_threads, chunk_size, **kwargs):
@@ -32,14 +37,14 @@ def parallel_map_df(func, data, num_of_threads, chunk_size, **kwargs):
     def slice_data(chunk, data):
         chunk_idx = np.ceil(np.linspace(0, len(data), chunk)).astype(int)
         for i in range(1, chunk_idx.size):
-            yield data[s]
+            yield data[chunk_idx[i-1:i]]
 
-    slicer = slice_data(chunk, data)
+    slicer = slice_data(chunk_size, data)
     partial_func = partial(func, **kwargs)
     with Pool(num_of_threads) as pool:
         output = [out for out in pool.imap_unordered(partial_func, slicer)]
     df_out = pd.concat(output, axis=0).sort_index()
-    if np.any(df.index.duplicated()):
+    if np.any(df_out.index.duplicated()):
         raise RuntimeError("Duplicated index.")
     return df_out
 
@@ -122,7 +127,7 @@ class DataSelector():
         horizon_np = horizon.values
         for s, e in horizon_np:
             avg_uniqueness.loc[s] = (1. / occurrences.loc[s:e]).mean()
-        return avg_uniquess
+        return avg_uniqueness
 
     def count_occurences(
         self, closed_index, horizon, num_of_threads, chunk_size
@@ -131,8 +136,8 @@ class DataSelector():
         Compute all occurrences into the event space.
         """
         events = horizon["start"]
-        occurances = parallel_map_df(
-            interval_count_occurrences,
+        occurrences = parallel_map_df(
+            self.interval_average_uniqueness,
             events,
             num_of_threads,
             chunk_size,
@@ -150,12 +155,12 @@ class DataSelector():
         """
         events = horizon["start"]
         avg_uniqueness = parallel_map_df(
-            interval_average_uniqueness,
+            self.interval_average_uniqueness,
             events,
             num_of_threads,
             chunk_size,
             horizon=horizon,
-            ocurrences=ocurrences,
+            ocurrences=occurrences,
         )
         return avg_uniqueness
 
