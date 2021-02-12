@@ -147,5 +147,16 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# Our database
+scripts/database/BRShares_Intraday1M.db
+scripts/database/stocks.txt
+
 # Poetry miscellaneous files
 poetry.lock
+
+# MacOS system files
+**/.DS_Store
+
+# Python interpreter VSCode
+.vscode/settings.json
+.python-version
