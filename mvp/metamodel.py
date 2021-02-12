@@ -65,7 +65,6 @@ class DataSelector():
         self._logger.setLevel(logging.INFO)
         self._logger.addHandler(handler)
 
-
     def interval_count_occurrences(self, closed_index, horizon, interval):
         """
         Determine the number of occurrences of horizons in `interval`.
@@ -92,12 +91,12 @@ class DataSelector():
             [horizon["start"].min(), horizon["end"].max()]
         )
         count = pd.Series(
-            0, index=closed_index[idx_of_interest[0] : idx_of_interest[1] + 1]
+            0, index=closed_index[idx_of_interest[0]: idx_of_interest[1] + 1]
         )
         horizon_np = horizon.values
         for s, e in horizon_np:
             count.loc[s:e] += 1
-        return count.loc[interval[0] : interval[-1]]
+        return count.loc[interval[0]: interval[-1]]
 
     def interval_average_uniqueness(self, horizon, occurrences, interval):
         """
@@ -164,8 +163,60 @@ class DataSelector():
         )
         return avg_uniqueness
 
-    def bootstrap_selection(self):
-        pass
+    def indicator(self, closed_idx, horizon):
+        """
+        Determine a matrix to indicate of occurrences, in which rows
+        represent the timestamps and columns represent the events
+        (aka horizons).
+        """
+        indicator = pd.DataFrame(
+            0, index=closed_idx, columns=range(horizon.shape[0]))
+        horizon_np = horizon
+        for i, (s, e) in enumerate(horizon_np):
+            indicator.loc[s:e, i] = 1.
+        return indicator
+
+    def bootstrap_avg_uniqueness(self, indicator):
+        """
+        Determine the average uniqueness for the events represented in
+        indicator matrix.
+        """
+        sum_occurrences = indicator.sum(axis=1)
+        uniqueness = indicator.div(sum_occurrences, axis=0)
+        return uniqueness[uniqueness > 0].mean()
+
+    def bootstrap_selection(self, indicator, num_of_data=None, seed=12345):
+        """
+        Select `num_of_data` horizons by sampling with replacement
+        (aka bootstrap sampling) sequentialy. The samples are drawn from a
+        discrete distribution, in which the probabilities of occurrence of each
+        horizon rely on the number of overlapping with the past sampled
+        horizons.
+
+        Parameters
+        ----------
+        `indicator` : ``DataFrame``
+            The matrix to indicate of occurrences of horizons along the time
+            space of closed prices
+
+        Return
+        ------
+        data_idx : ``list``
+            The list contaning the indices for selected events (aka horizons)
+        """
+        data_idx = []
+        rng = np.random.default_rng(seed)
+        num_of_events = indicator.shape[1]
+        num_of_data = num_of_events if num_of_data is None else num_of_data
+        for _ in range(num_of_data):
+            avg_uniqueness = []
+            for i in range(num_of_events):
+                occurrences_of_interest = indicator[data_idx + [i]]
+                avg_uniqueness.append(
+                    self.bootstrap_avg_uniqueness(occurrences_of_interest))
+            prob = avg_uniqueness / avg_uniqueness.sum()
+            data_idx.append(rng.choice(indicator.columns, p=prob))
+        return data_idx
 
     def sample_weights(self):
         pass
