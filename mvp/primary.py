@@ -111,6 +111,29 @@ class PrimaryModel:
                 return -event_trigger
 
     def events_crossing_MA(self):
+        """
+        Public method which computes the events triggered by a crossing moving average trading strategy.
+        Given that the PrimaryModel class was initialized with two MA parameters, this method identifies
+        the pd.Timestamp() value of a crossing of averages as well as the side signal: Buy or Sell,
+        depending on the direction of the crossing. A pd.Dataframe() indexed by pd.Timestamp() and valued
+        in a Boolean field (Buy: 1, Sell: -1) is returned.
+
+        Parameters
+        ----------
+        None
+
+        Modified
+        ----------
+        None
+
+        Return
+        ----------
+
+        ``pd.DataFrame()``
+            columns = ['DateTime','Trigger']
+            'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
+            'Trigger' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+        """
         MA_params = list(set(self.model_parameters["MA"]))
         if len(MA_params) > 2:
             print(
@@ -141,6 +164,30 @@ class PrimaryModel:
         )
 
     def events_classical_filter(self, threshold=0.1):
+        """
+        Public method which computes the events triggered by a Classical Filter trading strategy. This method firs identifies all
+        local inflexions of 'Close' prices of a given asset. It then calculates the CUSUM of returns from an inflexion and generates an
+        event trigger for the first pd.Timestamp() value for which the CUSUM > threshold. The side of the event is a Buy if the inflexion
+        is a minimum, and a Sell if it is a maximum. A pd.Dataframe() indexed by pd.Timestamp() and valued in a Bool (Buy: 1, Sell: -1)
+        is returned.
+
+        Parameters
+        ----------
+        ``threshold``: 'float'
+            defines the threshold for the CUSUM operation. When CUSUM achieves threshold, an event is triggered.
+
+        Modified
+        ----------
+        None
+
+        Return
+        ----------
+
+        ``pd.DataFrame()``
+            columns = ['DateTime','Trigger']
+            'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
+            'Trigger' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+        """
         close_data = self.feature_data.df_curated[["Close"]]
         close_data["Min"] = close_data[
             (close_data["Close"].shift(1) > close_data["Close"])
@@ -201,6 +248,29 @@ class PrimaryModel:
         ).set_index(["DateTime"])
 
     def events_bollinger(self):
+        """
+        Public method which computes the events triggered by a Bollinger Bands trading strategy. Given that the PrimaryModel
+        class was initialized with a DEV, MA, and K_value parameter, this method identifies the pd.Timestamp() value of a crossing
+        of the close price with respect to the upper and lower Bollinger Band, which gives us the side signal: Buy or Sell,
+        depending on the crossed band. A pd.Dataframe() indexed by pd.Timestamp() and valued in a Bool (Buy: 1, Sell: -1)
+        is returned.
+
+        Parameters
+        ----------
+        None
+
+        Modified
+        ----------
+        None
+
+        Return
+        ----------
+
+        ``pd.DataFrame()``
+            columns = ['DateTime','Trigger']
+            'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
+            'Trigger' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+        """
         MA_param = self.model_parameters["MA"]
         if len(MA_param) > 1:
             raise IOError(
@@ -249,6 +319,31 @@ class PrimaryModel:
         return pd.DataFrame(events_bol).reset_index()
 
     def event_labels(self, events_df):
+        """
+        Given a dataframe events_df, containing an index column 'DateTime' and a 'Trigger' column
+        containing the event side (Buy = 1 or Sell = -1) this method returns a list of the triple label:
+            1 if take profit was achieved
+            0 if investment horizon was achieved
+           -1 if stop loss was achieved
+        for each event in events_df.
+
+        Parameters
+        ----------
+        `events_df`: ``pd.DataFrame()``
+            columns = ['DateTime','Trigger']
+            'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
+            'Trigger' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+
+        Modified
+        ----------
+        None
+
+        Return
+        ----------
+
+        ``list``
+            A list containing a label (1, 0, or -1) for each of the triggers in events_df.
+        """
         labels = []
         for event in events_df.values:
             event_datetime = event[0]
