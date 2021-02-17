@@ -6,11 +6,15 @@ import datetime as dt
 
 class PrimaryModel:
     """
-    Define a dataframe containing events of buy/sell recommentadions, also provide a way of labelling these events.
-    This class uses curated data to process two models:
+    This class implements event-driven trading strategies, which generate Buy/Sell triggers whenever certain conditions are met
+    by the parameters/indicators. It shoud be understood as being defined by a model-type (so far only 3 supported), and the parameters
+    for the given model type. The class then generates the trading signals automatically by evoking the "events()" method. With the event
+    triggers one can call the "labels()" method which returns a list containing the triple barrier labeling method for each of the event triggers.
+    This class uses curated data to process three models:
 
     - Crossing Averages Model
     - Bollinger Bands Model
+    - Classical Filter Model
 
     Parameters
     ----------
@@ -34,6 +38,16 @@ class PrimaryModel:
         These values should be provided like the following:
             {'SL': 0.01, 'TP': 0.01, 'IH': 1000}}
 
+    Usage
+    ---------
+    The user should provide a RawData object contaning no a priori calculated statistics (only 'OHLC', Volume, TickVol) along with the
+    desired model-type and its parameters. In order to be able to label the event triggers the user should also provide the operation
+    parameters. This class is intended to be used in the following flow:
+    given a .db containing ('OHLC', Volume, TickVol) time series data, one should instantiate a RawData to read the time-series and feed
+    the PrimaryModel class. The class then calculated the necessary statistics the desired model-type in a curated data in the feature_data
+    attribute. The feature_data is then used to generate the event triggers, which is used to generate labels. Given the labels, one could
+    feed it to the meta-learning model with an enhanced feature space by freely utilizing the methods of the CuratedData object in the
+    feature_data attribute (but only after the events were calculated).
     """
 
     def __init__(self, raw_data, model_type, parameters):
