@@ -257,9 +257,7 @@ class PrimaryModel:
                 events_CF.append(event)
             side = -side
 
-        return pd.DataFrame(
-            events_CF, columns=["DateTime", "Trigger"]
-        ).set_index(["DateTime"])
+        return pd.DataFrame(events_CF, columns=["DateTime", "Trigger"])
 
     def events_bollinger(self):
         """
@@ -330,7 +328,7 @@ class PrimaryModel:
             )
         ).dropna()
 
-        return pd.DataFrame(events_bol)
+        return pd.DataFrame(events_bol).reset_index()
 
     def event_labels(self, events_df):
         """
