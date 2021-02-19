@@ -330,7 +330,7 @@ class PrimaryModel:
             )
         ).dropna()
 
-        return pd.DataFrame(events_bol).reset_index()
+        return pd.DataFrame(events_bol)
 
     def event_labels(self, events_df):
         """
