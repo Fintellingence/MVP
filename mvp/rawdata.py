@@ -12,7 +12,8 @@ __all__ = ["RawData", "DailyDataYahoo"]
 @njit(int32(int32, float64[:], int32[:], float64))
 def indexing_cusum(n, values, accum_ind, threshold):
     """
-    Mark all indexes in which the accumulated sum of values exceed a threshold
+    Mark all new indexes after before which the
+    accumulated sum of `values` exceeded a `threshold`.
 
     Parameters
     ----------
@@ -197,10 +198,10 @@ class RawData:
                 "Volume",
                 "Money",
             ],
-            index=bar_opening_time,
+            index=bar_final_time,
         )
-        new_df.index.name = "OpenTime"
-        new_df.insert(0, "CloseTime", bar_final_time)
+        new_df.index.name = "DateTime"
+        new_df.insert(0, "OpenTime", bar_opening_time)
         return new_df.astype({"TickVol": "int32", "Volume": "int32"})
 
     def tick_bars(self, start=None, stop=None, bar_size_th=10000):
@@ -281,8 +282,6 @@ class RawData:
 
         """
         start, stop = self.__assert_window(start, stop)
-        if not isinstance(bar_size_th, int):
-            bar_size_th = int(bar_size_th)
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
@@ -313,7 +312,8 @@ class RawData:
         daily_df = self.__reassemble_df(df_window, strides[:nbars])
         date_index = pd.to_datetime(daily_df.index.date)
         daily_df.index = date_index
-        return daily_df.drop("BarCloseTime", axis=1)
+        daily_df.index.name = "DateTime"
+        return daily_df.drop("OpenTime", axis=1)
 
     def change_sample_interval(self, start=None, stop=None, time_step=60):
         """
@@ -378,7 +378,7 @@ class RawData:
         new_df = pd.DataFrame(
             bar_list,
             columns=[
-                "CloseTime",
+                "DateTime",
                 "Open",
                 "High",
                 "Low",
@@ -387,7 +387,7 @@ class RawData:
                 "Volume",
             ],
         )
-        new_df.set_index("CloseTime", inplace=True)
+        new_df.set_index("DateTime", inplace=True)
         return new_df
 
 
