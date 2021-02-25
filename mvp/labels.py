@@ -7,10 +7,19 @@ import datetime as dt
 class Labels:
     """"""
 
-    def __init__(self, events_df, operation_parameters):
+    def __init__(self, events_df, operation_parameters, mode):
         self.events_df = events_df
         self.operation_parameters = operation_parameters
-        self.labeled_df = self.get_labels().drop(columns=["Close"])
+        if mode == "suggestion":
+            self.labeled_df = (
+                self.get_labels()
+                .drop(columns=["Close"])
+                .rename(columns={"Trigger": "Suggestion"})
+            )
+        if mode == "static":
+            labeled_df = self.get_labels().drop(columns=["Close"]).copy()
+            labeled_df["Label"] = labeled_df["Trigger"] * labeled_df["Label"]
+            self.labeled_df = labeled_df.drop(columns=["Trigger"])
 
     def horizon_data(self, event_datetime):
         horizon = self.operation_parameters["IH"]
@@ -83,16 +92,19 @@ class Labels:
             A list containing a label (1, 0, or -1) for each of the triggers in events_df.
         """
         events_df = self.events_df[["Trigger"]].dropna().reset_index()
-        print(events_df)
         labels = []
+        endDateTime = []
         for event in events_df.values:
             event_datetime = event[0]
             event_trigger = event[1]
             horizon_df = self.horizon_data(event_datetime)
-            labels.append(self.labels(self.touches(horizon_df), event_trigger))
-        return labels
+            touches = self.touches(horizon_df)
+            endDateTime.append(min(touches))
+            labels.append(self.labels(touches, event_trigger))
+        return labels, endDateTime
 
     def get_labels(self):
         labeled_df = self.events_df.dropna().copy()
-        labeled_df["Label"] = self.event_labels()
+        labeled_df["Label"] = self.event_labels()[0]
+        labeled_df["EndDateTime"] = self.event_labels()[1]
         return labeled_df
