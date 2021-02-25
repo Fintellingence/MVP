@@ -5,7 +5,43 @@ import datetime as dt
 
 
 class Labels:
-    """"""
+    """
+    This class is defined to label trading events based on the Triple-Barrier Method,
+    in order to be able to label the event triggers (`events_df`) the user should also
+    provide the operation parameters. Given the labels, one could feed it to the meta-
+    learning model with an enhanced feature space by freely utilizing the methods of
+    the `CuratedData` object in the `CuratedData.feature_data` attribute.
+
+    Parameters
+    ----------
+    `events_df` : ``pandas.DataFrame()``
+        A pandas Dataframe containing three columns:
+        - 'DateTime' is the index
+        - 'Close' is the close price
+        - 'Trigger' is the Side of the operation (Buy = 1, Sell = -1)
+    `operation_parameters`: ``dict``
+        Inside `OperationParameters` key we have to provide another dict containing three values:
+            - StopLoss (SL)
+            - TakeProfit (TP)
+            - InvestmentHorizon (IH)
+        These values should be provided like the following:
+            {'SL': 0.01, 'TP': 0.01, 'IH': 1000}}
+     `mode` : ``str``
+        two modes supported:
+        - 'suggestion'
+        if mode is 'suggestion', the labeling procedure keeps the Side into account
+        when producing the labels (SL and TP invert for a Sell Trigger)
+        - 'static'
+        if mode is 'static', the labeling procedure ignores the primary model
+        Side suggestion and only looks at the raw movement of prices towards
+        upper barrier (TP) or lower barrier (SL) (SL and TP fixed).
+
+    Usage
+    -----
+    The class should be initialized with a dataframe from `primary.PrimaryModel.events_df`,
+    a dict containing operation parameters (SL,TP,IH), and a mode of labeling. The main
+    output of this class is stored in the `labels.Labels.labeled_df` attribute.
+    """
 
     def __init__(self, events_df, operation_parameters, mode):
         self.events_df = events_df
