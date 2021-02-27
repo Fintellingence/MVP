@@ -7,3 +7,4 @@ from mvp import data_builder
 from mvp import draw
 from mvp import primary
 from mvp import selection
+from mvp import labels
