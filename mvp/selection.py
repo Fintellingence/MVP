@@ -147,7 +147,7 @@ def count_occurences(closed_index, horizon, num_of_threads, chunk_size):
     """
     events = horizon["start"]
     occurrences = parallel_map_df(
-        interval_avg_uniqueness,
+        interval_count_occurrences,
         events,
         num_of_threads,
         chunk_size,
@@ -224,7 +224,7 @@ def indicator(closed_idx, horizon):
     indicator = pd.DataFrame(
         0, index=closed_idx, columns=range(horizon.shape[0])
     )
-    horizon_np = horizon
+    horizon_np = horizon.values
     for i, (s, e) in enumerate(horizon_np):
         indicator.loc[s:e, i] = 1.0
     return indicator
