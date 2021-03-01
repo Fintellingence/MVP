@@ -127,3 +127,47 @@ def plot_two_series(series_a, series_b):
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     plt.show()
     return None
+
+
+def plot_model(model, labels):
+    """
+    Displays the close time-series along with the indicators used by
+    the primary models, also highlights Buy/Sell suggestions and their
+    success (label = 1, or -1)
+
+    Parameters
+    ----------
+        `model` : ``mvp.primary.PrimaryModel``
+            provides all data for plotting signals and indicators
+        `labels`: ``pd.DataFrame()``
+            contains a the labels of events, could come from mvp.labels.Labels.labeled_df
+    """
+    if model.model_type == "bollinger-bands":
+        MA_name = "MA_" + str(model.model_parameters["MA"][0])
+        DEV_name = "DEV_" + str(model.model_parameters["DEV"][0])
+        K_value = model.model_parameters["K_value"]
+        plot_data = model.feature_data.df_curated.copy()
+        plot_data = pd.concat([plot_data, labels], axis=1).copy()
+        plot_data["UpBand"] = (
+            plot_data[MA_name] + K_value * plot_data[DEV_name]
+        )
+        plot_data["DownBand"] = (
+            plot_data[MA_name] - K_value * plot_data[DEV_name]
+        )
+        buy_profit = plot_data[
+            (plot_data["Suggestion"] == 1) & (plot_data["Label"] == 1)
+        ][["Close"]]
+        buy_loss = plot_data[
+            (plot_data["Suggestion"] == 1) & (plot_data["Label"] == -1)
+        ][["Close"]]
+        buy_neutral = plot_data[
+            (plot_data["Suggestion"] == 1) & (plot_data["Label"] == 0)
+        ][["Close"]]
+        plt.scatter(buy_profit.index, buy_profit["Close"], c="g", s=0.1)
+        plt.scatter(buy_loss.index, buy_loss["Close"], c="r", s=0.1)
+        plt.scatter(buy_neutral.index, buy_neutral["Close"], c="b", s=0.1)
+        plot_data.Close.plot(linewidth=0.1)
+        plot_data[MA_name].plot(linewidth=0.1)
+        plot_data.UpBand.plot(linewidth=0.1)
+        plot_data.DownBand.plot(linewidth=0.1)
+        return None
