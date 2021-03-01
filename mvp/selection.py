@@ -40,10 +40,9 @@ def parallel_map_df(func, data, num_of_threads, chunk_size, **kwargs):
     partial_func = partial(func, **kwargs)
     with Pool(num_of_threads) as pool:
         output = [out for out in pool.imap_unordered(partial_func, slicer)]
-    df_out = pd.concat(output, axis=0).sort_index()
-    if np.any(df_out.index.duplicated()):
-        raise RuntimeError("Duplicated index.")
-    return df_out
+    pd_out = pd.concat(output, axis=0).sort_index()
+    pd_out = pd_out.loc[~pd_out.duplicated(keep='last')]
+    return pd_out
 
 
 def interval_count_occurrences(closed_index, horizon, interval):
@@ -54,7 +53,7 @@ def interval_count_occurrences(closed_index, horizon, interval):
     ----------
     `closed_index` : ``Index``
         The sorted timestamps of the closed prices
-    `horizon` : ``DataFrame``
+    `horizon` : ``Series``
         The start and end of each horizon
     `interval` : ``[list, Series, Index]``
         The timestamps that compose the interval of interest
@@ -64,20 +63,17 @@ def interval_count_occurrences(closed_index, horizon, interval):
     count : ``Series``
         The number of occurrence of the `interval` in all horizons
     """
-    horizon = horizon.loc[
-        (horizon["start"] <= interval[-1])
-        & (horizon["end"] >= interval[0])
-    ]
+    horizon = horizon[:interval[-1]]
+    horizon = horizon[horizon >= interval[0]]
     idx_of_interest = closed_index.searchsorted(
-        [horizon["start"].min(), horizon["end"].max()]
+        [horizon.index[0], horizon.max()]
     )
     count = pd.Series(
         0, index=closed_index[idx_of_interest[0] : idx_of_interest[1] + 1]
     )
-    horizon_np = horizon.values
-    for s, e in horizon_np:
+    for s, e in horizon.iteritems():
         count.loc[s:e] += 1
-    return count.loc[interval[0] : interval[-1]]
+    return count.loc[interval[0] : horizon[interval].max()]
 
 
 def interval_avg_uniqueness(horizon, occurrences, interval):
@@ -87,7 +83,7 @@ def interval_avg_uniqueness(horizon, occurrences, interval):
 
     Parameters
     ----------
-    `horizon` : ``DataFrame``
+    `horizon` : ``Series``
         The start and end of each horizon
     `occurrences` : ``Series``
         The number of occurrence of all horizons in all events
@@ -101,12 +97,7 @@ def interval_avg_uniqueness(horizon, occurrences, interval):
         Average uniquess associated with `horizon` in `interval`
     """
     avg_uniqueness = pd.Series(index=interval)
-    horizon = horizon.loc[
-        (horizon["start"] >= interval[0])
-        & (horizon["end"] <= interval[-1])
-    ]
-    horizon_np = horizon.values
-    for s, e in horizon_np:
+    for s, e in horizon.loc[interval].iteritems():
         avg_uniqueness.loc[s] = (1.0 / occurrences.loc[s:e]).mean()
     return avg_uniqueness
 
@@ -209,7 +200,7 @@ def time_weights(avg_uniqueness, p=1):
     """
     weighted_time = avg_uniqueness.sort_index().cumsum()
     a = (1.0 - p) / weighted_time.iloc[-1]
-    b = 1.0 - slope * weighted_time.iloc[-1]
+    b = 1.0 - a * weighted_time.iloc[-1]
     weights = a * weighted_time + b
     weights[weights < 0] = 0
     return weights
@@ -224,8 +215,7 @@ def indicator(closed_idx, horizon):
     indicator = pd.DataFrame(
         0, index=closed_idx, columns=range(horizon.shape[0])
     )
-    horizon_np = horizon.values
-    for i, (s, e) in enumerate(horizon_np):
+    for i, (s, e) in enumerate(horizon.iteritems()):
         indicator.loc[s:e, i] = 1.0
     return indicator
 
