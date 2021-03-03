@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 
-def parallel_map_df(func, data, num_of_threads, chunk_size, **kwargs):
+def parallel_map_df(func, data, num_of_threads, num_of_chunks, **kwargs):
     """
     Apply `func` in linear distributed chunks of the data in `data`
     using parallel processing.
@@ -15,12 +15,12 @@ def parallel_map_df(func, data, num_of_threads, chunk_size, **kwargs):
     `func` : ``Called``
         A function to be applied in along the data chunks. It must return a
         ``DataFrame``.
-    `data` : ``[DataFrame, Series]``
+    `data` : ``[Index]``
         The data that will be divided in different chunks.
     ``num_of_threads : ``int``
         The number of threads that will process the chunks.
-    ``chunk_size : ``int``
-        The size of the chunk.
+    ``num_of_chunks : ``int``
+        The number of chunks.
     ``**kwargs : ``dict``
         Addicional arguments that will be passed to the `func`.
 
@@ -31,23 +31,24 @@ def parallel_map_df(func, data, num_of_threads, chunk_size, **kwargs):
         `data` with the arguments in `**kwargs`.
     """
 
-    def slice_data(chunk, data):
-        chunk_idx = np.ceil(np.linspace(0, len(data), chunk)).astype(int)
+    def slice_data(chunks, data):
+        n_chunks = chunks + 1 if chunks < len(data) else len(data)
+        chunk_idx = np.floor(np.linspace(0, len(data), n_chunks)).astype(int)
         for i in range(1, chunk_idx.size):
-            yield data[chunk_idx[i - 1 : i]]
+            yield data[chunk_idx[i - 1] : chunk_idx[i]]
 
-    slicer = slice_data(chunk_size, data)
+    slicer = slice_data(num_of_chunks, data)
     partial_func = partial(func, **kwargs)
     with Pool(num_of_threads) as pool:
-        output = [out for out in pool.imap_unordered(partial_func, slicer)]
-    pd_out = pd.concat(output, axis=0).sort_index()
-    pd_out = pd_out.loc[~pd_out.duplicated(keep='last')]
+        output = [out for out in pool.imap(partial_func, slicer)]
+    pd_out = pd.concat(output, axis=0)
+    pd_out = pd_out.loc[~pd_out.index.duplicated(keep="last")].sort_index()
     return pd_out
 
 
-def interval_count_occurrences(closed_index, horizon, interval):
+def chunk_count_occurrences(event_chunks, closed_index, horizon):
     """
-    Determine the number of occurrences of horizons in `interval`.
+    Determine the number of occurrences of horizons in `event_chunks`.
 
     Parameters
     ----------
@@ -55,16 +56,16 @@ def interval_count_occurrences(closed_index, horizon, interval):
         The sorted timestamps of the closed prices
     `horizon` : ``Series``
         The start and end of each horizon
-    `interval` : ``[list, Series, Index]``
-        The timestamps that compose the interval of interest
+    `event_chunks` : ``[list, Series, Index]``
+        The timestamps that compose the events of interest
 
     Return
     ------
     count : ``Series``
-        The number of occurrence of the `interval` in all horizons
+        The number of occurrence of the `event_chunks` in all horizons
     """
-    horizon = horizon[:interval[-1]]
-    horizon = horizon[horizon >= interval[0]]
+    horizon = horizon[: event_chunks[-1]]
+    horizon = horizon[horizon >= event_chunks[0]]
     idx_of_interest = closed_index.searchsorted(
         [horizon.index[0], horizon.max()]
     )
@@ -73,13 +74,13 @@ def interval_count_occurrences(closed_index, horizon, interval):
     )
     for s, e in horizon.iteritems():
         count.loc[s:e] += 1
-    return count.loc[interval[0] : horizon[interval].max()]
+    return count.loc[event_chunks[0] : horizon[event_chunks].max()]
 
 
-def interval_avg_uniqueness(horizon, occurrences, interval):
+def chunk_avg_uniqueness(event_chunks, horizon, occurrences):
     """
     Determine the average uniqueness of `horizon`, i.e., the average
-    uniqueness of labels, in `interval`.
+    uniqueness of labels, in `event_chunks`.
 
     Parameters
     ----------
@@ -87,61 +88,61 @@ def interval_avg_uniqueness(horizon, occurrences, interval):
         The start and end of each horizon
     `occurrences` : ``Series``
         The number of occurrence of all horizons in all events
-        (see ``interval_count_occurrences``)
-    `interval` : ``[list, Series, Index]``
-        The timestamps that compose the interval of interest
+        (see ``chunk_count_occurrences``)
+    `event_chunks` : ``[list, Series, Index]``
+        The timestamps that compose the events of interest
 
     Return
     ------
     avg_uniqueness : ``Series``
-        Average uniquess associated with `horizon` in `interval`
+        Average uniquess associated with `horizon` in `event_chunks`
     """
-    avg_uniqueness = pd.Series(index=interval)
-    for s, e in horizon.loc[interval].iteritems():
+    avg_uniqueness = pd.Series(index=event_chunks)
+    for s, e in horizon.loc[event_chunks].iteritems():
         avg_uniqueness.loc[s] = (1.0 / occurrences.loc[s:e]).mean()
     return avg_uniqueness
 
 
-def interval_sample_weights(occurrences, horizon, closed_prices, interval):
+def chunk_sample_weights(event_chunks, occurrences, horizon, closed_prices):
     """
     Determine the weights based on returns and number of instant overlaps,
-    for horizons that start into `interval`.
+    for horizons that start into `event_chunks`.
 
     Parameters
     ----------
     `occurrences` : ``Series``
         The number of occurrence of all horizons in all events
-        (see ``interval_count_occurrences``)
-    `horizon` : ``DataFrame``
+        (see ``event_chunks``)
+    `horizon` : ``Series``
         The start and end of each horizon.
     `closed_prices` : ``Series``
         Closed prices for a symbol, index is composed of time instants.
-    `interval` : ``[list, Series, Index]``
-        The timestamps that compose the interval of interest
+    `event_chunks` : ``[list, Series, Index]``
+        The timestamps that compose the events of interest
 
     Return
     ------
     weights : ``Series``
-        Weights for `interval`
+        Weights for `event_chunks`
     """
     log_return = np.log(closed_prices).diff()
-    weights = pd.Series(index=interval)
-    horizon_np = horizon[horizon["start"] == interval].values
-    for s, e in horizon_np:
+    weights = pd.Series(index=event_chunks)
+    horizon = horizon.loc[event_chunks]
+    for s, e in horizon.iteritems():
         weights[s] = (log_return.loc[s:e] / occurrences.loc[s:e]).sum()
     return weights.abs()
 
 
-def count_occurences(closed_index, horizon, num_of_threads, chunk_size):
+def count_occurrences(closed_index, horizon, num_of_threads, num_of_chunks):
     """
     Compute all occurrences into the event space.
     """
-    events = horizon["start"]
+    events = horizon.index
     occurrences = parallel_map_df(
-        interval_count_occurrences,
+        chunk_count_occurrences,
         events,
         num_of_threads,
-        chunk_size,
+        num_of_chunks,
         horizon=horizon,
         closed_index=closed_index,
     )
@@ -149,37 +150,39 @@ def count_occurences(closed_index, horizon, num_of_threads, chunk_size):
     return occurrences
 
 
-def avg_uniqueness(occurrences, horizon, num_of_threads, chunk_size):
+def avg_uniqueness(occurrences, horizon, num_of_threads, num_of_chunks):
     """
     Compute all average uniqueness into the event space.
     """
-    events = horizon["start"]
+    events = horizon.index
     avg_uniqueness = parallel_map_df(
-        interval_avg_uniqueness,
+        chunk_avg_uniqueness,
         events,
         num_of_threads,
-        chunk_size,
+        num_of_chunks,
         horizon=horizon,
-        ocurrences=occurrences,
+        occurrences=occurrences,
     )
     return avg_uniqueness
 
 
-def sample_weights(occurrences, horizon, closed_prices, num_of_threads, chunk_size):
+def sample_weights(
+    occurrences, horizon, closed_prices, num_of_threads, num_of_chunks
+):
     """
     Compute weights for all events
     """
-    events = horizon["start"]
-    avg_uniqueness = parallel_map_df(
-        interval_sample_weights,
+    events = horizon.index
+    sample_weights = parallel_map_df(
+        chunk_sample_weights,
         events,
         num_of_threads,
-        chunk_size,
+        num_of_chunks,
         horizon=horizon,
-        ocurrences=occurrences,
+        occurrences=occurrences,
         closed_prices=closed_prices,
     )
-    return avg_uniqueness
+    return sample_weights
 
 
 def time_weights(avg_uniqueness, p=1):
