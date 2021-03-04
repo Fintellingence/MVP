@@ -1,3 +1,4 @@
+from math import sqrt, pi
 from functools import partial
 from multiprocessing import Pool
 
@@ -48,6 +49,14 @@ def numba_weights(d, tolerance, w_array, w_size, last_index):
     return -1
 
 
+def mean_quadratic_freq(data, time_spacing=1):
+    displace_data = data - data.mean()
+    fft_weights = np.fft.fft(displace_data)
+    freq = np.fft.fftfreq(displace_data.size, time_spacing)
+    weights_norm = np.abs(fft_weights).sum()
+    return sqrt((freq * freq * np.abs(fft_weights)).sum() / weights_norm)
+
+
 class CuratedData:
     """
     Integrate to the raw data with open-high-low-close values
@@ -56,7 +65,7 @@ class CuratedData:
 
     Parameters
     ----------
-    `raw_data` : `` rawdata.RawData class``
+    `raw_data` : ``rawdata.RawData class``
     `requested_features : `` dict ``
         Dictionary with features as strings in keys and the
         evaluation feature paramter as values or list of values
@@ -398,3 +407,53 @@ class CuratedData:
     def adf_test(self, frac_diff):
         adf = adfuller(frac_diff, maxlag=1, regression="c", autolag=None)
         return adf
+
+    def vola_freq(self, window):
+        """
+        Introduce/compute a measure of volatility based on how rapidly
+        the stock prices are oscillating around the average or if the
+        series presents a narrow peak. Use the Fourier space representation
+        of the time series to compute the mean quadratic frequency of
+        the spectrum. Note that in case the mean frequency is zero this
+        is just the frequency standard deviation.
+
+        Parameters
+        ----------
+        `window` : `` int ``
+            number of data points to consider in FFT
+
+        Return
+        ------
+        `` pandas.Series ``
+            Each Timestamp index contains the mean quadratic frequency.
+
+        """
+        money_exch = self.df_curated["Close"] * self.df_curated["Volume"]
+        vol_series = money_exch.rolling(window=window).apply(
+            lambda x: mean_quadratic_freq(x)
+        )
+        return vol_series.dropna()
+
+    def vola_max_gain_ratio(self, window):
+        """
+        Compute the best possible trading in a interval of the
+        previous `window` data bars. Use the difference of the
+        max and min values of the stock price divided by the
+        moving average.
+
+        Parameters
+        ----------
+        `window` : `` int ``
+            number of data points to consider
+
+        Return
+        ------
+        `` pandas.Series ``
+            Each Timestamp index contains the max gain ratio of
+            the previous `window` data bars.
+
+        """
+        max_price = self.df_curated["High"].rolling(window=window).max()
+        min_price = self.df_curated["Low"].rolling(window=window).min()
+        ma = self.get_simple_MA(window)
+        return ((max_price - min_price) / ma).dropna()
