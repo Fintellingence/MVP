@@ -116,7 +116,7 @@ class RawData:
         df.drop(["DateTime"], axis=1, inplace=True)
         return df
 
-    def __assert_window(self, start, stop):
+    def assert_window(self, start, stop):
         """
         Ensure that two variables can be used to slice a dataframe window
         either by time or index location. In case `None` is given the
@@ -133,20 +133,16 @@ class RawData:
             `start`, `stop` values as time indexing
 
         """
+        if start == stop == None:
+            return self.df.index[0], self.df.index[-1]
         if start == None:
             start = self.df.index[0]
         if stop == None:
             stop = self.df.index[-1]
-        if not isinstance(start, int):
-            if not isinstance(start, pd.Timestamp):
-                raise ValueError(
-                    "{} is not a valid starting point".format(start)
-                )
-        if not isinstance(stop, int):
-            if not isinstance(stop, pd.Timestamp):
-                raise ValueError(
-                    "{} is not a valid stopping point".format(stop)
-                )
+        if not isinstance(start, int) and not isinstance(start, pd.Timestamp):
+            raise ValueError("{} is not a valid starting point".format(start))
+        if not isinstance(stop, int) and not isinstance(stop, pd.Timestamp):
+            raise ValueError("{} is not a valid stopping point".format(stop))
         if isinstance(start, int):
             start = self.df.index[start]
         if isinstance(stop, int):
@@ -223,7 +219,7 @@ class RawData:
             Dataframe sampled in ticks/deals
 
         """
-        start, stop = self.__assert_window(start, stop)
+        start, stop = self.assert_window(start, stop)
         if not isinstance(bar_size_th, int):
             bar_size_th = int(bar_size_th)
         df_window = self.df.loc[start:stop]
@@ -252,7 +248,7 @@ class RawData:
             dataframe sampled in volume
 
         """
-        start, stop = self.__assert_window(start, stop)
+        start, stop = self.assert_window(start, stop)
         if not isinstance(bar_size_th, int):
             bar_size_th = int(bar_size_th)
         df_window = self.df.loc[start:stop]
@@ -281,7 +277,7 @@ class RawData:
             dataframe sampled according to `bar_size_th` money exchanged
 
         """
-        start, stop = self.__assert_window(start, stop)
+        start, stop = self.assert_window(start, stop)
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
@@ -303,7 +299,7 @@ class RawData:
             last index to use
 
         """
-        start, stop = self.__assert_window(start, stop)
+        start, stop = self.assert_window(start, stop)
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
@@ -333,7 +329,9 @@ class RawData:
         available_steps = [1, 5, 10, 15, 30, 60]
         if time_step not in available_steps:
             raise ValueError("Time step requested not in ", available_steps)
-        start, stop = self.__assert_window(start, stop)
+        start, stop = self.assert_window(start, stop)
+        if isinstance(time_step, str):
+            return self.daily_bars(start, stop)
         work_df = self.df.loc[start:stop]
         if time_step == 1:
             return work_df.copy()
