@@ -52,6 +52,21 @@ def numba_weights(d, tolerance, w_array, w_size, last_index):
 
 
 def mean_quadratic_freq(data, time_spacing=1):
+    """
+    Use `data` Fourier transform to compute mean quadratic freq of the spectrum
+
+    Parameters
+    ----------
+    `data` : ``numpy.array``
+        data series in time basis
+    `time_spacing` : ``float``
+        sample time spacing in, usually in minutes
+
+    Return
+    ------
+    ``float``
+
+    """
     displace_data = data - data.mean()
     fft_weights = np.fft.fft(displace_data)
     freq = np.fft.fftfreq(displace_data.size, time_spacing)
@@ -63,21 +78,33 @@ class RefinedData(RawData):
     """
     Integrate to the raw data with open-high-low-close values
     some simple statistical features which provide more tools
-    to analyze the data and support primary models
+    to analyze the data and support future models
+
+    Inherit
+    -------
+    ``mvp.rawdata.RawData``
+        class for loading data from database and handling sample format
 
     Parameters
     ----------
-    `raw_data` : ``rawdata.RawData class``
-    `requested_features : `` dict ``
-        Dictionary with features as strings in keys and the
-        evaluation feature paramter as values or list of values
-        The (keys)strings corresponding to features must be:
-        "MA" = Moving Average -> Value = window size
-        "DEV" = standart DEViation -> Value = window_size
-        "RSI" = RSI indicator -> Value = window_size
-        "FRAC_DIFF" = Fractional Diff. -> Value = float in [0,1]
-    `daily` : `` bool `` (optional)
-        Automatically convert 1-minute raw data to daily data
+    `requested_features` : ``dict``
+        Dictionary codifying some features to compute in initialization
+        {
+            "MA": ``int`` (window size)
+            "DEV": ``int`` (window size)
+            "RSI": ``int`` (window size)
+            "FRAC_DIFF": ``float`` (differentiation order between 0 and 1)
+            "AUTOCORRELATION": ``(int, int)`` (window, shift)
+            "AUTOCORRELATION_PERIOD": ``int`` (shift)
+        }
+    `start` : ``pd.Timestamp`` or ``int``
+        index of Dataframe to start in computation of requested features
+    `stop` : ``pd.Timestamp`` or ``int``
+        index of Dataframe to stop in computation of requested features
+    `time_step` : ``int`` or "day"
+        define the sample time interval to compute requested features
+    `preload` : ``dict``
+        dictionary to inform dataframes pre-loaded in RawData class
 
     """
 
@@ -89,8 +116,9 @@ class RefinedData(RawData):
         start=None,
         stop=None,
         time_step=1,
+        preload={},
     ):
-        RawData.__init__(self, symbol, db_path)
+        RawData.__init__(self, symbol, db_path, preload)
         self.__attr = {
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
@@ -100,6 +128,7 @@ class RefinedData(RawData):
             "AUTOCORRELATION_PERIOD": "autocorr_period",
         }
         self.__cached_features = {}
+        self.volume_density(append=True)
         for feature in requested_features.keys():
             if feature not in self.__attr.keys():
                 continue
@@ -139,23 +168,31 @@ class RefinedData(RawData):
         )
         return str_code
 
-    def cache_keys(self):
+    def cache_features_keys(self):
         return list(self.__cached_features.keys())
 
-    def cache_size(self):
-        return self.__cached_features.__sizeof__()
+    def cache_features_size(self):
+        full_size = 0
+        for feature_data in self.__cached_features.values():
+            full_size = full_size + feature_data.__sizeof__()
+        return full_size
+
+    def cache_clean(self):
+        del self.__cached_features
+        self.__cached_features = {}
 
     def volume_density(self, start=None, stop=None, time_step=1, append=False):
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter("VOLDEN", start, stop, time_step, 1)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code]
+            print("returning feature from cache")
+            return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         vol_den = df_slice["Volume"] / df_slice["TickVol"]
         vol_den.replace([-np.inf, np.inf], np.nan).dropna(inplace=True)
         if append:
-            self.__cached_features[str_code] = regular_vol_den.astype(int)
-        return regular_vol_den.astype(int)
+            self.__cached_features[str_code] = vol_den.astype(int)
+        return vol_den.astype(int)
 
     def get_simple_MA(
         self, window, start=None, stop=None, time_step=1, append=False
@@ -163,7 +200,8 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter("MA", start, stop, time_step, window)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code]
+            print("returning from cache")
+            return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         moving_avg = df_slice["Close"].rolling(window=window).mean()
         if append:
@@ -176,7 +214,8 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter("STD", start, stop, time_step, window)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code]
+            print("returning from cache")
+            return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         moving_std = df_slice["Close"].rolling(window=window).std()
         if append:
@@ -189,7 +228,8 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter("RSI", start, stop, time_step, window)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code]
+            print("returning from cache")
+            return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         next_df = df_slice["Close"].shift(periods=1)
         rsi_df = pd.DataFrame(
@@ -223,20 +263,19 @@ class RefinedData(RawData):
         return rsi_df["RSI" + str(window)].dropna()
 
     def autocorr_period(
-        self, shift, start=None, end=None, time_step=1, append=False
+        self, shift, start=None, stop=None, time_step=1, append=False
     ):
         """
-        Compute auto-correlation function in
-        a time interval which fix the window
+        Compute auto-correlation function in a time period/window
 
         Parameters
         ----------
-        `start` : ``pandas.Timestamp``
-            first date/minute of the period
-        `end` : ``pandas.Timestamp``
-            end of the period
+        `start` : ``pandas.Timestamp`` or ``int``
+            first dataframe index of the period
+        `stop` : ``pandas.Timestamp`` or ``int``
+            last dataframe index of the period
         `shift` : ``int``
-            displacement to separate the two data samples in minutes
+            displacement to separate the two data samples
 
         """
         start, stop = self.assert_window(start, stop)
@@ -244,6 +283,7 @@ class RefinedData(RawData):
             "AUTOCORR", start, stop, time_step, shift
         )
         if str_code in self.__cached_features.keys():
+            print("returning from cache")
             return self.__cached_features[str_code]
         df_slice = self.change_sample_interval(start, stop, time_step)
         df_close = df_slice["Close"]
@@ -256,40 +296,46 @@ class RefinedData(RawData):
             )
         autocorr = df_close.autocorr(lag=shift)
         if append:
-            self.__cached_features[str_code] = autocorr.dropna()
-        return autocorr.dropna()
+            self.__cached_features[str_code] = autocorr
+        return autocorr
 
-    def autocorr_period_matrix(self, starts, ends, shift, append=False):
+    def autocorr_period_matrix(self, starts, stops, shift, append=False):
         """
-        Compute auto-correlation function in many time intervals
-        for various values of start and end
+        Compute auto-correlation function for multiple time  intervals
 
         Parameters
         ----------
-        `start` : ``list pandas.Timestamp``
+        `starts` : ``list`` of ``pandas.Timestamp``
             list of first date/minute of the period
-        `end` : ``list of pandas.Timestamp``
+        `stops` : ``list`` of ``pandas.Timestamp``
             list of end of the period
         `shift` : ``int``
-            displacement to separate the two data samples in minutes
+            displacement to separate the two data samples
+        `append` : ``bool``
+            whether to append in class cache or not
+
+        Return
+        ------
+        ``pandas.DataFrame``
+            matrix of autocorrelation indexed by `starts` and `stops`
 
         """
         n_starts = len(starts)
-        n_ends = len(ends)
-        autocorr = np.empty([n_starts, n_ends])
+        n_stops = len(stops)
+        autocorr = np.empty([n_starts, n_stops])
         invalid_values = False
         for i in range(n_starts):
-            for j in range(n_ends):
+            for j in range(n_stops):
                 try:
                     autocorr[i, j] = self.autocorr_period(
-                        starts[i], ends[j], shift, append
+                        starts[i], stops[j], shift, append
                     )
                 except:
                     invalid_values = True
                     autocorr[i, j] = np.nan
         if invalid_values:
             print("Some invalid periods (end > start) occurred.")
-        autocorr_df = pd.DataFrame(autocorr, columns=ends, index=starts)
+        autocorr_df = pd.DataFrame(autocorr, columns=stops, index=starts)
         autocorr_df.index.name = "start_dates"
         return autocorr_df
 
@@ -305,12 +351,16 @@ class RefinedData(RawData):
             size of moving window
         `shift` : ``int``
             displacement to separate the two data samples in moving window
-        `append` : ``bool`` (default False)
-            Whether to append resulting series in self.df_curated
-        `start` :``pd.Timestamp`` or ``int`` (optional)
+        `start` : ``pd.Timestamp`` or ``int``
             First index/date. Default is the beginning of dataframe
-        `end` :``pd.Timestamp`` or ``int`` (optional)
+        `stop` : ``pd.Timestamp`` or ``int``
             Last index/date. Default is the end of dataframe
+        `append` : ``bool``
+            whether to append in class cache or not
+
+        Return
+        ------
+        ``pandas.Series``
 
         """
         start, stop = self.assert_window(start, stop)
@@ -322,7 +372,8 @@ class RefinedData(RawData):
             "{}_{}".format(window, shift),
         )
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code]
+            print("returning from cache")
+            return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         close_series = df_slice["Close"]
         moving_autocorr = close_series.rolling(window=window).apply(
@@ -384,8 +435,7 @@ class RefinedData(RawData):
     ):
         """
         Compute fractional differentiation of a series with the binomial
-        expansion formula for an arbitrary derivative order. Uses the
-        close value of the dataframe.
+        expansion formula for an arbitrary derivative order.
 
         Parameters
         ----------
@@ -403,6 +453,7 @@ class RefinedData(RawData):
             "FRAC_DIFF", start, stop, time_step, d
         )
         if str_code in self.__cached_features.keys():
+            print("returning from cache")
             return self.__cached_features[str_code]
         df_slice = self.change_sample_interval(start, stop, time_step)
         w = self.__frac_diff_weights(d, weights_tol)
@@ -445,6 +496,7 @@ class RefinedData(RawData):
             "VOLA_FREQ", start, stop, time_step, window
         )
         if str_code in self.__cached_features.keys():
+            print("returning from cache")
             return self.__cached_features[str_code]
         df_slice = self.change_sample_interval(start, stop, time_step)
         money_exch = df_slice["Close"] * df_slice["Volume"]
@@ -481,6 +533,7 @@ class RefinedData(RawData):
             "VOLA_AMPL", start, stop, time_step, window
         )
         if str_code in self.__cached_features.keys():
+            print("returning from cache")
             return self.__cached_features[str_code]
         df_slice = self.change_sample_interval(start, stop, time_step)
         max_price = df_slice["High"].rolling(window=window).max()
