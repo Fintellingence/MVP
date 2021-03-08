@@ -185,9 +185,9 @@ def sample_weights(
     return sample_weights
 
 
-def time_weights(avg_uniqueness, p=1):
+def time_weights(avg_uniqueness, p=1, min_ratio=0.01, sort=False):
     """
-    Determine the weights based on time evolution (the newest ones have greater
+    Determine the weights based on time evolution (the newest ones have larger
     weights). The time evolution is represented by the cummulative sum of
     average uniqueness for all events.
 
@@ -195,25 +195,33 @@ def time_weights(avg_uniqueness, p=1):
     ----------
     `avg_uniqueness` : ``Series``
         The average uniqueness for all events
+    `p` : ``float``
+        The line parameter in [0,1]
+    `min_ratio` : ``float``
+        The ratio to be multiplied by the maximum weitgh
+    `sort` : ``bool``
+        The inidication to sort the `avg_uniqueness` Serie
 
     Return
     ------
     weights : ``Series``
         Weights for time evolution based on average uniqueness
     """
-    weighted_time = avg_uniqueness.sort_index().cumsum()
+    if sort:
+        avg_uniqueness = avg_uniqueness.sort_index()
+    weighted_time = avg_uniqueness.cumsum()
     a = (1.0 - p) / weighted_time.iloc[-1]
     b = 1.0 - a * weighted_time.iloc[-1]
     weights = a * weighted_time + b
-    weights[weights < 0] = 0
+    min_weight = weights.max() * min_ratio
+    weights[weights < 0] = min_weight
     return weights
 
 
 def indicator(closed_idx, horizon):
     """
     Determine a matrix to indicate of occurrences, in which rows
-    represent the timestamps and columns represent the events
-    (aka horizons).
+    represent the timestamps and columns represent the events.
     """
     indicator = pd.DataFrame(
         0, index=closed_idx, columns=range(horizon.shape[0])
@@ -223,7 +231,7 @@ def indicator(closed_idx, horizon):
     return indicator
 
 
-def bootstrap_avg_uniqueness(indicator):
+def indicator_avg_uniqueness(indicator):
     """
     Determine the average uniqueness for the events represented in
     indicator matrix.
@@ -249,23 +257,26 @@ def bootstrap_selection(indicator, num_of_data=None, seed=12345):
 
     Return
     ------
-    data_idx : ``list``
-        The list contaning the indices for selected events (aka horizons)
+    data_idx : ``np.array``
+        The list contaning the indices for selected events
     """
-    data_idx = []
     rng = np.random.default_rng(seed)
     num_of_events = indicator.shape[1]
     num_of_data = num_of_events if num_of_data is None else num_of_data
-    for _ in range(num_of_data):
-        avg_uniqueness = []
-        for i in range(num_of_events):
-            occurrences_of_interest = indicator[data_idx + [i]]
-            avg_uniqueness.append(
-                bootstrap_avg_uniqueness(occurrences_of_interest)
+    sampled_events = np.zeros(num_of_data)
+    for i in range(num_of_data):
+        avg_uniqueness = np.zeros(num_of_events)
+        for j in range(num_of_events):
+            sampled_events[i] = j
+            occurrences_of_interest = indicator[sampled_events[0 : i + 1]]
+            last_event_uniqueness = indicator_avg_uniqueness(
+                occurrences_of_interest
             )
+            last_event_uniqueness = last_event_uniqueness.values[-1]
+            avg_uniqueness[j] = last_event_uniqueness
         prob = avg_uniqueness / avg_uniqueness.sum()
-        data_idx.append(rng.choice(indicator.columns, p=prob))
-    return data_idx
+        sampled_events[i] = rng.choice(indicator.columns, p=prob)
+    return sampled_events
 
 
 def cross_validation():
