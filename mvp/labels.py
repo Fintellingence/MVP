@@ -7,140 +7,134 @@ import datetime as dt
 class Labels:
     """
     This class is defined to label trading events based on the Triple-Barrier Method,
-    in order to be able to label the event triggers (`events_df`) the user should also
+    in order to be able to label the event triggers (`events`) the user should also
     provide the operation parameters. Given the labels, one could feed it to the meta-
     learning model with an enhanced feature space by freely utilizing the methods of
     the `CuratedData` object in the `CuratedData.feature_data` attribute.
 
     Parameters
     ----------
-    `events_df` : ``pandas.DataFrame()``
+    `events` : ``pandas.DataFrame()``
         A pandas Dataframe containing three columns:
         - 'DateTime' is the index
-        - 'Close' is the close price
-        - 'Trigger' is the Side of the operation (Buy = 1, Sell = -1)
+        - 'Side' is the Side of the operation (Buy = 1, Sell = -1)
+    `close_data`: ``pandas.DataFrame()``
+        A pandas Dataframe containing a single column:
+        - 'DateTime' is the index
+        - 'Close' is the Close price for the raw series
     `operation_parameters`: ``dict``
         Inside `OperationParameters` key we have to provide another dict containing three values:
             - StopLoss (SL)
             - TakeProfit (TP)
             - InvestmentHorizon (IH)
+            - MarginMode (margin_mode)
         These values should be provided like the following:
-            {'SL': 0.01, 'TP': 0.01, 'IH': 1000}}
-     `mode` : ``str``
-        two modes supported:
-        - 'suggestion'
-        if mode is 'suggestion', the labeling procedure keeps the Side into account
-        when producing the labels (SL and TP invert for a Sell Trigger)
-        - 'static'
-        if mode is 'static', the labeling procedure ignores the primary model
-        Side suggestion and only looks at the raw movement of prices towards
-        upper barrier (TP) or lower barrier (SL) (SL and TP fixed).
-
+            {'SL': 0.01, 'TP': 0.01, 'IH': 1000,'margin_mode':'percent'}}
     Usage
     -----
-    The class should be initialized with a dataframe from `primary.PrimaryModel.events_df`,
-    a dict containing operation parameters (SL,TP,IH), and a mode of labeling. The main
-    output of this class is stored in the `labels.Labels.labeled_df` attribute.
+    The class should be initialized with an event dataframe from
+    `primary.PrimaryModel.events`, a dict containing operation parameters (SL,TP,IH,MarginMode),
+    and a mode of labeling. The main output of this class is stored in the `labels.Labels.label_data`
+    attribute.
     """
 
-    def __init__(self, events_df, operation_parameters, mode):
-        self.events_df = events_df
+    def __init__(
+        self,
+        events,
+        close_data,
+        operation_parameters,
+    ):
+        self.events = events.reset_index()
+        self.close_data = close_data.reset_index()
         self.operation_parameters = operation_parameters
-        if mode == "suggestion":
-            self.labeled_df = (
-                self.get_labels()
-                .drop(columns=["Close"])
-                .rename(columns={"Trigger": "Suggestion"})
-            )
-        if mode == "static":
-            labeled_df = self.get_labels().drop(columns=["Close"]).copy()
-            labeled_df["Label"] = labeled_df["Trigger"] * labeled_df["Label"]
-            self.labeled_df = labeled_df.drop(columns=["Trigger"])
+        self.label_data = self.get_label_data()
 
-    def horizon_data(self, event_datetime):
-        horizon = self.operation_parameters["IH"]
-        close_data = self.events_df["Close"].reset_index()
-        signal_position = close_data[
-            close_data["DateTime"] == event_datetime
-        ].index[0]
-        horizon_data = (
-            close_data.iloc[signal_position : signal_position + horizon]
-            .reset_index()
-            .drop(columns="index")
-        )
-        return horizon_data
+    def horizon_reduced_dataframe(self, close_df, event_datetime, IH):
+        entry_point = close_df[close_df["DateTime"] == event_datetime].index[0]
+        reduced_df = close_df.iloc[
+            entry_point : entry_point + IH
+        ].reset_index()
+        return reduced_df.drop(columns=["index"]).copy()
 
-    def touches(self, horizon_df):
-        stop_loss = self.operation_parameters["SL"]
-        take_profit = self.operation_parameters["TP"]
-        profit_touch = None
-        loss_touch = None
-        entry_position = horizon_df.iloc[0]["Close"]
-        profits = horizon_df[
-            horizon_df["Close"].gt(entry_position + take_profit)
-        ]
-        losses = horizon_df[horizon_df["Close"].lt(entry_position - stop_loss)]
-        if not profits.empty:
-            profit_touch = profits.iloc[0]["DateTime"]
-        if not losses.empty:
-            loss_touch = losses.iloc[0]["DateTime"]
-        touches = list(
-            map(
-                lambda x: dt.datetime(3000, 1, 1, 0, 0, 0) if x == None else x,
-                [profit_touch, loss_touch],
-            ),
-        )
-        return touches
+    def barriers(self, event_side, entry_value, SL, TP, margin_mode):
+        if margin_mode == "pips":
+            if event_side == 1:
+                return entry_value + TP, entry_value - SL
+            if event_side == -1:
+                return entry_value + SL, entry_value - TP
+        if margin_mode == "percent":
+            if event_side == 1:
+                return entry_value * (1 + TP / 100), entry_value * (
+                    1 - SL / 100
+                )
+            if event_side == -1:
+                return entry_value * (1 + SL / 100), entry_value * (
+                    1 - TP / 100
+                )
 
-    def labels(self, touches, event_trigger):
-        if touches[0] == touches[1]:
+    def barrier_break(self, horizon_data, upBarrier, downBarrier):
+        upBreak, downBreak = None, None
+        if not horizon_data[horizon_data["Close"] >= upBarrier].empty:
+            upBreak = horizon_data[horizon_data["Close"] >= upBarrier].iloc[0]
+        if not horizon_data[horizon_data["Close"] <= downBarrier].empty:
+            downBreak = horizon_data[
+                horizon_data["Close"] <= downBarrier
+            ].iloc[0]
+        if upBreak is None and downBreak is None:
+            return horizon_data.iloc[-1], "no_break"
+        if upBreak is None and downBreak is not None:
+            return downBreak, "down_break"
+        if upBreak is not None and downBreak is None:
+            return upBreak, "up_break"
+        if upBreak.DateTime < downBreak.DateTime:
+            return upBreak, "up_break"
+        if downBreak.DateTime < upBreak.DateTime:
+            return downBreak, "down_break"
+
+    def label(self, break_direction, event_side):
+        if break_direction == "no_break":
             return 0
-        else:
-            if touches[0] < touches[1]:
-                return event_trigger
-            else:
-                return -event_trigger
+        if event_side == 1:
+            if break_direction == "up_break":
+                return 1
+            if break_direction == "down_break":
+                return -1
+        if event_side == -1:
+            if break_direction == "up_break":
+                return -1
+            if break_direction == "down_break":
+                return 1
 
-    def event_labels(self):
-        """
-        Given a dataframe events_df, containing an index column 'DateTime' and a 'Trigger' column
-        containing the event side (Buy = 1 or Sell = -1) this method returns a list of the triple label:
-            1 if take profit was achieved
-            0 if investment horizon was achieved
-           -1 if stop loss was achieved
-        for each event in events_df.
-
-        Parameters
-        ----------
-        `events_df`: ``pd.DataFrame()``
-            columns = ['DateTime','Trigger']
-            'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
-            'Trigger' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
-
-        Modified
-        ----------
-        None
-
-        Return
-        ----------
-
-        ``list``
-            A list containing a label (1, 0, or -1) for each of the triggers in events_df.
-        """
-        events_df = self.events_df[["Trigger"]].dropna().reset_index()
-        labels = []
-        endDateTime = []
-        for event in events_df.values:
-            event_datetime = event[0]
-            event_trigger = event[1]
-            horizon_df = self.horizon_data(event_datetime)
-            touches = self.touches(horizon_df)
-            endDateTime.append(min(touches))
-            labels.append(self.labels(touches, event_trigger))
-        return labels, endDateTime
-
-    def get_labels(self):
-        labeled_df = self.events_df.dropna().copy()
-        labeled_df["Label"] = self.event_labels()[0]
-        labeled_df["EndDateTime"] = self.event_labels()[1]
-        return labeled_df
+    def get_label_data(self):
+        labeled_events = [["DateTime", "Side", "Label", "PositionEnd"]]
+        for i in range(0, len(self.events.index)):
+            event = self.events.iloc[i]
+            horizon_data = self.horizon_reduced_dataframe(
+                self.close_data,
+                event.DateTime,
+                self.operation_parameters["IH"],
+            )
+            upBarrier, downBarrier = self.barriers(
+                event.Side,
+                horizon_data.iloc[0]["Close"],
+                self.operation_parameters["SL"],
+                self.operation_parameters["TP"],
+                self.operation_parameters["margin_mode"],
+            )
+            break_event, break_direction = self.barrier_break(
+                horizon_data, upBarrier, downBarrier
+            )
+            event_label = self.label(break_direction, event.Side)
+            if break_event is not None:
+                labeled_events.append(
+                    [
+                        event.DateTime,
+                        event.Side,
+                        event_label,
+                        break_event.DateTime,
+                    ]
+                )
+        headers = labeled_events.pop(0)
+        return pd.DataFrame(labeled_events, columns=headers).set_index(
+            "DateTime"
+        )
