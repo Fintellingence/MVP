@@ -2,6 +2,7 @@ import pandas as pd
 import mvp
 import numpy as np
 import datetime as dt
+from mvp.curated import RefinedData
 
 
 class PrimaryModel:
@@ -18,38 +19,102 @@ class PrimaryModel:
 
     Parameters
     ----------
-    `raw_data` : ``RawData Object``
-        A RawData object from the file rawdata.py
-    `model_type` : ``str``
+    `refined_data` : ``curated.RefinedData Object``
+        A RefinedData object from the file curated.py
+    `strategy` : ``str``
         Three available types: ``crossing-MA``, `bollinger-bands``, ``classical-filter``
     `parameters` : ``dict```
-        A dict containing two keys: `ModelParameters` and `OperationParameters`
-        Inside `ModelParameters` key we have to provide another dict in one of three available options:
+        A dict containing model parameters keys:
             For Crossing Averages Model it should be like:
                 {'MA':[500,1000]}
             For Bollinger Bands Model it should be like:
-                {'MA':[500],'DEV':[20],'K_value':2}
+                {'MA':500,'DEV':20,'K_value':2}
             For Classical Model it should be like
                 {'threshold': 0.01}
 
     Usage
     -----
-    The user should provide a RawData object contaning no a priori calculated statistics (only 'OHLC', Volume, TickVol) along with the
+    The user should provide a RefinedData object contaning no a priori calculated statistics (only 'OHLC', Volume, TickVol) along with the
     desired model-type and its parameters.  This class is intended to be used in the following flow:
 
-    Given a .db containing ('OHLC', Volume, TickVol) time series data, one should instantiate a RawData to read the time-series and feed
-    the PrimaryModel class. The class then calculates the necessary statistics the desired model-type in a curated data in the `PrimaryModel.feature_data`
-    attribute. The feature_data is then used to generate the event triggers, which is used to generate labels.
+    Given a .db containing ('OHLC', Volume, TickVol) time series data, one should instantiate a RefinedData to read the time-series and feed
+    the PrimaryModel class. The class then calculates the necessary features for the desired strategy in a curated data in the `PrimaryModel.feature_data`
+    attribute. The feature_data is then used to generate the event triggers, labeled by the appropriate Side of
+    the market, stored in PrimaryModel.events.
     """
 
-    def __init__(self, raw_data, model_type, parameters):
+    def __init__(self, refined_data, strategy, features):
+        self.__features = {
+            "MA": "get_simple_MA",
+            "DEV": "get_deviation",
+            "RSI": "get_RSI",
+            "FRAC_DIFF": "frac_diff",
+            "AUTOCORRELATION": "moving_autocorr",
+            "AUTOCORRELATION_PERIOD": "autocorr_period",
+        }
+        self.strategy = strategy
+        self.features = features
+        self.feature_data = self.get_feature_data(refined_data)
+        self.events = self.get_events_dataframe()[["Side"]].dropna()
 
-        self.model_type = model_type
-        self.model_parameters = parameters["ModelParameters"]
-        self.feature_data = mvp.curated.CuratedData(
-            raw_data, parameters["ModelParameters"]
-        )
-        self.events_df = self.get_events_dataframe()
+    def get_feature_data(self, refined_data):
+        dataframe_list = [refined_data.df[["Close"]]]
+        for feature in self.features.keys():
+            if feature not in self.__features.keys():
+                continue
+            if isinstance(self.features[feature], list):
+                parameters_list = self.features[feature]
+                for parameter in parameters_list:
+                    try:
+                        if isinstance(parameter, tuple):
+                            dataframe_list.append(
+                                pd.DataFrame(
+                                    refined_data.__getattribute__(
+                                        self.__features[feature]
+                                    )(*parameter).rename(
+                                        feature + "_" + str(parameter)
+                                    )
+                                )
+                            )
+                        else:
+                            dataframe_list.append(
+                                pd.DataFrame(
+                                    refined_data.__getattribute__(
+                                        self.__features[feature]
+                                    )(parameter).rename(
+                                        feature + "_" + str(parameter)
+                                    )
+                                )
+                            )
+                    except Exception as err:
+                        print(err, ": param {} given".format(parameter))
+            else:
+                parameter = self.features[feature]
+                try:
+                    if isinstance(parameter, tuple):
+                        dataframe_list.append(
+                            pd.DataFrame(
+                                refined_data.__getattribute__(
+                                    self.__features[feature]
+                                )(*parameter).rename(
+                                    feature + "_" + str(parameter)
+                                )
+                            )
+                        )
+                    else:
+                        dataframe_list.append(
+                            pd.DataFrame(
+                                refined_data.__getattribute__(
+                                    self.__features[feature]
+                                )(parameter).rename(
+                                    feature + "_" + str(parameter)
+                                )
+                            )
+                        )
+                except ValueError as err:
+                    print(err, ": param {} given".format(parameter))
+        feature_df = pd.concat(dataframe_list, axis=1)
+        return feature_df
 
     def sign(self, x):
         if x >= 0:
@@ -92,21 +157,23 @@ class PrimaryModel:
         ----------
 
         ``pd.DataFrame()``
-            columns = ['DateTime','Trigger']
+            columns = ['DateTime','Side']
             'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
-            'Trigger' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+            'Side' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
         """
-        MA_params = list(set(self.model_parameters["MA"]))
+        MA_params = list(set(self.features["MA"]))
         if len(MA_params) > 2:
             print(
-                "[+] Aborting strategy: Number of parameters exceeded maximum of two:"
-                + print(MA_params)
+                "warning, Number of parameters exceeded maximum of two, using MA's: ["
+                + str(MA_params[0])
+                + ", "
+                + str(MA_params[1])
+                + "]"
             )
-            return None
         delta_MA = pd.DataFrame()
         delta_MA["Delta"] = (
-            self.feature_data.df_curated["MA_" + str(MA_params[0])]
-            - self.feature_data.df_curated["MA_" + str(MA_params[1])]
+            self.feature_data["MA_" + str(MA_params[0])]
+            - self.feature_data["MA_" + str(MA_params[1])]
         ).dropna()
         events_MA = delta_MA["Delta"].apply(self.sign)
         events_MA = (
@@ -121,7 +188,7 @@ class PrimaryModel:
         )
         return (
             pd.DataFrame(events_MA)
-            .rename(columns={"Delta": "Trigger"})
+            .rename(columns={"Delta": "Side"})
             .reset_index()
         )
 
@@ -146,11 +213,11 @@ class PrimaryModel:
         ----------
 
         ``pd.DataFrame()``
-            columns = ['DateTime','Trigger']
+            columns = ['DateTime','Side']
             'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
-            'Trigger' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+            'Side' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
         """
-        close_data = self.feature_data.df_curated[["Close"]]
+        close_data = self.feature_data[["Close"]]
         close_data["Min"] = close_data[
             (close_data["Close"].shift(1) > close_data["Close"])
             & (close_data["Close"].shift(-1) > close_data["Close"])
@@ -205,7 +272,7 @@ class PrimaryModel:
                 events_CF.append(event)
             side = -side
 
-        return pd.DataFrame(events_CF, columns=["DateTime", "Trigger"])
+        return pd.DataFrame(events_CF, columns=["DateTime", "Side"])
 
     def events_bollinger(self):
         """
@@ -227,46 +294,45 @@ class PrimaryModel:
         ----------
 
         ``pd.DataFrame()``
-            columns = ['DateTime','Trigger']
+            columns = ['DateTime','Side']
             'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
-            'Trigger' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+            'Side' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
         """
-        MA_param = self.model_parameters["MA"]
-        if len(MA_param) > 1:
-            raise IOError(
-                "[+] Aborting strategy: Number of Moving Average parameters exceeded maximum of one: {}".format(
-                    MA_param
+        if isinstance(self.features["MA"], list):
+            if len(self.features["MA"]) > 1:
+                print(
+                    "Warning, more than one MA provided, using MA "
+                    + str(self.features["MA"][0])
                 )
-            )
-        DEV_param = self.model_parameters["DEV"]
-        if len(DEV_param) > 1:
-            raise IOError(
-                "[+] Aborting strategy: Number of Standard Deviation parameters exceeded maximum of one: {}".format(
-                    DEV_param
+            MA_param = self.features["MA"][0]
+        else:
+            MA_param = self.features["MA"]
+
+        if isinstance(self.features["DEV"], list):
+            if len(self.features["DEV"]) > 1:
+                print(
+                    "Warning, more than one DEV provided, using DEV "
+                    + str(self.features["DEV"][0])
                 )
-            )
-        K_value = self.model_parameters["K_value"]
-        if type(K_value) != int:
-            raise IOError(
-                "[+] Aborting strategy: K value parameter needs to be an integer"
-            )
+            DEV_param = self.features["DEV"][0]
+        else:
+            DEV_param = self.features["DEV"]
+        K_value = self.features["K_value"]
         temp = pd.DataFrame()
-        temp["Close"] = self.feature_data.df_curated["Close"]
+        temp["Close"] = self.feature_data["Close"]
         temp["plusK"] = (
-            self.feature_data.df_curated["MA_" + str(MA_param[0])]
-            + K_value
-            * self.feature_data.df_curated["DEV_" + str(DEV_param[0])]
+            self.feature_data["MA_" + str(MA_param)]
+            + K_value * self.feature_data["DEV_" + str(DEV_param)]
         ).dropna()
         temp["minusK"] = (
-            self.feature_data.df_curated["MA_" + str(MA_param[0])]
-            - K_value
-            * self.feature_data.df_curated["DEV_" + str(DEV_param[0])]
+            self.feature_data["MA_" + str(MA_param)]
+            - K_value * self.feature_data["DEV_" + str(DEV_param)]
         ).dropna()
 
-        temp["Trigger"] = temp.apply(self.states_condition, raw=True, axis=1)
+        temp["Side"] = temp.apply(self.states_condition, raw=True, axis=1)
 
         events_bol = (
-            temp["Trigger"]
+            temp["Side"]
             .rolling(window=2)
             .apply(
                 lambda x: -1
@@ -275,23 +341,20 @@ class PrimaryModel:
                 raw=True,
             )
         ).dropna()
-
         return pd.DataFrame(events_bol).reset_index()
 
     def events(self):
-        if self.model_type == "crossing-MA":
+        if self.strategy == "crossing-MA":
             return self.events_crossing_MA()
-        elif self.model_type == "bollinger-bands":
+        elif self.strategy == "bollinger-bands":
             return self.events_bollinger()
-        elif self.model_type == "classical-filter":
-            return self.events_classical_filter(
-                self.model_parameters["threshold"]
-            )
+        elif self.strategy == "classical-filter":
+            return self.events_classical_filter(self.features["threshold"])
 
     def get_events_dataframe(self):
         return pd.concat(
             [
-                self.feature_data.df_curated[["Close"]],
+                self.feature_data[["Close"]],
                 self.events().set_index("DateTime"),
             ],
             axis=1,
