@@ -1,11 +1,13 @@
+import pandas as pd
+import numpy as np
+
 from math import sqrt, pi
 from functools import partial
 from multiprocessing import Pool
-
-import pandas as pd
-import numpy as np
 from statsmodels.tsa.stattools import adfuller
 from numba import njit, prange, int32, float64
+
+from mvp.rawdata import RawData
 
 
 @njit(int32(float64, float64, float64[:], int32, int32))
@@ -50,6 +52,21 @@ def numba_weights(d, tolerance, w_array, w_size, last_index):
 
 
 def mean_quadratic_freq(data, time_spacing=1):
+    """
+    Use `data` Fourier transform to compute mean quadratic freq of the spectrum
+
+    Parameters
+    ----------
+    `data` : ``numpy.array``
+        data series in time basis
+    `time_spacing` : ``float``
+        sample time spacing in, usually in minutes
+
+    Return
+    ------
+    ``float``
+
+    """
     displace_data = data - data.mean()
     fft_weights = np.fft.fft(displace_data)
     freq = np.fft.fftfreq(displace_data.size, time_spacing)
@@ -57,92 +74,164 @@ def mean_quadratic_freq(data, time_spacing=1):
     return sqrt((freq * freq * np.abs(fft_weights)).sum() / weights_norm)
 
 
-class CuratedData:
+class RefinedData(RawData):
     """
     Integrate to the raw data with open-high-low-close values
     some simple statistical features which provide more tools
-    to analyze the data and support primary models
+    to analyze the data and support future models
+
+    Inherit
+    -------
+    ``mvp.rawdata.RawData``
+        class for loading data from database and handling sample format
 
     Parameters
     ----------
-    `raw_data` : ``rawdata.RawData class``
-    `requested_features : `` dict ``
-        Dictionary with features as strings in keys and the
-        evaluation feature paramter as values or list of values
-        The (keys)strings corresponding to features must be:
-        "MA" = Moving Average -> Value = window size
-        "DEV" = standart DEViation -> Value = window_size
-        "RSI" = RSI indicator -> Value = window_size
-        "FRAC_DIFF" = Fractional Diff. -> Value = float in [0,1]
-    `daily` : `` bool `` (optional)
-        Automatically convert 1-minute raw data to daily data
+    `requested_features` : ``dict``
+        Dictionary codifying some features to compute in initialization
+        {
+            "MA": ``int`` (window size)
+            "DEV": ``int`` (window size)
+            "RSI": ``int`` (window size)
+            "FRAC_DIFF": ``float`` (differentiation order between 0 and 1)
+            "AUTOCORRELATION": ``(int, int)`` (window, shift)
+            "AUTOCORRELATION_PERIOD": ``int`` (shift)
+        }
+    `start` : ``pd.Timestamp`` or ``int``
+        index of Dataframe to start in computation of requested features
+    `stop` : ``pd.Timestamp`` or ``int``
+        index of Dataframe to stop in computation of requested features
+    `time_step` : ``int`` or "day"
+        define the sample time interval to compute requested features
+    `preload` : ``dict``
+        dictionary to inform dataframes pre-loaded in RawData class
 
     """
 
-    def __init__(self, raw_data, requested_features={}, daily=False):
-        self.symbol = raw_data.symbol
-        if daily:
-            self.df_curated = raw_data.daily_bars()
-        else:
-            self.df_curated = raw_data.df.copy()
-        self.available_dates = raw_data.available_dates
-        self.volume_density()
-        self.features_attr = {
+    def __init__(
+        self,
+        symbol,
+        db_path,
+        requested_features={},
+        start=None,
+        stop=None,
+        time_step=1,
+        preload={},
+    ):
+        RawData.__init__(self, symbol, db_path, preload)
+        self.__attr = {
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
             "RSI": "get_RSI",
             "FRAC_DIFF": "frac_diff",
+            "AUTOCORRELATION": "moving_autocorr",
+            "AUTOCORRELATION_PERIOD": "autocorr_period",
         }
-        self.parameters = {}
+        self.__cached_features = {}
+        self.volume_density(append=True)
         for feature in requested_features.keys():
-            if feature not in self.features_attr.keys():
+            if feature not in self.__attr.keys():
                 continue
-            self.parameters[feature] = []
-            if type(requested_features[feature]) is list:
-                feature_parameters = requested_features[feature]
-                for parameter in feature_parameters:
+            if isinstance(requested_features[feature], list):
+                parameters_list = requested_features[feature]
+                for parameter in parameters_list:
                     try:
-                        self.__getattribute__(self.features_attr[feature])(
-                            parameter, append=True
-                        )
-                    except ValueError as err:
-                        print(err, ": {} given".format(parameter))
+                        if isinstance(parameter, tuple):
+                            self.__getattribute__(self.__attr[feature])(
+                                *parameter, start, stop, time_step, True
+                            )
+                        else:
+                            self.__getattribute__(self.__attr[feature])(
+                                parameter, start, stop, time_step, True
+                            )
+                    except Exception as err:
+                        print(err, ": param {} given".format(parameter))
             else:
                 parameter = requested_features[feature]
                 try:
-                    self.__getattribute__(self.features_attr[feature])(
-                        parameter, append=True
-                    )
+                    if isinstance(parameter, tuple):
+                        self.__getattribute__(self.__attr[feature])(
+                            *parameter, start, stop, time_step, True
+                        )
+                    else:
+                        self.__getattribute__(self.__attr[feature])(
+                            parameter, start, stop, time_step, True
+                        )
                 except ValueError as err:
-                    print(err, "{} given".format(parameter))
+                    print(err, ": param {} given".format(parameter))
 
-    def volume_density(self):
-        vol_den = self.df_curated["Volume"] / self.df_curated["TickVol"]
-        regular_vol_den = vol_den.replace([-np.inf, np.inf], np.nan).dropna()
-        self.df_curated["VolDen"] = regular_vol_den.astype(int)
+    def __code_formatter(self, name, start, stop, time_step, extra_par):
+        fmt_start = start.strftime("%Y%m%d")
+        fmt_stop = stop.strftime("%Y%m%d")
+        str_code = "{}_{}_{}_{}_{}".format(
+            name, fmt_start, fmt_stop, time_step, extra_par
+        )
+        return str_code
 
-    def get_simple_MA(self, window, append=False):
-        moving_avg = self.df_curated["Close"].rolling(window=window).mean()
-        if not append:
-            return moving_avg.dropna()
-        if "MA" not in self.parameters.keys():
-            self.parameters["MA"] = []
-        if window not in self.parameters["MA"]:
-            self.df_curated["MA_{}".format(window)] = moving_avg
-            self.parameters["MA"].append(window)
+    def cache_features_keys(self):
+        return list(self.__cached_features.keys())
 
-    def get_deviation(self, window, append=False):
-        moving_std = self.df_curated["Close"].rolling(window=window).std()
-        if not append:
-            return moving_std.dropna()
-        if "DEV" not in self.parameters.keys():
-            self.parameters["DEV"] = []
-        if window not in self.parameters["DEV"]:
-            self.df_curated["DEV_{}".format(window)] = moving_std
-            self.parameters["DEV"].append(window)
+    def cache_features_size(self):
+        full_size = 0
+        for feature_data in self.__cached_features.values():
+            full_size = full_size + feature_data.__sizeof__()
+        return full_size
 
-    def get_RSI(self, param_RSI, append=False):
-        next_df = self.df_curated["Close"].shift(periods=1)
+    def cache_clean(self):
+        del self.__cached_features
+        self.__cached_features = {}
+
+    def volume_density(self, start=None, stop=None, time_step=1, append=False):
+        start, stop = self.assert_window(start, stop)
+        str_code = self.__code_formatter("VOLDEN", start, stop, time_step, 1)
+        if str_code in self.__cached_features.keys():
+            print("returning feature from cache")
+            return self.__cached_features[str_code].copy()
+        df_slice = self.change_sample_interval(start, stop, time_step)
+        vol_den = df_slice["Volume"] / df_slice["TickVol"]
+        vol_den.replace([-np.inf, np.inf], np.nan).dropna(inplace=True)
+        if append:
+            self.__cached_features[str_code] = vol_den.astype(int)
+        return vol_den.astype(int)
+
+    def get_simple_MA(
+        self, window, start=None, stop=None, time_step=1, append=False
+    ):
+        start, stop = self.assert_window(start, stop)
+        str_code = self.__code_formatter("MA", start, stop, time_step, window)
+        if str_code in self.__cached_features.keys():
+            print("returning from cache")
+            return self.__cached_features[str_code].copy()
+        df_slice = self.change_sample_interval(start, stop, time_step)
+        moving_avg = df_slice["Close"].rolling(window=window).mean()
+        if append:
+            self.__cached_features[str_code] = moving_avg.dropna()
+        return moving_avg.dropna()
+
+    def get_deviation(
+        self, window, start=None, stop=None, time_step=1, append=False
+    ):
+        start, stop = self.assert_window(start, stop)
+        str_code = self.__code_formatter("STD", start, stop, time_step, window)
+        if str_code in self.__cached_features.keys():
+            print("returning from cache")
+            return self.__cached_features[str_code].copy()
+        df_slice = self.change_sample_interval(start, stop, time_step)
+        moving_std = df_slice["Close"].rolling(window=window).std()
+        if append:
+            self.__cached_features[str_code] = moving_std.dropna()
+        return moving_std.dropna()
+
+    def get_RSI(
+        self, window, start=None, stop=None, time_step=1, append=False
+    ):
+        start, stop = self.assert_window(start, stop)
+        str_code = self.__code_formatter("RSI", start, stop, time_step, window)
+        if str_code in self.__cached_features.keys():
+            print("returning from cache")
+            return self.__cached_features[str_code].copy()
+        df_slice = self.change_sample_interval(start, stop, time_step)
+        next_df = df_slice["Close"].shift(periods=1)
         rsi_df = pd.DataFrame(
             columns=[
                 "Delta",
@@ -151,144 +240,108 @@ class CuratedData:
                 "AvgGain",
                 "AvgLoss",
                 "RS",
-                "RSI" + str(param_RSI),
+                "RSI" + str(window),
             ]
         )
-        rsi_df["Delta"] = self.df_curated["Close"] - next_df
+        rsi_df["Delta"] = df_slice["Close"] - next_df
         rsi_df["Gain"] = rsi_df["Delta"].apply(lambda x: 0 if x < 0 else x)
         rsi_df["Loss"] = rsi_df["Delta"].apply(lambda x: 0 if x > 0 else -x)
         rsi_df["AvgGain"] = (
-            rsi_df["Gain"].rolling(window=param_RSI).mean(skipna=True)
+            rsi_df["Gain"].rolling(window=window).mean(skipna=True)
         )
         rsi_df["AvgLoss"] = (
-            rsi_df["Loss"].rolling(window=param_RSI).mean(skipna=True)
+            rsi_df["Loss"].rolling(window=window).mean(skipna=True)
         )
         rsi_df["RS"] = rsi_df["AvgGain"].div(rsi_df["AvgLoss"])
-        rsi_df["RSI" + str(param_RSI)] = rsi_df["RS"].apply(
+        rsi_df["RSI" + str(window)] = rsi_df["RS"].apply(
             lambda x: 100 - 100 / (1 + x)
         )
-        if not append:
-            return rsi_df["RSI" + str(param_RSI)].dropna()
-        if "RSI" not in self.parameters.keys():
-            self.parameters["RSI"] = []
-        if param_RSI not in self.parameters["RSI"]:
-            self.df_curated["RSI_{}".format(param_RSI)] = rsi_df[
-                "RSI" + str(param_RSI)
-            ]
-            self.parameters["RSI"].append(param_RSI)
+        if append:
+            self.__cached_features[str_code] = rsi_df[
+                "RSI" + str(window)
+            ].dropna()
+        return rsi_df["RSI" + str(window)].dropna()
 
-    def autocorr_period(self, start, end, shift):
+    def autocorr_period(
+        self, shift, start=None, stop=None, time_step=1, append=False
+    ):
         """
-        Compute auto-correlation function in
-        a time interval which fix the window
+        Compute auto-correlation function in a time period/window
 
         Parameters
         ----------
-        `start` : ``pandas.Timestamp``
-            first date/minute of the period
-        `end` : ``pandas.Timestamp``
-            end of the period
+        `start` : ``pandas.Timestamp`` or ``int``
+            first dataframe index of the period
+        `stop` : ``pandas.Timestamp`` or ``int``
+            last dataframe index of the period
         `shift` : ``int``
-            displacement to separate the two data samples in minutes
+            displacement to separate the two data samples
 
         """
-        df_close_chunk = self.df_curated["Close"].loc[start:end]
-        if shift > df_close_chunk.shape[0] - 1:
+        start, stop = self.assert_window(start, stop)
+        str_code = self.__code_formatter(
+            "AUTOCORR", start, stop, time_step, shift
+        )
+        if str_code in self.__cached_features.keys():
+            print("returning from cache")
+            return self.__cached_features[str_code]
+        df_slice = self.change_sample_interval(start, stop, time_step)
+        df_close = df_slice["Close"]
+        if shift > df_close.shape[0] - 1:
             raise ValueError(
                 "Period enclosed from {} to {} provided {} "
                 "data points, while {} shift was required".format(
-                    start, end, df_close_chunk.shape[0], shift
+                    start, end, df_close.shape[0], shift
                 )
             )
-        return df_close_chunk.autocorr(lag=shift)
+        autocorr = df_close.autocorr(lag=shift)
+        if append:
+            self.__cached_features[str_code] = autocorr
+        return autocorr
 
-    def autocorr_period_matrix(self, starts, ends, shift):
+    def autocorr_period_matrix(self, starts, stops, shift, append=False):
         """
-        Compute auto-correlation function in many time intervals
-        for various values of start and end
+        Compute auto-correlation function for multiple time  intervals
 
         Parameters
         ----------
-        `start` : ``list pandas.Timestamp``
+        `starts` : ``list`` of ``pandas.Timestamp``
             list of first date/minute of the period
-        `end` : ``list of pandas.Timestamp``
+        `stops` : ``list`` of ``pandas.Timestamp``
             list of end of the period
         `shift` : ``int``
-            displacement to separate the two data samples in minutes
+            displacement to separate the two data samples
+        `append` : ``bool``
+            whether to append in class cache or not
+
+        Return
+        ------
+        ``pandas.DataFrame``
+            matrix of autocorrelation indexed by `starts` and `stops`
 
         """
         n_starts = len(starts)
-        n_ends = len(ends)
-        autocorr = np.empty([n_starts, n_ends])
+        n_stops = len(stops)
+        autocorr = np.empty([n_starts, n_stops])
         invalid_values = False
         for i in range(n_starts):
-            for j in range(n_ends):
+            for j in range(n_stops):
                 try:
                     autocorr[i, j] = self.autocorr_period(
-                        starts[i], ends[j], shift
+                        starts[i], stops[j], shift, append
                     )
                 except:
                     invalid_values = True
                     autocorr[i, j] = np.nan
         if invalid_values:
             print("Some invalid periods (end > start) occurred.")
-        autocorr_df = pd.DataFrame(autocorr, columns=ends, index=starts)
+        autocorr_df = pd.DataFrame(autocorr, columns=stops, index=starts)
         autocorr_df.index.name = "start_dates"
         return autocorr_df
 
-    def autocorr_tail(self, window, shift):
-        """
-        Compute auto-correlation function using the last(recent) data points
-
-        Parameters
-        ----------
-        `window` : ``int``
-            How many data points to take from bottom of dataframe
-        `shift` : ``int``
-            displacement to separate the two data samples
-
-        """
-        if shift > window - 1:
-            raise ValueError("shift must be greater than window")
-        df_close_chunk = self.df_curated["Close"].tail(window)
-        return df_close_chunk.autocorr(lag=shift)
-
-    def autocorr_tail_matrix(self, windows, shifts):
-        """
-        Compute auto-correlation function using the last(recent) data points
-        for several `windows` and `shifts` provided in lists
-
-        Parameters
-        ----------
-        `windows` : ``list``
-            Various number of data points to take from bottom of dataframe
-        `shifts` : ``list``
-            Various displacement to separate the two data samples
-
-        Return
-        ------
-        ``pandas.dataframe``
-            windows in indexes and shifts in columns
-
-        """
-        n_windows = len(windows)
-        n_shifts = len(shifts)
-        autocorr = np.empty([n_windows, n_shifts])
-        invalid_values = False
-        for i in range(n_windows):
-            for j in range(n_shifts):
-                try:
-                    autocorr[i, j] = self.autocorr_tail(windows[i], shifts[j])
-                except:
-                    invalid_values = True
-                    autocorr[i, j] = np.nan
-        if invalid_values:
-            print("Some invalid entries for window and shift occurred")
-        autocorr_df = pd.DataFrame(autocorr, columns=shifts, index=windows)
-        autocorr_df.index.name = "window"
-        return autocorr_df
-
-    def moving_autocorr(self, window, shift, append=False, start=0, end=-1):
+    def moving_autocorr(
+        self, window, shift, start=None, stop=None, time_step=1, append=False
+    ):
         """
         Compute auto-correlation in a moving window along the dataframe
 
@@ -298,40 +351,37 @@ class CuratedData:
             size of moving window
         `shift` : ``int``
             displacement to separate the two data samples in moving window
-        `append` : ``bool`` (default False)
-            Whether to append resulting series in self.df_curated
-        `start` :``pd.Timestamp`` or ``int`` (optional)
+        `start` : ``pd.Timestamp`` or ``int``
             First index/date. Default is the beginning of dataframe
-        `end` :``pd.Timestamp`` or ``int`` (optional)
+        `stop` : ``pd.Timestamp`` or ``int``
             Last index/date. Default is the end of dataframe
+        `append` : ``bool``
+            whether to append in class cache or not
+
+        Return
+        ------
+        ``pandas.Series``
 
         """
-        if isinstance(start, int) and isinstance(end, int):
-            close_series = self.df_curated["Close"].iloc[start:end]
-        elif isinstance(start, pd.Timestamp) and isinstance(end, pd.Timestamp):
-            close_series = self.df_curated["Close"].loc[start:end]
-        else:
-            raise ValueError(
-                "start/end index type {}/{} not valid".format(
-                    type(start), type(end)
-                )
-            )
-        if end == -1:
-            end = self.df_curated.shape[0]
-
-        moving_corr = close_series.rolling(window=window).apply(
+        start, stop = self.assert_window(start, stop)
+        str_code = self.__code_formatter(
+            "MOV_AUTOCORR",
+            start,
+            stop,
+            time_step,
+            "{}_{}".format(window, shift),
+        )
+        if str_code in self.__cached_features.keys():
+            print("returning from cache")
+            return self.__cached_features[str_code].copy()
+        df_slice = self.change_sample_interval(start, stop, time_step)
+        close_series = df_slice["Close"]
+        moving_autocorr = close_series.rolling(window=window).apply(
             lambda x: x.autocorr(lag=shift), raw=False
         )
-        if not append:
-            return moving_corr.dropna()
-        new_feature_name = "AUTOCORR_({},{},{},{})".format(
-            start, end, window, shift
-        )
-        if "AUTOCORR" not in self.parameters.keys():
-            self.parameters["AUTOCORR"] = []
-        if (start, end, window, shift) not in self.parameters["AUTOCORR"]:
-            self.df_curated[new_feature_name] = moving_corr
-            self.parameters["AUTOCORR"].append((start, end, window, shift))
+        if append:
+            self.__cached_features[str_code] = moving_autocorr.dropna()
+        return moving_autocorr.dropna()
 
     def __frac_diff_weights(self, d, tolerance, max_weights=1e8):
         """
@@ -374,11 +424,18 @@ class CuratedData:
     def __apply_weights(self, weights, x_vector):
         return np.dot(weights[::-1], x_vector)
 
-    def frac_diff(self, d, weights_tol=1e-5, append=False):
+    def frac_diff(
+        self,
+        d,
+        start=None,
+        stop=None,
+        time_step=1,
+        append=False,
+        weights_tol=1e-5,
+    ):
         """
         Compute fractional differentiation of a series with the binomial
-        expansion formula for an arbitrary derivative order. Uses the
-        close value of the dataframe.
+        expansion formula for an arbitrary derivative order.
 
         Parameters
         ----------
@@ -391,24 +448,30 @@ class CuratedData:
             To append or not in self.df_curated data-frame
 
         """
+        start, stop = self.assert_window(start, stop)
+        str_code = self.__code_formatter(
+            "FRAC_DIFF", start, stop, time_step, d
+        )
+        if str_code in self.__cached_features.keys():
+            print("returning from cache")
+            return self.__cached_features[str_code]
+        df_slice = self.change_sample_interval(start, stop, time_step)
         w = self.__frac_diff_weights(d, weights_tol)
-        close_series = self.df_curated["Close"]
+        close_series = df_slice["Close"]
         fracdiff_series = close_series.rolling(window=w.size).apply(
             lambda x: self.__apply_weights(w, x), raw=True
         )
-        if not append:
-            return fracdiff_series.dropna()
-        if "FRAC_DIFF" not in self.parameters.keys():
-            self.parameters["FRAC_DIFF"] = []
-        if d not in self.parameters["FRAC_DIFF"]:
-            self.df_curated["fracdiff_{}".format(d)] = fracdiff_series
-            self.parameters["FRAC_DIFF"].append(d)
+        if append:
+            self.__cached_features[str_code] = fracdiff_series.dropna()
+        return fracdiff_series.dropna()
 
     def adf_test(self, frac_diff):
         adf = adfuller(frac_diff, maxlag=1, regression="c", autolag=None)
         return adf
 
-    def vola_freq(self, window):
+    def vola_freq(
+        self, window, start=None, stop=None, time_step=1, append=False
+    ):
         """
         Introduce/compute a measure of volatility based on how rapidly
         the stock prices are oscillating around the average or if the
@@ -428,13 +491,25 @@ class CuratedData:
             Each Timestamp index contains the mean quadratic frequency.
 
         """
-        money_exch = self.df_curated["Close"] * self.df_curated["Volume"]
+        start, stop = self.assert_window(start, stop)
+        str_code = self.__code_formatter(
+            "VOLA_FREQ", start, stop, time_step, window
+        )
+        if str_code in self.__cached_features.keys():
+            print("returning from cache")
+            return self.__cached_features[str_code]
+        df_slice = self.change_sample_interval(start, stop, time_step)
+        money_exch = df_slice["Close"] * df_slice["Volume"]
         vol_series = money_exch.rolling(window=window).apply(
             lambda x: mean_quadratic_freq(x)
         )
+        if append:
+            self.__cached_features[str_code] = vol_series.dropna()
         return vol_series.dropna()
 
-    def vola_max_gain_ratio(self, window):
+    def vola_amplitude(
+        self, window, start=None, stop=None, time_step=1, append=False
+    ):
         """
         Compute the best possible trading in a interval of the
         previous `window` data bars. Use the difference of the
@@ -453,7 +528,18 @@ class CuratedData:
             the previous `window` data bars.
 
         """
-        max_price = self.df_curated["High"].rolling(window=window).max()
-        min_price = self.df_curated["Low"].rolling(window=window).min()
+        start, stop = self.assert_window(start, stop)
+        str_code = self.__code_formatter(
+            "VOLA_AMPL", start, stop, time_step, window
+        )
+        if str_code in self.__cached_features.keys():
+            print("returning from cache")
+            return self.__cached_features[str_code]
+        df_slice = self.change_sample_interval(start, stop, time_step)
+        max_price = df_slice["High"].rolling(window=window).max()
+        min_price = df_slice["Low"].rolling(window=window).min()
         ma = self.get_simple_MA(window)
-        return ((max_price - min_price) / ma).dropna()
+        vol_series = (max_price - min_price) / ma
+        if append:
+            self.__cached_features[str_code] = vol_series.dropna()
+        return vol_series.dropna()
