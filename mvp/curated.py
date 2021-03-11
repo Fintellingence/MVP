@@ -60,7 +60,7 @@ def mean_quadratic_freq(data, time_spacing=1):
     `data` : ``numpy.array``
         data series in time basis
     `time_spacing` : ``float``
-        sample time spacing in, usually in minutes
+        sample time spacing usually in minutes
 
     Return
     ------
@@ -78,33 +78,12 @@ class RefinedData(RawData):
     """
     Integrate to the raw data with open-high-low-close values
     some simple statistical features which provide more tools
-    to analyze the data and support future models
+    to analyze data and support models
 
     Inherit
     -------
     ``mvp.rawdata.RawData``
-        class for loading data from database and handling sample format
-
-    Parameters
-    ----------
-    `requested_features` : ``dict``
-        Dictionary codifying some features to compute in initialization
-        {
-            "MA": ``int`` (window size)
-            "DEV": ``int`` (window size)
-            "RSI": ``int`` (window size)
-            "FRAC_DIFF": ``float`` (differentiation order between 0 and 1)
-            "AUTOCORRELATION": ``(int, int)`` (window, shift)
-            "AUTOCORRELATION_PERIOD": ``int`` (shift)
-        }
-    `start` : ``pd.Timestamp`` or ``int``
-        index of Dataframe to start in computation of requested features
-    `stop` : ``pd.Timestamp`` or ``int``
-        index of Dataframe to stop in computation of requested features
-    `time_step` : ``int`` or "day"
-        define the sample time interval to compute requested features
-    `preload` : ``dict``
-        dictionary to inform dataframes pre-loaded in RawData class
+        class to load data from database and sample it in different formats
 
     """
 
@@ -112,12 +91,51 @@ class RefinedData(RawData):
         self,
         symbol,
         db_path,
+        preload={"time": "day"},
         requested_features={},
         start=None,
         stop=None,
         time_step=1,
-        preload={},
     ):
+        """
+        Initialize the class reading data from database. If only `symbol`
+        and `db_path` are given simply initialize the RawData class from
+        inheritance. Some common features may be computed in initialization
+        passing some of the optional parametersi. These features computed
+        in initialization are NECESSARILY set in cache memory
+
+        Parameters
+        ----------
+        `symbol` : ``str``
+            symbol code of the company to load data
+        `db_path` : ``str``
+            full path to database file
+        `preload` : ``dict``
+            dictionary to inform dataframes set in cache memory
+            {
+                "time": list[``int`` / "day"]   (new time interval of bars)
+                "tick": list[``int``]       (bars in amount of deals occurred)
+                "volume": list[``int``]     (bars in amount of volume)
+                "money": list[``int``]      (bars in amount of money)
+            }
+        `requested_features` : ``dict``
+            Dictionary codifying some features to compute in initialization
+            {
+                "MA": ``int`` (window size)
+                "DEV": ``int`` (window size)
+                "RSI": ``int`` (window size)
+                "FRAC_DIFF": ``float`` (differentiation order between 0 and 1)
+                "AUTOCORRELATION": ``(int, int)`` (window, shift)
+                "AUTOCORRELATION_PERIOD": ``int`` (shift)
+            }
+        `start` : ``pd.Timestamp`` or ``int``
+            index of Dataframe to start in computation of requested features
+        `stop` : ``pd.Timestamp`` or ``int``
+            index of Dataframe to stop in computation of requested features
+        `time_step` : ``int`` or "day"
+            define the sample time interval to compute requested features
+
+        """
         RawData.__init__(self, symbol, db_path, preload)
         self.__attr = {
             "MA": "get_simple_MA",
@@ -169,19 +187,29 @@ class RefinedData(RawData):
         return str_code
 
     def cache_features_keys(self):
+        """ internal keys used to cached features. Information purposes """
         return list(self.__cached_features.keys())
 
     def cache_features_size(self):
+        """ Total size of cached features in bytes """
         full_size = 0
         for feature_data in self.__cached_features.values():
             full_size = full_size + feature_data.__sizeof__()
         return full_size
 
     def cache_clean(self):
+        """ delete all cached memory """
         del self.__cached_features
         self.__cached_features = {}
 
     def volume_density(self, start=None, stop=None, time_step=1, append=False):
+        """
+        Compute the average volume exchange per tick/deal
+
+        Return
+        ------
+        ``pandas.Series``
+        """
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter("VOLDEN", start, stop, time_step, 1)
         if str_code in self.__cached_features.keys():
@@ -212,7 +240,7 @@ class RefinedData(RawData):
         self, window, start=None, stop=None, time_step=1, append=False
     ):
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("STD", start, stop, time_step, window)
+        str_code = self.__code_formatter("DEV", start, stop, time_step, window)
         if str_code in self.__cached_features.keys():
             print("returning from cache")
             return self.__cached_features[str_code].copy()
@@ -267,15 +295,27 @@ class RefinedData(RawData):
     ):
         """
         Compute auto-correlation function in a time period/window
+        According to pandas the autocorrelation is computed as follows:
+        Given a set {y1, y2, ... , yN} divide it in {y1, y2, ..., yN-s}
+        and {ys, ys+1, ..., yN}, compute the average for each set and
+        than compute the covariance between the two sets.
 
         Parameters
         ----------
+        `shift` : ``int``
+            displacement to separate the two data samples
         `start` : ``pandas.Timestamp`` or ``int``
             first dataframe index of the period
         `stop` : ``pandas.Timestamp`` or ``int``
             last dataframe index of the period
-        `shift` : ``int``
-            displacement to separate the two data samples
+        `time_step` : ``int``
+            available ones in `RefinedData.available_time_steps`
+        `append` : ``bool``
+            whether to include in class cache memory each entry
+
+        Return
+        ------
+        ``float``
 
         """
         start, stop = self.assert_window(start, stop)
@@ -299,20 +339,25 @@ class RefinedData(RawData):
             self.__cached_features[str_code] = autocorr
         return autocorr
 
-    def autocorr_period_matrix(self, starts, stops, shift, append=False):
+    def autocorr_period_matrix(
+        self, shift, starts, stops, time_step=1, append=False
+    ):
         """
-        Compute auto-correlation function for multiple time  intervals
+        Compute auto-correlation function for multiple time intervals
+        For each start and stop call RefinedData.autocorr_period method
 
         Parameters
         ----------
+        `shift` : ``int``
+            displacement to separate the two data samples
         `starts` : ``list`` of ``pandas.Timestamp``
             list of first date/minute of the period
         `stops` : ``list`` of ``pandas.Timestamp``
             list of end of the period
-        `shift` : ``int``
-            displacement to separate the two data samples
+        `time_step` : ``int`` or "day"
+            values in RefinedData.available_time_steps
         `append` : ``bool``
-            whether to append in class cache or not
+            whether to append in class cache memory for every window formed
 
         Return
         ------
@@ -328,7 +373,7 @@ class RefinedData(RawData):
             for j in range(n_stops):
                 try:
                     autocorr[i, j] = self.autocorr_period(
-                        starts[i], stops[j], shift, append
+                        shift, starts[i], stops[j], time_step, append
                     )
                 except:
                     invalid_values = True
@@ -348,7 +393,7 @@ class RefinedData(RawData):
         Parameters
         ----------
         `window` : ``int``
-            size of moving window
+            size of moving window. Must be larger than `shift`
         `shift` : ``int``
             displacement to separate the two data samples in moving window
         `start` : ``pd.Timestamp`` or ``int``
@@ -440,12 +485,17 @@ class RefinedData(RawData):
         Parameters
         ----------
         `d` : ``float``
-            derivative order (d = 1 implies daily returns = lose all memory)
-        `weights_tol` : `` float `` (default 10^-5)
+            derivative order (d = 1 implies daily returns) lying in (0,1]
+        `start` : ``pandas.Timestamp`` or ``int``
+            first dataframe index of the period
+        `stop` : ``pandas.Timestamp`` or ``int``
+            last dataframe index of the period
+        `time_step` : ``int``
+            available ones in `RefinedData.available_time_steps`
+        `append` : ``bool`` (default False)
+            To append or not in cache memory
+        `weights_tol` : ``float``
             minimum value for a weight in the binomial series expansion
-            to apply a cutoff
-        `append` : `` bool `` (default False)
-            To append or not in self.df_curated data-frame
 
         """
         start, stop = self.assert_window(start, stop)
@@ -475,7 +525,7 @@ class RefinedData(RawData):
         """
         Introduce/compute a measure of volatility based on how rapidly
         the stock prices are oscillating around the average or if the
-        series presents a narrow peak. Use the Fourier space representation
+        series presents a narrow peak. Use the Fourier representation
         of the time series to compute the mean quadratic frequency of
         the spectrum. Note that in case the mean frequency is zero this
         is just the frequency standard deviation.
@@ -484,6 +534,14 @@ class RefinedData(RawData):
         ----------
         `window` : `` int ``
             number of data points to consider in FFT
+        `start` : ``pandas.Timestamp`` or ``int``
+            first dataframe index of the period
+        `stop` : ``pandas.Timestamp`` or ``int``
+            last dataframe index of the period
+        `time_step` : ``int``
+            available ones in `RefinedData.available_time_steps`
+        `append` : ``bool`` (default False)
+            To append or not in cache memory
 
         Return
         ------
