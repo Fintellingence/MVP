@@ -12,17 +12,18 @@ __all__ = ["RawData", "DailyDataYahoo"]
 @njit(int32(int32, float64[:], int32[:], float64))
 def indexing_cusum(n, values, accum_ind, threshold):
     """
-    Mark all new indexes after before which the
-    accumulated sum of `values` exceeded a `threshold`.
+    Mark all new indexes before which the accumulated
+    sum of `values` exceeded a `threshold`. Used to
+    mark indexes of new candles in a dataframe.
 
     Parameters
     ----------
     `n` : ``int``
         size of `values` array
     `values` : ``numpy.array(numpy.float64)``
-        values to calculate accumulated sum
+        values to compute accumulated sum
     `accum_ind` : ``numpy.array(int32)``
-        store indexes in which cusum exceeds the threshold. Size `n`
+        store indexes strides in which cusum exceeds the threshold. Size `n`
     `threshold` : ``float``
 
     """
@@ -64,7 +65,7 @@ def indexing_new_days(n, days, new_days_ind):
 
 def get_db_symbols(db_path):
     """
-    Get all symbols for the connected Sqlite database.
+    Get all symbols from sqlite using the file in `db_path`.
 
     """
     conn = sql3.connect(db_path)
@@ -80,20 +81,47 @@ def get_db_symbols(db_path):
 class RawData:
     """
     Class to read symbol from minute-1 database and set as dataframe. Provide
-    methods to sample the dataframe in other formats than linearly time
+    methods to sample the dataframe in other formats than 1-minute time
     spaced bar, which may provide enhanced statistical properties.
+
+    Instance Variables
+    ------------------
+    `df` : ``pandas.DataFrame``
+        dataframe containing the fundamental 1-minute stock prices
+        open-high-low-close-volume values.
+    `symbol` : ``string``
+        company symbol code in stock market
+    `db_path` : ``string``
+        absolute path to database file
+    `available_dates` : list[``pandas.Timestamp``]
+        dates that stock market was openned (exclude holidays)
+    `available_time_steps` : list[1, 5, 10, 15, 30 ,60, "day"]
+        values accepted to change the sample interval from 1-minute
+
     """
 
     def __init__(self, symbol, db_path, preload={}):
         """
-        Initialize a class with a simple 1-minute time frame stock prices data
+        Initialize a class with 1-minute time frame stock prices data
+        and optionally other types of candle bars if informed in `preload`
 
         Parameters
         ----------
         `symbol` : ``str``
-            symbol code of the company
+            symbol code of the company to load data
         `db_path` : ``str``
             full path to database file
+        `preload` : ``dict``
+            {
+                "time": list[``int`` / "day"]   (new time interval of bars)
+                "tick": list[``int``]       (bars in amount of deals occurred)
+                "volume": list[``int``]     (bars in amount of volume)
+                "money": list[``int``]      (bars in amount of money)
+            }
+            A single integer value works as well instead of list of integers
+            For daily bars use the string "day" in "time" key. Specifically
+            in time intervals, the set of accepted values are 1, 5, 10, 15,
+            30, 60 and as mentioned "day".
 
         """
         self.symbol = symbol
@@ -144,13 +172,15 @@ class RawData:
         if isinstance(step, float):
             step = int(step)
         key_format = "{}_{}".format(bar_type, step)
+        if key_format in self.__cached_dataframes.keys():
+            return
         self.__cached_dataframes[key_format] = self.__getattribute__(
             self.__bar_attr[bar_type]
         )(step=step)
 
     def __reassemble_df(self, df, strides):
         """
-        Group intervals of a dataframe in new open-high-low-close bars
+        Group intervals of the dataframe `df` in new open-high-low-close bars
         between strides of indexes `strides[i - 1]` to `strides[i]`
 
         Return
@@ -205,6 +235,10 @@ class RawData:
         for df in self.__cached_dataframes.values():
             full_size = full_size + df.__sizeof__()
         return full_size + self.df.__sizeof__()
+
+    def cache_dataframes_clean(self):
+        del self.__cached_dataframes
+        self.__cached_dataframes = {}
 
     def assert_window(self, start, stop):
         """
@@ -286,7 +320,7 @@ class RawData:
         `stop` : ``pandas.Timestamp`` or ``int``
             last index to use
         `step` : ``int``
-            volume required to form a new candle-stick (data-frame row)
+            volume required to form a new bar (dataframe row)
 
         Return
         ``pandas.DataFrame``
@@ -319,7 +353,7 @@ class RawData:
         `stop` : ``pandas.Timestamp`` or ``int``
             last index to use
         `step` : ``float``
-            money volume required to form a new candle-stick (dataframe row)
+            money volume required to form a new bar (dataframe row)
 
         Return
         ``pandas.DataFrame``
@@ -373,16 +407,28 @@ class RawData:
     def change_sample_interval(self, start=None, stop=None, step=60):
         """
         Return a dataframe resizing the sample time interval
-        ignoring the market opening and closing periods.
+        IGNORING the market opening and closing periods.
 
         Parameters
         ----------
-        start : ``datetime.datetime``
+        `start` : ``datetime.datetime``
             Initial time instant (pandas.Timestamp).
-        stop : ``datetime.datetime``
+        `stop` : ``datetime.datetime``
             Final time instant (pandas.Timestamp).
-        step : ``int``
+        `step` : ``int``
             In minutes. Available values are [1,5,10,15,30,60] (default 60)
+
+        Return
+        ------
+        ``pandas.DataFrame``
+            new dataframe with bars sampled in the `step` interval given
+
+        WARNING
+        -------
+        In case step is 5, 10, 15, 30, 60 this function is highly
+        demanding to compute for the entire 1-minute dataframe of
+        about 10^4 data bars. Tipically for the entire dataframe,
+        it takes several minutes.
 
         """
         start, stop = self.assert_window(start, stop)
@@ -398,7 +444,7 @@ class RawData:
             return self.daily_bars(start, stop)
         work_df = self.df.loc[start:stop]
         if step == 1:
-            return work_df
+            return work_df.copy()
         nlines = work_df.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
         days_parser = work_df.index.day.to_numpy().astype(np.int32)
