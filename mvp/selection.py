@@ -1,5 +1,6 @@
 from functools import partial
 from multiprocessing import Pool
+from sklearn.model_selection import KFold, StratifiedKFold
 
 import numpy as np
 import pandas as pd
@@ -279,5 +280,123 @@ def bootstrap_selection(indicator, num_of_data=None, seed=12345):
     return sampled_events
 
 
-def cross_validation():
-    pass
+# FIXME: Not Good
+class _BasePEKFold:
+    """
+    Base class for cross validation based on K-fold for both non-stratified
+    and stratified
+    """
+
+    def _purge_embargo_squencial_with_test(self, horizon, train_idx, test_idx):
+        """
+        Apply the purge and embargo processes to the `train_idx` based on the
+        `test_idx` with sequencial indices representing a range of test events.
+
+        Parameters
+        ----------
+        `train_idx`: ``np.array``
+            Array composed of intergers.
+        `test_idx`: ``numpy.array``
+            Array composed of sequencial intergers.
+
+        Return
+        ------
+        `_train_idx` : ``np.array``
+            The new indices for training.
+        """
+        start_test = horizon.index[test_idx]
+        max_test_range = horizon.iloc[test_idx].max()
+        left_purge_mask = horizon.iloc[train_idx] <= start_test
+        _train_idx = train_idx[left_purge_mask]
+        first_event_after_test = horizon.index[horizon.index >= max_test_range]
+        if not first_event_after_test.empty:
+            embargo_gap = int(self._embargo_ratio * horizon.shape[0])
+            right_purge_idx = horizon.index.get_loc[first_event_after_test[0]]
+            _train_idx = np.concatenate(
+                [
+                    _train_idx,
+                    train_idx[train_idx >= right_purge_idx + embargo_gap],
+                ]
+            )
+        return _train_idx
+
+
+class PEKFold(KFold, _BasePEKFold):
+    """
+    Non-stratified K-fold.
+
+    Parameters
+    ----------
+    `n_splits`: ``int``
+        The number of folds.
+    `embargo_ratio`: ``numpy.array``
+        Coefficient to be applied in the number of horizons to determine the
+        embargo gap.
+    """
+
+    def __init__(self, n_splits=5, embargo_ratio=0.1):
+        super(PEKFold, self).__init__(
+            n_splits=n_splits, shuffle=False, random_state=None
+        )
+        self._embargo_ratio = embargo_ratio
+
+    def split(self, horizon):
+        """
+        Split of horizon.
+
+        Parameters
+        ----------
+        `horizon`: ``pd.Series``
+            The timestamps for initial and end of each horizon.
+        """
+        X = horizon.values
+        super_gen = super(PEKFold).split(X)
+        for train_idx, test_idx in super_gen:
+            train_idx = super(
+                PEKFold, self
+            )._purge_embargo_squencial_with_test(horizon, train_idx, test_idx)
+            yield train_idx, test_idx
+
+
+class BestEffortStratifiedPEKFold(StratifiedKFold, _BasePEKFold):
+    def __init__(self, n_splits=5, embargo_ratio=0.1):
+        """
+        Stratified K-fold. Due to purge and embargo proecesses, the stratification is
+        not perfect, i.e., there will be a difference between the label distributions
+        for training and test datasets.
+
+        Parameters
+        ----------
+        `n_splits`: ``int``
+            The number of folds.
+        `embargo_ratio`: ``numpy.array``
+            Coefficient to be applied in the number of horizons to determine the
+            embargo gap.
+        """
+        super(BestEffortStratifiedPEKFold).__init__(
+            n_splits=n_splits, shuffle=False, random_state=None
+        )
+        self._embargo_ratio = embargo_ratio
+
+    def split(self, horizon, labels):
+        """
+        Split of horizon.
+
+        Parameters
+        ----------
+        `horizon`: ``pd.Series``
+            The timestamps for initial and end of each horizon.
+        """
+        X = horizon.values
+        super_gen = super(BestEffortStratifiedPEKFold).split(X, labels)
+        for train_idx, test_idx in super_gen:
+            sequencial_test_idx = np.split(
+                test_idx, np.where(np.diff(test_idx) > 1)[0] + 1
+            )
+            for _test_idx in sequencial_test_idx:
+                train_idx = super(
+                    BestEffortStratifiedPEKFold, self
+                )._purge_embargo_squencial_with_test(
+                    horizon, train_idx, _test_idx
+                )
+            yield train_idx, test_idx
