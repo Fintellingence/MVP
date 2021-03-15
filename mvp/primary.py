@@ -2,7 +2,7 @@ import pandas as pd
 import mvp
 import numpy as np
 import datetime as dt
-from mvp.curated import RefinedData
+from mvp.refined_data import RefinedData
 
 
 class PrimaryModel:
@@ -11,7 +11,7 @@ class PrimaryModel:
     by the parameters/indicators. It shoud be understood as being defined by a model-type (so far only 3 supported), and the parameters
     for the given model type. The class then generates the trading signals automatically by evoking the `PrimaryModel.events()` method and
     storing the information in the `.PrimaryModel.events_df` attribute.
-        This class uses curated data to process three models:
+        This class uses refined_data data to process three models:
 
     - Crossing Averages Model
     - Bollinger Bands Model
@@ -19,8 +19,8 @@ class PrimaryModel:
 
     Parameters
     ----------
-    `refined_data` : ``curated.RefinedData Object``
-        A RefinedData object from the file curated.py
+    `refined_data` : ``refined_data.RefinedData Object``
+        A RefinedData object from the file refined_data.py
     `strategy` : ``str``
         Three available types: ``crossing-MA``, `bollinger-bands``, ``classical-filter``
     `parameters` : ``dict```

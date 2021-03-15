@@ -10,7 +10,7 @@ class Labels:
     in order to be able to label the event triggers (`events`) the user should also
     provide the operation parameters. Given the labels, one could feed it to the meta-
     learning model with an enhanced feature space by freely utilizing the methods of
-    the `CuratedData` object in the `CuratedData.feature_data` attribute.
+    the `RefinedData` object in the `primary.PrimaryModel.feature_data` attribute.
 
     Parameters
     ----------

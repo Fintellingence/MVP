@@ -138,13 +138,13 @@ def plot_bollinger(model, labels, linewidth=0.2):
     plot_data["UpBand"] = plot_data[MA_name] + K_value * plot_data[DEV_name]
     plot_data["DownBand"] = plot_data[MA_name] - K_value * plot_data[DEV_name]
     buy_profit = plot_data[
-        (plot_data["Suggestion"] == 1) & (plot_data["Label"] == 1)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == 1)
     ][["Close"]]
     buy_loss = plot_data[
-        (plot_data["Suggestion"] == 1) & (plot_data["Label"] == -1)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == -1)
     ][["Close"]]
     buy_neutral = plot_data[
-        (plot_data["Suggestion"] == 1) & (plot_data["Label"] == 0)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == 0)
     ][["Close"]]
     plt.scatter(buy_profit.index, buy_profit["Close"], c="g", s=0.1)
     plt.scatter(buy_loss.index, buy_loss["Close"], c="r", s=0.1)
@@ -163,22 +163,22 @@ def plot_crossing_MA(model, labels, linewidth=0.2):
     plot_data = model.feature_data.df_curated.copy()
     plot_data = pd.concat([plot_data, labels], axis=1).copy()
     buy_profit = plot_data[
-        (plot_data["Suggestion"] == 1) & (plot_data["Label"] == 1)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == 1)
     ][["Close"]]
     buy_loss = plot_data[
-        (plot_data["Suggestion"] == 1) & (plot_data["Label"] == -1)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == -1)
     ][["Close"]]
     buy_neutral = plot_data[
-        (plot_data["Suggestion"] == 1) & (plot_data["Label"] == 0)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == 0)
     ][["Close"]]
     sell_profit = plot_data[
-        (plot_data["Suggestion"] == -1) & (plot_data["Label"] == 1)
+        (plot_data["Side"] == -1) & (plot_data["Label"] == 1)
     ][["Close"]]
     sell_loss = plot_data[
-        (plot_data["Suggestion"] == -1) & (plot_data["Label"] == -1)
+        (plot_data["Side"] == -1) & (plot_data["Label"] == -1)
     ][["Close"]]
     sell_neutral = plot_data[
-        (plot_data["Suggestion"] == -1) & (plot_data["Label"] == 0)
+        (plot_data["Side"] == -1) & (plot_data["Label"] == 0)
     ][["Close"]]
     plt.scatter(
         buy_profit.index, buy_profit["Close"], c="g", marker=".", s=0.5
@@ -205,22 +205,22 @@ def plot_classical_filter(model, labels, linewidth=0.2):
     plot_data = model.feature_data.df_curated.copy()
     plot_data = pd.concat([plot_data, labels], axis=1).copy()
     buy_profit = plot_data[
-        (plot_data["Suggestion"] == 1) & (plot_data["Label"] == 1)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == 1)
     ][["Close"]]
     buy_loss = plot_data[
-        (plot_data["Suggestion"] == 1) & (plot_data["Label"] == -1)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == -1)
     ][["Close"]]
     buy_neutral = plot_data[
-        (plot_data["Suggestion"] == 1) & (plot_data["Label"] == 0)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == 0)
     ][["Close"]]
     sell_profit = plot_data[
-        (plot_data["Suggestion"] == -1) & (plot_data["Label"] == 1)
+        (plot_data["Side"] == -1) & (plot_data["Label"] == 1)
     ][["Close"]]
     sell_loss = plot_data[
-        (plot_data["Suggestion"] == -1) & (plot_data["Label"] == -1)
+        (plot_data["Side"] == -1) & (plot_data["Label"] == -1)
     ][["Close"]]
     sell_neutral = plot_data[
-        (plot_data["Suggestion"] == -1) & (plot_data["Label"] == 0)
+        (plot_data["Side"] == -1) & (plot_data["Label"] == 0)
     ][["Close"]]
     plt.scatter(
         buy_profit.index, buy_profit["Close"], c="g", marker=".", s=0.5
@@ -244,7 +244,7 @@ def plot_classical_filter(model, labels, linewidth=0.2):
 def plot_model(model, labels, linewidth=0.2):
     """
     Displays the close time-series along with the indicators used by
-    the primary models, also highlights Buy/Sell suggestions and their
+    the primary models, also highlights Buy/Sell Sides and their
     success (label = 1, or -1)
 
     Parameters
