@@ -53,3 +53,13 @@ By default, when the function to build db are called without a db
 file path specification, `$HOME/FintelligenceData/` path is used.
 Check out the available scripts to automatically build and update
 databases in `scripts/` folder.
+
+## Documentation
+Make
+```
+pip install Sphinx
+cd docs
+make html
+```
+The web page with the documentation can be found in `docs/build/html/index.html`,
+just open it in any browser.

@@ -217,10 +217,11 @@ class RefinedData(RawData):
             return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         vol_den = df_slice["Volume"] / df_slice["TickVol"]
-        vol_den.replace([-np.inf, np.inf], np.nan).dropna(inplace=True)
+        clean_data = vol_den.replace([-np.inf, np.inf], np.nan).copy()
+        clean_data.dropna(inplace=True)
         if append:
-            self.__cached_features[str_code] = vol_den.astype(int)
-        return vol_den.astype(int)
+            self.__cached_features[str_code] = clean_data.astype(int)
+        return clean_data.astype(int)
 
     def get_simple_MA(
         self, window, start=None, stop=None, time_step=1, append=False
