@@ -304,14 +304,15 @@ class _BasePEKFold:
         `_train_idx` : ``np.array``
             The new indices for training.
         """
-        start_test = horizon.index[test_idx]
+        test_events = horizon.index[test_idx]
         max_test_range = horizon.iloc[test_idx].max()
-        left_purge_mask = horizon.iloc[train_idx] <= start_test
+        left_purge_mask = horizon.iloc[train_idx] <= test_events.min()
         _train_idx = train_idx[left_purge_mask]
         first_event_after_test = horizon.index[horizon.index >= max_test_range]
         if not first_event_after_test.empty:
+            first_event_after_test = first_event_after_test[0]
             embargo_gap = int(self._embargo_ratio * horizon.shape[0])
-            right_purge_idx = horizon.index.get_loc[first_event_after_test[0]]
+            right_purge_idx = horizon.index.get_loc(first_event_after_test)
             _train_idx = np.concatenate(
                 [
                     _train_idx,
@@ -350,7 +351,7 @@ class PEKFold(KFold, _BasePEKFold):
             The timestamps for initial and end of each horizon.
         """
         X = horizon.values
-        super_gen = super(PEKFold).split(X)
+        super_gen = super(PEKFold, self).split(X)
         for train_idx, test_idx in super_gen:
             train_idx = super(
                 PEKFold, self
@@ -388,7 +389,7 @@ class BestEffortStratifiedPEKFold(StratifiedKFold, _BasePEKFold):
             The timestamps for initial and end of each horizon.
         """
         X = horizon.values
-        super_gen = super(BestEffortStratifiedPEKFold).split(X, labels)
+        super_gen = super(BestEffortStratifiedPEKFold, selft).split(X, labels)
         for train_idx, test_idx in super_gen:
             sequencial_test_idx = np.split(
                 test_idx, np.where(np.diff(test_idx) > 1)[0] + 1

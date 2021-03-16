@@ -85,6 +85,40 @@ def horizons(closed_prices):
 
 
 @fixture
+def k_fold_horizons():
+    delta = dt.timedelta(minutes=1)
+    format = "%Y-%m-%d %H:%M:%S"
+    initial_time_str = "2020-03-05 13:05:32"
+    initial_time = dt.datetime.strptime(initial_time_str, format)
+    index = np.array([initial_time + (delta * i) for i in range(20)])
+    events = index[[0, 3, 5, 7, 8, 10, 11, 14, 16, 18]]
+    vertical_barriers = index[[2, 5, 7, 9, 9, 12, 12, 16, 19, 19]]
+        # [
+        #     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 0, 1, 1, 0, 0, 0, 0, 0, 0],
+        #     [0, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+        #     [0, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+        #     [0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+        #     [0, 0, 0, 0, 0, 1, 1, 0, 0, 0],
+        #     [0, 0, 0, 0, 0, 1, 1, 0, 0, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 1, 1, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+        #     [0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+        # ],
+    return pd.Series(vertical_barriers, index=events)
+
+
+@fixture
 def expected_indicator(closed_prices):
     return pd.DataFrame(
         [
@@ -489,3 +523,22 @@ def test_time_weights(avg_uniqueness, p, raw_expected_time_weights):
         selection.time_weights(avg_uniqueness, p=p),
         expected_time_weights,
     )
+
+
+@mark.parametrize(
+    "expected_idx",
+    [
+        ([
+            [np.array([3, 4, 5, 6, 7, 8, 9]), np.array([0, 1])],
+            [np.array([0, 1, 6, 7, 8, 9]), np.array([2, 3])],
+            [np.array([0, 1, 2, 8, 9]), np.array([4, 5])],
+            [np.array([0, 1, 2, 3, 4, 9]), np.array([6, 7])],
+            [np.array([0, 1, 2, 3, 4, 5, 6, 7]), np.array([8, 9])],
+        ])
+    ]
+)
+def test_PEKFold(k_fold_horizons, expected_idx):
+    pekf = selection.PEKFold()
+    for generated, expected in zip(pekf.split(k_fold_horizons), expected_idx):
+        assert_array_equal(generated[0], expected[0]) # Train
+        assert_array_equal(generated[1], expected[1]) # Test
