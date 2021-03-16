@@ -12,17 +12,18 @@ __all__ = ["RawData", "DailyDataYahoo"]
 @njit(int32(int32, float64[:], int32[:], float64))
 def indexing_cusum(n, values, accum_ind, threshold):
     """
-    Mark all new indexes after before which the
-    accumulated sum of `values` exceeded a `threshold`.
+    Mark all new indexes before which the accumulated
+    sum of `values` exceeded a `threshold`. Used to
+    mark indexes of new candles in a dataframe.
 
     Parameters
     ----------
     `n` : ``int``
         size of `values` array
     `values` : ``numpy.array(numpy.float64)``
-        values to calculate accumulated sum
+        values to compute accumulated sum
     `accum_ind` : ``numpy.array(int32)``
-        store indexes in which cusum exceeds the threshold. Size `n`
+        store indexes strides in which cusum exceeds the threshold. Size `n`
     `threshold` : ``float``
 
     """
@@ -64,7 +65,7 @@ def indexing_new_days(n, days, new_days_ind):
 
 def get_db_symbols(db_path):
     """
-    Get all symbols for the connected Sqlite database.
+    Get all symbols from sqlite using the file in `db_path`.
 
     """
     conn = sql3.connect(db_path)
@@ -80,20 +81,47 @@ def get_db_symbols(db_path):
 class RawData:
     """
     Class to read symbol from minute-1 database and set as dataframe. Provide
-    methods to sample the dataframe in other formats than linearly time
+    methods to sample the dataframe in other formats than 1-minute time
     spaced bar, which may provide enhanced statistical properties.
+
+    Instance Variables
+    ------------------
+    `df` : ``pandas.DataFrame``
+        dataframe containing the fundamental 1-minute stock prices
+        open-high-low-close-volume values.
+    `symbol` : ``string``
+        company symbol code in stock market
+    `db_path` : ``string``
+        absolute path to database file
+    `available_dates` : list[``pandas.Timestamp``]
+        dates that stock market was openned (exclude holidays)
+    `available_time_steps` : list[1, 5, 10, 15, 30 ,60, "day"]
+        values accepted to change the sample interval from 1-minute
+
     """
 
-    def __init__(self, symbol, db_path):
+    def __init__(self, symbol, db_path, preload={}):
         """
-        Initialize a class with a simple 1-minute time frame stock prices data
+        Initialize a class with 1-minute time frame stock prices data
+        and optionally other types of candle bars if informed in `preload`
 
         Parameters
         ----------
         `symbol` : ``str``
-            symbol code of the company
+            symbol code of the company to load data
         `db_path` : ``str``
             full path to database file
+        `preload` : ``dict``
+            {
+                "time": list[``int`` / "day"]   (new time interval of bars)
+                "tick": list[``int``]       (bars in amount of deals occurred)
+                "volume": list[``int``]     (bars in amount of volume)
+                "money": list[``int``]      (bars in amount of money)
+            }
+            A single integer value works as well instead of list of integers
+            For daily bars use the string "day" in "time" key. Specifically
+            in time intervals, the set of accepted values are 1, 5, 10, 15,
+            30, 60 and as mentioned "day".
 
         """
         self.symbol = symbol
@@ -107,6 +135,20 @@ class RawData:
                 "symbol {} not found in database {}".format(symbol, db_path)
             )
         self.available_dates = self.df.index.normalize()
+        self.available_time_steps = [1, 5, 10, 15, 30, 60, "day"]
+        self.__bar_attr = {
+            "time": "change_sample_interval",
+            "tick": "tick_bars",
+            "volume": "volume_bars",
+            "money": "money_bars",
+        }
+        self.__cached_dataframes = {}
+        for df_type in preload.keys():
+            if isinstance(preload[df_type], list):
+                for step in preload[df_type]:
+                    self.__cache_insert_dataframe(df_type, step)
+            else:
+                self.__cache_insert_dataframe(df_type, preload[df_type])
 
     def __get_data_from_db(self):
         conn = sql3.connect(self.db_path)
@@ -116,48 +158,29 @@ class RawData:
         df.drop(["DateTime"], axis=1, inplace=True)
         return df
 
-    def __assert_window(self, start, stop):
-        """
-        Ensure that two variables can be used to slice a dataframe window
-        either by time or index location. In case `None` is given the
-        first and last point of dataframe is considered
-
-        Parameters
-        ----------
-        `start` : ``None`` or ``pandas.Timestamp`` or ``int``
-        `stop` : ``None`` or ``pandas.Timestamp`` or ``int``
-
-        Return
-        ------
-        ``tuple(pandas.Timestamp, pandas.Timestamp)``
-            `start`, `stop` values as time indexing
-
-        """
-        if start == None:
-            start = self.df.index[0]
-        if stop == None:
-            stop = self.df.index[-1]
-        if not isinstance(start, int):
-            if not isinstance(start, pd.Timestamp):
-                raise ValueError(
-                    "{} is not a valid starting point".format(start)
+    def __cache_insert_dataframe(self, bar_type, step):
+        if bar_type not in self.__bar_attr.keys():
+            print(
+                "bar {} requested not in availabe ones : {}".format(
+                    bar_type, list(self.__bar_attr.keys())
                 )
-        if not isinstance(stop, int):
-            if not isinstance(stop, pd.Timestamp):
-                raise ValueError(
-                    "{} is not a valid stopping point".format(stop)
-                )
-        if isinstance(start, int):
-            start = self.df.index[start]
-        if isinstance(stop, int):
-            stop = self.df.index[stop]
-        if stop <= start:
-            raise ValueError("{} is not greater than {}".format(stop, start))
-        return start, stop
+            )
+            return
+        if bar_type == "time" and step not in self.available_time_steps:
+            print("Time step requested {} not available".format(step))
+            return
+        if isinstance(step, float):
+            step = int(step)
+        key_format = "{}_{}".format(bar_type, step)
+        if key_format in self.__cached_dataframes.keys():
+            return
+        self.__cached_dataframes[key_format] = self.__getattribute__(
+            self.__bar_attr[bar_type]
+        )(step=step)
 
     def __reassemble_df(self, df, strides):
         """
-        Group intervals of a dataframe in new open-high-low-close bars
+        Group intervals of the dataframe `df` in new open-high-low-close bars
         between strides of indexes `strides[i - 1]` to `strides[i]`
 
         Return
@@ -204,10 +227,58 @@ class RawData:
         new_df.insert(0, "OpenTime", bar_opening_time)
         return new_df.astype({"TickVol": "int32", "Volume": "int32"})
 
-    def tick_bars(self, start=None, stop=None, bar_size_th=10000):
+    def cache_dataframes(self):
+        return list(self.__cached_dataframes)
+
+    def cache_dataframes_size(self):
+        full_size = 0
+        for df in self.__cached_dataframes.values():
+            full_size = full_size + df.__sizeof__()
+        return full_size + self.df.__sizeof__()
+
+    def cache_dataframes_clean(self):
+        del self.__cached_dataframes
+        self.__cached_dataframes = {}
+
+    def assert_window(self, start, stop):
+        """
+        Ensure that two variables can be used to slice a dataframe window
+        either by time or index location. In case `None` is given the
+        first and last point of dataframe is considered
+
+        Parameters
+        ----------
+        `start` : ``None`` or ``pandas.Timestamp`` or ``int``
+        `stop` : ``None`` or ``pandas.Timestamp`` or ``int``
+
+        Return
+        ------
+        ``tuple(pandas.Timestamp, pandas.Timestamp)``
+            `start`, `stop` values as time indexing
+
+        """
+        if start == stop == None:
+            return self.df.index[0], self.df.index[-1]
+        if start == None:
+            start = self.df.index[0]
+        if stop == None:
+            stop = self.df.index[-1]
+        if not isinstance(start, int) and not isinstance(start, pd.Timestamp):
+            raise ValueError("{} is not a valid starting point".format(start))
+        if not isinstance(stop, int) and not isinstance(stop, pd.Timestamp):
+            raise ValueError("{} is not a valid stopping point".format(stop))
+        if isinstance(start, int):
+            start = self.df.index[start]
+        if isinstance(stop, int):
+            stop = self.df.index[stop]
+        if stop <= start:
+            raise ValueError("{} is not greater than {}".format(stop, start))
+        return start, stop
+
+    def tick_bars(self, start=None, stop=None, step=10000):
         """
         Convert 1-minute time spaced dataframe to
-        (approximately) `bar_size_th` ticks spaced
+        (approximately) `step` ticks spaced
 
         Parameter
         ---------
@@ -215,7 +286,7 @@ class RawData:
             first index to use
         `stop` : ``pandas.Timestamp`` or ``int``
             last index to use
-        `bar_size_th` : ``int``
+        `step` : ``int``
             number of ticks/deals to form a new bar (dataframe row)
 
         Return
@@ -223,20 +294,24 @@ class RawData:
             Dataframe sampled in ticks/deals
 
         """
-        start, stop = self.__assert_window(start, stop)
-        if not isinstance(bar_size_th, int):
-            bar_size_th = int(bar_size_th)
+        start, stop = self.assert_window(start, stop)
+        if not isinstance(step, int):
+            step = int(step)
+        cache_key = "tick_{}".format(step)
+        if cache_key in self.__cached_dataframes.keys():
+            print("Taken from cache")
+            return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
         ticks_parser = df_window["TickVol"].astype(float).to_numpy()
-        nbars = indexing_cusum(nlines, ticks_parser, strides, bar_size_th)
+        nbars = indexing_cusum(nlines, ticks_parser, strides, step)
         return self.__reassemble_df(df_window, strides[:nbars])
 
-    def volume_bars(self, start=None, stop=None, bar_size_th=1e7):
+    def volume_bars(self, start=None, stop=None, step=1e7):
         """
         Convert 1-minute time spaced dataframe to
-        (approximately) `bar_size_th` volume spaced
+        (approximately) `step` volume spaced
 
         Parameter
         ---------
@@ -244,28 +319,32 @@ class RawData:
             first index to use
         `stop` : ``pandas.Timestamp`` or ``int``
             last index to use
-        `bar_size_th` : ``int``
-            volume required to form a new candle-stick (data-frame row)
+        `step` : ``int``
+            volume required to form a new bar (dataframe row)
 
         Return
         ``pandas.DataFrame``
             dataframe sampled in volume
 
         """
-        start, stop = self.__assert_window(start, stop)
-        if not isinstance(bar_size_th, int):
-            bar_size_th = int(bar_size_th)
+        start, stop = self.assert_window(start, stop)
+        if not isinstance(step, int):
+            step = int(step)
+        cache_key = "volume_{}".format(step)
+        if cache_key in self.__cached_dataframes.keys():
+            print("Taken from cache")
+            return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
         vol_parser = df_window["Volume"].astype(float).to_numpy()
-        nbars = indexing_cusum(nlines, vol_parser, strides, bar_size_th)
+        nbars = indexing_cusum(nlines, vol_parser, strides, step)
         return self.__reassemble_df(df_window, strides[:nbars])
 
-    def money_bars(self, start=None, stop=None, bar_size_th=1e8):
+    def money_bars(self, start=None, stop=None, step=1e8):
         """
         Convert 1-minute time spaced dataframe to
-        (approximately) `bar_size_th` money spaced
+        (approximately) `step` money spaced
 
         Parameter
         ---------
@@ -273,22 +352,28 @@ class RawData:
             first index to use
         `stop` : ``pandas.Timestamp`` or ``int``
             last index to use
-        `bar_size_th` : ``float``
-            money volume required to form a new candle-stick (dataframe row)
+        `step` : ``float``
+            money volume required to form a new bar (dataframe row)
 
         Return
         ``pandas.DataFrame``
-            dataframe sampled according to `bar_size_th` money exchanged
+            dataframe sampled according to `step` money exchanged
 
         """
-        start, stop = self.__assert_window(start, stop)
+        start, stop = self.assert_window(start, stop)
+        if not isinstance(step, int):
+            step = int(step)
+        cache_key = "money_{}".format(step)
+        if cache_key in self.__cached_dataframes.keys():
+            print("Taken from cache")
+            return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
         money_parser = (
             df_window["Volume"] * (df_window["Close"] + df_window["Open"]) / 2
         ).to_numpy()
-        nbars = indexing_cusum(nlines, money_parser, strides, bar_size_th)
+        nbars = indexing_cusum(nlines, money_parser, strides, step)
         return self.__reassemble_df(df_window, strides[:nbars])
 
     def daily_bars(self, start=None, stop=None):
@@ -303,7 +388,11 @@ class RawData:
             last index to use
 
         """
-        start, stop = self.__assert_window(start, stop)
+        start, stop = self.assert_window(start, stop)
+        cache_key = "time_day"
+        if cache_key in self.__cached_dataframes.keys():
+            print("Taken from cache")
+            return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
@@ -315,27 +404,46 @@ class RawData:
         daily_df.index.name = "DateTime"
         return daily_df.drop("OpenTime", axis=1)
 
-    def change_sample_interval(self, start=None, stop=None, time_step=60):
+    def change_sample_interval(self, start=None, stop=None, step=60):
         """
         Return a dataframe resizing the sample time interval
-        ignoring the market opening and closing periods.
+        IGNORING the market opening and closing periods.
 
         Parameters
         ----------
-        start : ``datetime.datetime``
+        `start` : ``datetime.datetime``
             Initial time instant (pandas.Timestamp).
-        stop : ``datetime.datetime``
+        `stop` : ``datetime.datetime``
             Final time instant (pandas.Timestamp).
-        time_step : ``int``
+        `step` : ``int``
             In minutes. Available values are [1,5,10,15,30,60] (default 60)
 
+        Return
+        ------
+        ``pandas.DataFrame``
+            new dataframe with bars sampled in the `step` interval given
+
+        WARNING
+        -------
+        In case step is 5, 10, 15, 30, 60 this function is highly
+        demanding to compute for the entire 1-minute dataframe of
+        about 10^4 data bars. Tipically for the entire dataframe,
+        it takes several minutes.
+
         """
-        available_steps = [1, 5, 10, 15, 30, 60]
-        if time_step not in available_steps:
-            raise ValueError("Time step requested not in ", available_steps)
-        start, stop = self.__assert_window(start, stop)
+        start, stop = self.assert_window(start, stop)
+        if step not in self.available_time_steps:
+            raise ValueError(
+                "Time step requested not in ", self.available_time_steps
+            )
+        cache_key = "time_{}".format(step)
+        if cache_key in self.__cached_dataframes.keys():
+            print("Taken from cache")
+            return self.__cached_dataframes[cache_key].loc[start:stop].copy()
+        if step == "day":
+            return self.daily_bars(start, stop)
         work_df = self.df.loc[start:stop]
-        if time_step == 1:
+        if step == 1:
             return work_df.copy()
         nlines = work_df.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
@@ -345,16 +453,16 @@ class RawData:
         bar_list = []
         for i in range(ndays - 1):
             opening_min = work_df.index[day_strides[i]].minute
-            first_bar_minutes = time_step + 1 - opening_min % time_step
+            first_bar_minutes = step + 1 - opening_min % step
             t1 = work_df.index[day_strides[i]] + pd.Timedelta(
                 minutes=first_bar_minutes
             )
-            t2 = t1 + pd.Timedelta(minutes=time_step)
+            t2 = t1 + pd.Timedelta(minutes=step)
             while t2 < work_df.index[day_strides[i + 1] - 1]:
                 window_df = work_df.loc[t1:t2]
                 if window_df.empty:
                     t1 = t2
-                    t2 = t2 + pd.Timedelta(minutes=time_step)
+                    t2 = t2 + pd.Timedelta(minutes=step)
                     continue
                 bar_vol = window_df["Volume"].sum()
                 bar_tck = window_df["TickVol"].sum()
@@ -374,7 +482,7 @@ class RawData:
                     ]
                 )
                 t1 = t2
-                t2 = t2 + pd.Timedelta(minutes=time_step)
+                t2 = t2 + pd.Timedelta(minutes=step)
         new_df = pd.DataFrame(
             bar_list,
             columns=[
