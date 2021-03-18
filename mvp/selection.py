@@ -389,7 +389,7 @@ class BestEffortStratifiedPEKFold(StratifiedKFold, _BasePEKFold):
             The timestamps for initial and end of each horizon.
         """
         X = horizon.values
-        super_gen = super(BestEffortStratifiedPEKFold, selft).split(X, labels)
+        super_gen = super(BestEffortStratifiedPEKFold, self).split(X, labels)
         for train_idx, test_idx in super_gen:
             sequencial_test_idx = np.split(
                 test_idx, np.where(np.diff(test_idx) > 1)[0] + 1
