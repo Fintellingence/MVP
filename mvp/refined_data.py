@@ -146,7 +146,7 @@ class RefinedData(RawData):
             "AUTOCORRELATION_PERIOD": "autocorr_period",
         }
         self.__cached_features = {}
-        self.volume_density(append=True)
+        # self.volume_density(append=True)
         for feature in requested_features.keys():
             if feature not in self.__attr.keys():
                 continue
