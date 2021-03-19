@@ -242,7 +242,7 @@ def indicator_avg_uniqueness(indicator):
     return uniqueness[uniqueness > 0].mean()
 
 
-def bootstrap_selection(indicator, num_of_data=None, seed=12345):
+def bootstrap_selection(indicator, num_of_data=None, random_state=None):
     """
     Select `num_of_data` horizons by sampling with replacement
     (aka bootstrap sampling) sequentialy. The samples are drawn from a
@@ -261,7 +261,7 @@ def bootstrap_selection(indicator, num_of_data=None, seed=12345):
     data_idx : ``np.array``
         The list contaning the indices for selected events
     """
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(12345) if random_state is None else random_state
     num_of_events = indicator.shape[1]
     num_of_data = num_of_events if num_of_data is None else num_of_data
     sampled_events = np.zeros(num_of_data)
