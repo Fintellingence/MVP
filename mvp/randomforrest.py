@@ -54,6 +54,7 @@ def _generate_sample_indices(random_state, n_samples, indicator):
     sample_indices = bootstrap_selection(
         indicator, num_of_data=n_samples, random_state=random_instance
     )
+    print(sample_indices)
 
     return sample_indices
 
@@ -174,6 +175,7 @@ class BaseForest(six.with_metaclass(ABCMeta, BaseEnsemble)):
         return sparse_hstack(indicators).tocsr(), n_nodes_ptr
 
     def fit(self, X, y, sample_weight=None, indicator=None):
+        print("Fit starts")
         X = check_array(X, accept_sparse="csc", dtype=DTYPE)
         y = check_array(y, accept_sparse="csc", ensure_2d=False, dtype=None)
         if indicator is None and self.bootstrap:
@@ -242,6 +244,7 @@ class BaseForest(six.with_metaclass(ABCMeta, BaseEnsemble)):
                 random_state.randint(MAX_INT, size=len(self.estimators_))
 
             trees = []
+            print("Joblib starts")
             for i in range(n_more_estimators):
                 tree = self._make_estimator(
                     append=False, random_state=random_state

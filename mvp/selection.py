@@ -1,3 +1,4 @@
+import os
 from functools import partial
 from multiprocessing import Pool
 from sklearn.model_selection import KFold, StratifiedKFold
@@ -5,6 +6,7 @@ from sklearn.model_selection import KFold, StratifiedKFold
 import numpy as np
 import pandas as pd
 
+from mvp.bootstrap import sequencial_bootstrap
 
 def parallel_map_df(func, data, num_of_threads, num_of_chunks, **kwargs):
     """
@@ -232,17 +234,7 @@ def indicator(closed_idx, horizon):
     return indicator
 
 
-def indicator_avg_uniqueness(indicator):
-    """
-    Determine the average uniqueness for the events represented in
-    indicator matrix.
-    """
-    sum_occurrences = indicator.sum(axis=1)
-    uniqueness = indicator.div(sum_occurrences, axis=0)
-    return uniqueness[uniqueness > 0].mean()
-
-
-def bootstrap_selection(indicator, num_of_data=None, random_state=None):
+def bootstrap_selection(indicator, num_of_data=-1, random_state=None, num_of_threads=None):
     """
     Select `num_of_data` horizons by sampling with replacement
     (aka bootstrap sampling) sequentialy. The samples are drawn from a
@@ -261,23 +253,9 @@ def bootstrap_selection(indicator, num_of_data=None, random_state=None):
     data_idx : ``np.array``
         The list contaning the indices for selected events
     """
-    rng = np.random.default_rng(12345) if random_state is None else random_state
-    num_of_events = indicator.shape[1]
-    num_of_data = num_of_events if num_of_data is None else num_of_data
-    sampled_events = np.zeros(num_of_data)
-    for i in range(num_of_data):
-        avg_uniqueness = np.zeros(num_of_events)
-        for j in range(num_of_events):
-            sampled_events[i] = j
-            occurrences_of_interest = indicator[sampled_events[0 : i + 1]]
-            last_event_uniqueness = indicator_avg_uniqueness(
-                occurrences_of_interest
-            )
-            last_event_uniqueness = last_event_uniqueness.values[-1]
-            avg_uniqueness[j] = last_event_uniqueness
-        prob = avg_uniqueness / avg_uniqueness.sum()
-        sampled_events[i] = rng.choice(indicator.columns, p=prob)
-    return sampled_events
+    indicator = indicator.values.astype(np.int8)
+    num_of_threads = num_of_threads if num_of_threads is not None else os.cpu_count()
+    return sequencial_bootstrap(indicator, num_of_threads, num_of_data, random_state)
 
 
 # FIXME: Not Good

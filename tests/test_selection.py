@@ -354,20 +354,6 @@ def test_sample_weights(
     )
 
 
-def test_indicator_avg_uniqueness(
-    large_closed_prices, large_horizons, large_avg_uniqueness
-):
-    indicator = selection.indicator(large_closed_prices.index, large_horizons)
-    avg_uniqueness = pd.Series(
-        selection.indicator_avg_uniqueness(indicator).values,
-        index=large_horizons.index,
-    )
-    assert_series_equal(
-        avg_uniqueness,
-        large_avg_uniqueness,
-    )
-
-
 def test_bootstrap_selection(choices, expected_indicator):
     assert_array_equal(
         selection.bootstrap_selection(expected_indicator, 20),
