@@ -110,10 +110,10 @@ class RawData:
         `symbol` : ``str``
             symbol code of the company to load data
         `db_path` : ``str``
-            full path to database file
+            full path to 1-minute sample database file
         `preload` : ``dict``
             {
-                "time": list[``int`` / "day"]   (new time interval of bars)
+                "time": list[``int`` , "day"]   (new time interval of bars)
                 "tick": list[``int``]       (bars in amount of deals occurred)
                 "volume": list[``int``]     (bars in amount of volume)
                 "money": list[``int``]      (bars in amount of money)
@@ -128,8 +128,9 @@ class RawData:
         if not os.path.isfile(db_path):
             raise IOError("Database file {} not found".format(db_path))
         self.db_path = db_path
+        self.db_version = self.db_path.split("_")[-1].split(".")[0]
         try:
-            self.df = self.__get_data_from_db()
+            self.df = self.__get_data_from_db(self.db_path)
         except:
             raise ValueError(
                 "symbol {} not found in database {}".format(symbol, db_path)
@@ -143,15 +144,23 @@ class RawData:
             "money": "money_bars",
         }
         self.__cached_dataframes = {}
+        self.__cached_dataframes["time_1"] = self.df
         for df_type in preload.keys():
+            if df_type not in self.__bar_attr.keys():
+                print(
+                    "bar {} requested not in availabe ones : {}".format(
+                        df_type, list(self.__bar_attr.keys())
+                    )
+                )
+                continue
             if isinstance(preload[df_type], list):
                 for step in preload[df_type]:
                     self.__cache_insert_dataframe(df_type, step)
             else:
                 self.__cache_insert_dataframe(df_type, preload[df_type])
 
-    def __get_data_from_db(self):
-        conn = sql3.connect(self.db_path)
+    def __get_data_from_db(self, db_path):
+        conn = sql3.connect(db_path)
         df = pd.read_sql("SELECT * FROM {}".format(self.symbol), conn)
         conn.close()
         df.index = pd.to_datetime(df["DateTime"])
@@ -159,21 +168,31 @@ class RawData:
         return df
 
     def __cache_insert_dataframe(self, bar_type, step):
-        if bar_type not in self.__bar_attr.keys():
-            print(
-                "bar {} requested not in availabe ones : {}".format(
-                    bar_type, list(self.__bar_attr.keys())
-                )
-            )
-            return
-        if bar_type == "time" and step not in self.available_time_steps:
-            print("Time step requested {} not available".format(step))
-            return
         if isinstance(step, float):
             step = int(step)
         key_format = "{}_{}".format(bar_type, step)
         if key_format in self.__cached_dataframes.keys():
             return
+        if bar_type == "time":
+            if step not in self.available_time_steps:
+                print("Time step requested {} not available".format(step))
+                return
+            base_dir = os.path.dirname(self.db_path)
+            db_filename = "minute{}_database_{}.db".format(
+                step, self.db_version
+            )
+            if step == "day":
+                db_filename = "daily_database_{}.db".format(self.db_version)
+            db_full_path = os.path.join(base_dir, db_filename)
+            if os.path.isfile(db_full_path):
+                try:
+                    self.__cached_dataframes[
+                        key_format
+                    ] = self.__get_data_from_db(db_full_path)
+                    print("Interval {} loaded from database".format(step))
+                    return
+                except:
+                    pass
         self.__cached_dataframes[key_format] = self.__getattribute__(
             self.__bar_attr[bar_type]
         )(step=step)
@@ -181,7 +200,7 @@ class RawData:
     def __reassemble_df(self, df, strides):
         """
         Group intervals of the dataframe `df` in new open-high-low-close bars
-        between strides of indexes `strides[i - 1]` to `strides[i]`
+        between strides of indexes `strides[i - 1]` to `strides[i]` for i > 0
 
         Return
         ------
