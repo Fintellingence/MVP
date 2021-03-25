@@ -5,16 +5,20 @@
 #include <vector>
 
 
-void point_wise_sum(std::vector<int>& u, const std::vector<std::int8_t>& v);
-double event_uniqueness(const std::vector<int>& u, const std::vector<std::int8_t>& v);
+std::vector<int> overlapped_idx(
+        const std::vector<int>& event,
+        const int start,
+        const int end
+);
 std::vector<double> probabilities(const std::vector<double>& avg_uniqueness);
-std::vector<double> sampled_event_uniqueness(
-        int n,
-        int num_of_events,
-        int num_of_timestamps,
-        int num_of_threads,
-        std::int8_t* indicator,
+std::vector<double> probabilities_from_sampled_events(
+        const int n,
+        const int num_of_events,
+        const int num_of_threads,
+        const std::int32_t* horizon,
         const std::vector<int>& sampled_events
 );
+double event_avg_uniqueness(const std::vector<int>& sum);
+void increment(std::vector<int>& sum, const std::vector<int>& range);
 
 #endif

@@ -221,20 +221,20 @@ def time_weights(avg_uniqueness, p=1, min_ratio=0.01, sort=False):
     return weights
 
 
-def indicator(closed_idx, horizon):
+def raw_horizon(closed_idx, horizon):
     """
-    Determine a matrix to indicate of occurrences, in which rows
-    represent the timestamps and columns represent the events.
+    Determine a matrix to indicate the events and their horizons based on
+    indices, instead of timestamps.
     """
-    indicator = pd.DataFrame(
-        0, index=closed_idx, columns=range(horizon.shape[0])
-    )
+    table = pd.Series(np.arange(closed_idx.shape[0], dtype=np.int32), index=closed_idx)
+    raw_horizon = np.zeros((horizon.shape[0], 2), dtype=np.int32)
     for i, (s, e) in enumerate(horizon.iteritems()):
-        indicator.loc[s:e, i] = 1.0
-    return indicator
+        raw_horizon[i][0] = table[s]
+        raw_horizon[i][1] = table[e]
+    return raw_horizon
+    
 
-
-def bootstrap_selection(indicator, num_of_data=-1, random_state=None, num_of_threads=None):
+def bootstrap_selection(np_horizon, num_of_data=-1, random_state=None, num_of_threads=None):
     """
     Select `num_of_data` horizons by sampling with replacement
     (aka bootstrap sampling) sequentialy. The samples are drawn from a
@@ -244,18 +244,17 @@ def bootstrap_selection(indicator, num_of_data=-1, random_state=None, num_of_thr
 
     Parameters
     ----------
-    `indicator` : ``DataFrame``
-        The matrix to indicate of occurrences of horizons along the time
-        space of closed prices
+    `np_horizon` : ``np.array``
+        The matrix indicating the events and their horizons using integer indices
+        (see ``raw_horizon`` function)
 
     Return
     ------
     data_idx : ``np.array``
         The list contaning the indices for selected events
     """
-    indicator = indicator.values.astype(np.int8)
     num_of_threads = num_of_threads if num_of_threads is not None else os.cpu_count()
-    return sequencial_bootstrap(indicator, num_of_threads, num_of_data, random_state)
+    return sequencial_bootstrap(np_horizon, num_of_threads, num_of_data, random_state)
 
 
 # FIXME: Not Good

@@ -222,12 +222,6 @@ def avg_uniqueness():
     return pd.Series(raw, index=index)
 
 
-def test_indicator(closed_prices, horizons, expected_indicator):
-    assert_frame_equal(
-        selection.indicator(closed_prices.index, horizons), expected_indicator
-    )
-
-
 @mark.parametrize(
     "idx_chunk_events, occurrences",
     [([0, 3], [1, 1, 1, 1, 1, 1]), ([5, 7, 8], [2, 1, 2, 2, 2])],
@@ -354,9 +348,10 @@ def test_sample_weights(
     )
 
 
-def test_bootstrap_selection(choices, expected_indicator):
+def test_bootstrap_selection(choices, horizons, closed_prices):
+    np_horizon = selection.raw_horizon(closed_prices.index, horizons)
     assert_array_equal(
-        selection.bootstrap_selection(expected_indicator, 20),
+        selection.bootstrap_selection(np_horizon, 20),
         choices,
     )
 

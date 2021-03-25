@@ -5,27 +5,22 @@
 #include "_bootstrap.h"
 
 
-void point_wise_sum(std::vector<int>& u, const std::vector<std::int8_t>& v)
+void increment(std::vector<int>& sum, const std::vector<int>& range)
 {
-    int size = u.size();
-    for(int i = 0; i < size; i++) {
-        u[i] += v[i];
+    for(int i = range[0]; i < range[1]; i++) {
+        sum[i] += 1;
     }
 }
 
 
-double event_uniqueness(const std::vector<int>& u, const std::vector<std::int8_t>& v)
+double event_avg_uniqueness(const std::vector<int>& sum)
 {
-    int size = u.size();
-    std::vector<double> point_uniqueness;
-    for(int i = 0; i < size; i++) {
-        if(u[i] > 0 && v[i] > 0) {
-            point_uniqueness.push_back(double(v[i]) / double(u[i]));
-        }
-    }
-
+    int size = sum.size();
     double uniqueness = 0;
-    size = point_uniqueness.size();
+    std::vector<double> point_uniqueness (size, 1.0);
+    for(int i = 0; i < size; i++) {
+        point_uniqueness[i] /= double(sum[i]);
+    }
     for(int i = 0; i < size; i++) {
         uniqueness += point_uniqueness[i];
     }
@@ -48,31 +43,61 @@ std::vector<double> probabilities(const std::vector<double>& avg_uniqueness)
 }
 
 
-std::vector<double> sampled_event_uniqueness(
-        int n,
-        int num_of_events,
-        int num_of_timestamps,
-        int num_of_threads,
-        std::int8_t* indicator,
+std::vector<int> overlapped_idx(
+        const std::vector<int>& event,
+        const int start,
+        const int end
+)
+{
+    std::vector<int> overlap (2, 0);
+    if(start == event[0] && end == event[1]) {
+        overlap[0] = 0;
+        overlap[1] = event[1] - event[0] + 1; 
+        return overlap;
+    }
+    if(start <= event[0]) {
+        overlap[0] = 0;
+    }
+    else {
+        overlap[0] = start - event[0];
+    }
+    if(end >= event[1]) {
+        overlap[1] = event[1] - event[0] + 1;
+    }
+    else {
+        overlap[1] = end - event[0] + 1;
+    }
+    return overlap;
+}
+
+
+std::vector<double> probabilities_from_sampled_events(
+        const int n,
+        const int num_of_events,
+        const int num_of_threads,
+        const std::int32_t* horizon,
         const std::vector<int>& sampled_events
 )
 {
-    int n_sampled_events = n + 1;
     std::vector<double> avg_uniqueness (num_of_events, 0);
 #pragma omp parallel for num_threads(num_of_threads)
     for(int i = 0; i < num_of_events; i++) {
-        std::vector <int> _sampled_events (sampled_events.begin(), sampled_events.end());
-        _sampled_events[n] = i;
-        std::vector<int> sum_of_occurrences (num_of_timestamps, 0);
-        std::vector<std::int8_t> event_occurrences (num_of_timestamps, 0);
-        for(int j = 0; j < n_sampled_events; j++) {
-            event_occurrences.assign(
-                    indicator + _sampled_events[j] * num_of_timestamps,
-                    indicator + (_sampled_events[j] + 1) * num_of_timestamps
-            );
-            point_wise_sum(sum_of_occurrences, event_occurrences);
+        const std::vector<std::int32_t> event_of_interest (
+                horizon + i * 2, horizon + (i + 1) * 2
+        );
+        std::vector<int> sum_of_occurrences (
+                event_of_interest[1] - event_of_interest[0] + 1, 1
+        );
+        for(int j = 0; j < n; j++) {
+            const int event = sampled_events[j];
+            const int start = *(horizon + event * 2);
+            const int end = *(horizon + event * 2 + 1);
+            if(start <= event_of_interest[1] && end >= event_of_interest[0]) {
+                const std::vector<int> overlap = overlapped_idx(event_of_interest, start, end);
+                increment(sum_of_occurrences, overlap);
+            }
         }
-        avg_uniqueness[i] = event_uniqueness(sum_of_occurrences, event_occurrences);
+        avg_uniqueness[i] = event_avg_uniqueness(sum_of_occurrences);
     }
     return probabilities(avg_uniqueness);
 }
