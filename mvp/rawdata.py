@@ -189,7 +189,6 @@ class RawData:
                     self.__cached_dataframes[
                         key_format
                     ] = self.__get_data_from_db(db_full_path)
-                    print("Interval {} loaded from database".format(step))
                     return
                 except:
                     pass
@@ -247,15 +246,18 @@ class RawData:
         return new_df.astype({"TickVol": "int32", "Volume": "int32"})
 
     def cache_dataframes(self):
-        return list(self.__cached_dataframes)
+        """ Return dict with all cache dataframes """
+        return self.__cached_dataframes
 
     def cache_dataframes_size(self):
+        """ Return memory required for cache in bytes """
         full_size = 0
         for df in self.__cached_dataframes.values():
             full_size = full_size + df.__sizeof__()
         return full_size + self.df.__sizeof__()
 
     def cache_dataframes_clean(self):
+        """ Remove all dataframes currently in cache """
         del self.__cached_dataframes
         self.__cached_dataframes = {}
 
@@ -318,7 +320,6 @@ class RawData:
             step = int(step)
         cache_key = "tick_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
@@ -351,7 +352,6 @@ class RawData:
             step = int(step)
         cache_key = "volume_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
@@ -384,7 +384,6 @@ class RawData:
             step = int(step)
         cache_key = "money_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
@@ -410,7 +409,6 @@ class RawData:
         start, stop = self.assert_window(start, stop)
         cache_key = "time_day"
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
@@ -457,7 +455,6 @@ class RawData:
             )
         cache_key = "time_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         if step == "day":
             return self.daily_bars(start, stop)

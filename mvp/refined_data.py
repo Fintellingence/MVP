@@ -91,7 +91,7 @@ class RefinedData(RawData):
         self,
         symbol,
         db_path,
-        preload={"time": "day"},
+        preload={"time": [5, 10, 15, 30, 60, "day"]},
         requested_features={},
         start=None,
         stop=None,
@@ -121,12 +121,10 @@ class RefinedData(RawData):
         `requested_features` : ``dict``
             Dictionary codifying some features to compute in initialization
             {
-                "MA": ``int`` (window size)
-                "DEV": ``int`` (window size)
-                "RSI": ``int`` (window size)
-                "FRAC_DIFF": ``float`` (differentiation order between 0 and 1)
-                "AUTOCORRELATION": ``(int, int)`` (window, shift)
-                "AUTOCORRELATION_PERIOD": ``int`` (shift)
+                "MA": ``int``         (window size)
+                "DEV": ``int``        (window size)
+                "RSI": ``int``        (window size)
+                "FRACDIFF": ``float`` (differentiation order between 0 and 1)
             }
         `start` : ``pd.Timestamp`` or ``int``
             index of Dataframe to start in computation of requested features
@@ -141,12 +139,10 @@ class RefinedData(RawData):
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
             "RSI": "get_RSI",
-            "FRAC_DIFF": "frac_diff",
-            "AUTOCORRELATION": "moving_autocorr",
-            "AUTOCORRELATION_PERIOD": "autocorr_period",
+            "FRACDIFF": "frac_diff",
         }
         self.__cached_features = {}
-        # self.volume_density(append=True)
+        self.volume_density(append=True)
         for feature in requested_features.keys():
             if feature not in self.__attr.keys():
                 continue
@@ -154,27 +150,17 @@ class RefinedData(RawData):
                 parameters_list = requested_features[feature]
                 for parameter in parameters_list:
                     try:
-                        if isinstance(parameter, tuple):
-                            self.__getattribute__(self.__attr[feature])(
-                                *parameter, start, stop, time_step, True
-                            )
-                        else:
-                            self.__getattribute__(self.__attr[feature])(
-                                parameter, start, stop, time_step, True
-                            )
+                        self.__getattribute__(self.__attr[feature])(
+                            parameter, start, stop, time_step, True
+                        )
                     except Exception as err:
                         print(err, ": param {} given".format(parameter))
             else:
                 parameter = requested_features[feature]
                 try:
-                    if isinstance(parameter, tuple):
-                        self.__getattribute__(self.__attr[feature])(
-                            *parameter, start, stop, time_step, True
-                        )
-                    else:
-                        self.__getattribute__(self.__attr[feature])(
-                            parameter, start, stop, time_step, True
-                        )
+                    self.__getattribute__(self.__attr[feature])(
+                        parameter, start, stop, time_step, True
+                    )
                 except ValueError as err:
                     print(err, ": param {} given".format(parameter))
 
@@ -204,16 +190,11 @@ class RefinedData(RawData):
 
     def volume_density(self, start=None, stop=None, time_step=1, append=False):
         """
-        Compute the average volume exchange per tick/deal
-
-        Return
-        ------
-        ``pandas.Series``
+        Return the average volume exchange per tick/deal
         """
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter("VOLDEN", start, stop, time_step, 1)
         if str_code in self.__cached_features.keys():
-            print("returning feature from cache")
             return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         vol_den = df_slice["Volume"] / df_slice["TickVol"]
@@ -226,10 +207,12 @@ class RefinedData(RawData):
     def get_simple_MA(
         self, window, start=None, stop=None, time_step=1, append=False
     ):
+        """
+        Return simple moving average time series of close price
+        """
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter("MA", start, stop, time_step, window)
         if str_code in self.__cached_features.keys():
-            print("returning from cache")
             return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         moving_avg = df_slice["Close"].rolling(window=window).mean()
@@ -240,10 +223,12 @@ class RefinedData(RawData):
     def get_deviation(
         self, window, start=None, stop=None, time_step=1, append=False
     ):
+        """
+        Return moving standard deviation time series of close price
+        """
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter("DEV", start, stop, time_step, window)
         if str_code in self.__cached_features.keys():
-            print("returning from cache")
             return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         moving_std = df_slice["Close"].rolling(window=window).std()
@@ -254,10 +239,12 @@ class RefinedData(RawData):
     def get_RSI(
         self, window, start=None, stop=None, time_step=1, append=False
     ):
+        """
+        Return moving Relative Strength Index time series of close price
+        """
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter("RSI", start, stop, time_step, window)
         if str_code in self.__cached_features.keys():
-            print("returning from cache")
             return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         next_df = df_slice["Close"].shift(periods=1)
@@ -324,7 +311,6 @@ class RefinedData(RawData):
             "AUTOCORR", start, stop, time_step, shift
         )
         if str_code in self.__cached_features.keys():
-            print("returning from cache")
             return self.__cached_features[str_code]
         df_slice = self.change_sample_interval(start, stop, time_step)
         df_close = df_slice["Close"]
@@ -345,7 +331,7 @@ class RefinedData(RawData):
     ):
         """
         Compute auto-correlation function for multiple time intervals
-        For each start and stop call RefinedData.autocorr_period method
+        For each start and stop call `RefinedData.autocorr_period`
 
         Parameters
         ----------
@@ -379,8 +365,6 @@ class RefinedData(RawData):
                 except:
                     invalid_values = True
                     autocorr[i, j] = np.nan
-        if invalid_values:
-            print("Some invalid periods (end > start) occurred.")
         autocorr_df = pd.DataFrame(autocorr, columns=stops, index=starts)
         autocorr_df.index.name = "start_dates"
         return autocorr_df
@@ -389,7 +373,7 @@ class RefinedData(RawData):
         self, window, shift, start=None, stop=None, time_step=1, append=False
     ):
         """
-        Compute auto-correlation in a moving window along the dataframe
+        Compute auto-correlation in a moving `window` using close price
 
         Parameters
         ----------
@@ -418,7 +402,6 @@ class RefinedData(RawData):
             "{}_{}".format(window, shift),
         )
         if str_code in self.__cached_features.keys():
-            print("returning from cache")
             return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         close_series = df_slice["Close"]
@@ -504,7 +487,6 @@ class RefinedData(RawData):
             "FRAC_DIFF", start, stop, time_step, d
         )
         if str_code in self.__cached_features.keys():
-            print("returning from cache")
             return self.__cached_features[str_code]
         df_slice = self.change_sample_interval(start, stop, time_step)
         w = self.__frac_diff_weights(d, weights_tol)
@@ -555,7 +537,6 @@ class RefinedData(RawData):
             "VOLA_FREQ", start, stop, time_step, window
         )
         if str_code in self.__cached_features.keys():
-            print("returning from cache")
             return self.__cached_features[str_code]
         df_slice = self.change_sample_interval(start, stop, time_step)
         money_exch = df_slice["Close"] * df_slice["Volume"]
@@ -592,7 +573,6 @@ class RefinedData(RawData):
             "VOLA_AMPL", start, stop, time_step, window
         )
         if str_code in self.__cached_features.keys():
-            print("returning from cache")
             return self.__cached_features[str_code]
         df_slice = self.change_sample_interval(start, stop, time_step)
         max_price = df_slice["High"].rolling(window=window).max()

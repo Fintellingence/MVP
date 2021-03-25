@@ -206,7 +206,7 @@ class RefinedSet:
 
     def memory_comsumption(self):
         """
-        return the total memory (approximately) being consumed
+        return the total memory (approximately) being used in bytes
         """
         total_size = 0
         for ref_obj in self.refined_obj.values():
