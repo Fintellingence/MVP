@@ -8,18 +8,18 @@ DB_PATH_FINTELLIGENCE = os.path.join(ROOT_DIR, "minute1_database_v1.db")
 class RefinedSet:
     """
     Class to collect a set of stock shares and obtain common features
-    For more info about the features see `RefinedData` class. Note
-    that despite the possibility to compute new features acessing the
-    refined objects by the `refined_obj` attribute, it is advisable to
-    restricted the analysis to the common features requested in the
-    constructor.
+    For more info about the features see `RefinedData` class. Despite
+    the possibility to compute new features acessing refined objects
+    by the `refined_obj` attribute, it is advisable to restricted the
+    analysis to the common features requested in the constructor, since
+    they are set in cache memory.
 
     Main attributes
     ---------------
     `refined_obj` : ``dict {str : RefinedData}``
         set of refined data objects acessed using the symbol as key
     `symbol_period` = ``dict {str : (pandas.Timestamp, pandas.Timestamp)}``
-        (start, stop) period the refined object was analyzed
+        (start, stop) with period the refined object was analyzed
 
     """
 
@@ -27,6 +27,7 @@ class RefinedSet:
         self,
         db_path=DB_PATH_FINTELLIGENCE,
         common_features="MA_DAY:10,20:DEV_DAY:10,20:MA_60:6:DEV_60:6",
+        preload={"time": [5, 10, 15, 30, 60, "day"]},
     ):
         """
         Parameters
@@ -63,6 +64,9 @@ class RefinedSet:
             20 days. Finally the fractional differentiation for 1 (daily
             returns) and 0.5.
 
+        `preload` : ``dict``
+            inform dataframes time intervals to hold in cache
+
         """
         if not os.path.isfile(db_path):
             raise IOError("Database file {} not found".format(db_path))
@@ -72,9 +76,9 @@ class RefinedSet:
             "DEV": "get_deviation",
             "RSI": "get_RSI",
             "FRACDIFF": "frac_diff",
-            "AUTOCORRELATION": "moving_autocorr",
         }
         self.available_time_intervals = [1, 5, 10, 15, 30, 60, "day"]
+        self.preload_data = preload
         self.raw_input_string = self.__assert_input_string(common_features)
         self.time_intervals = self.__extract_intervals(self.raw_input_string)
         self.input_dict = self.__convert_input_dict()
@@ -83,8 +87,12 @@ class RefinedSet:
 
     def __assert_input_string(self, input_string):
         """
-        validade the input string with common features. If it is not
-        in agreement with the standards raise ValueError
+        validade the input string with common features
+
+        Return
+        ------
+        ``str``
+            `input_string` removing repetitions and sorting the parameters
         """
         key_value_list_split = input_string.split(":")
         if len(key_value_list_split) % 2 != 0:
@@ -92,7 +100,12 @@ class RefinedSet:
                 "Wrong pairings divided by colons in {}".format(input_string)
             )
         keys = key_value_list_split[::2]
-        for key in keys:
+        str_vals = key_value_list_split[1::2]
+        for key, str_val in zip(keys, str_vals):
+            if not str_val or not key:
+                raise ValueError(
+                    "empty fields separated by : in {}".format(input_string)
+                )
             if len(key.split("_")) != 2:
                 raise ValueError(
                     "Each key-code must have only one '_' separating "
@@ -110,9 +123,7 @@ class RefinedSet:
         intervals = self.__extract_intervals(input_string)
         if not set(intervals).issubset(set(self.available_time_intervals)):
             raise ValueError(
-                "There are invalid available time intervals in {}".format(
-                    input_string
-                )
+                "There are invalid time intervals in {}".format(input_string)
             )
         return self.__remove_repetitions(input_string)
 
@@ -134,7 +145,8 @@ class RefinedSet:
 
     def __remove_repetitions(self, input_string):
         """
-        Remove any duplicated feature of raw input string
+        Remove any duplicated feature of `input_string`
+        and sort parameters in ascending order
         """
         key_value_list_split = input_string.split(":")
         keys = key_value_list_split[::2]
@@ -166,7 +178,8 @@ class RefinedSet:
         Return
         ------
         ``dict`` {"KEY_T" : [ value1, value2, ... , valueN }
-            where "KEY" is a method abbreviation and "T" a period
+            "KEY" is a method abbreviation and "T" a period. All
+            values are mapped to number datatypes instead of strings
 
         """
         key_value_list_split = self.raw_input_string.split(":")
@@ -181,11 +194,43 @@ class RefinedSet:
             input_dict[key] = values_list
         return input_dict
 
+    def __clean_features_cache(self):
+        for ref_obj in self.refined_obj.values():
+            ref_obj.cache_clean()
+
     def is_empty(self):
         """
         Return `True` if there are no symbols refined in this object
         """
         return not self.refined_obj
+
+    def memory_comsumption(self):
+        """
+        return the total memory (approximately) being consumed
+        """
+        total_size = 0
+        for ref_obj in self.refined_obj.values():
+            feat_size = ref_obj.cache_features_size()
+            df_size = ref_obj.cache_dataframes_size()
+            total_size = total_size + feat_size + df_size
+        return total_size
+
+    def display_info(self):
+        """
+        Print on screen current status of this symbol set object
+        """
+        print("\nActual status of refined set\n")
+        for symbol in self.refined_obj.keys():
+            start = self.symbol_period[symbol][0]
+            stop = self.symbol_period[symbol][1]
+            print("{} from {} to {}".format(symbol, start, stop))
+        print("\nraw input : {}".format(self.raw_input_string))
+        print("\nFeature key : list of parameters used")
+        for input_key in self.input_dict.keys():
+            print("\n{:20s}".format(input_key), end=" ")
+            for value in self.input_dict[input_key]:
+                print(value, end=" ")
+        print()
 
     def add_common_features(self, new_input_string):
         """
@@ -232,6 +277,52 @@ class RefinedSet:
             )
             return
 
+    def reset_common_features(self, new_input_string):
+        """
+        Append `new_input_string` in features common to all symbols
+
+        Parameters
+        ----------
+        `new_input_string` : ``str``
+            All information of features to compute for all companies loaded
+
+            "KEY1_T1:V11,V12,...:KEY2_T2:V21,V22,...:...:KEYM_TM:VM1,..."
+
+            where KEY is an `RefinedData` method abbreviation. Must be one of
+
+            "MA" = Moving Average (``int``)
+            "DEV" = Standart Deviation (``int``)
+            "RSI" = Relative Strenght Index (RSI) indicator (``int``)
+            "FRACDIFF": Fractional differentiation (``float``)
+
+            with the following data types of `Vij` in between parentheses
+
+            Note the underscore after KEYj which can be one of the following
+            1, 5, 10, 15, 30, 60 and "DAY" indicating the time step to be
+            used in resampling the data to evaluare the statistical features
+
+            example
+            -------
+            "MA_60:100,1000:DEV_DAY:10,20:FRAC_DIFF_DAY:1,0.5"
+
+        """
+        try:
+            self.__clean_features_cache()
+            self.raw_input_string = self.__assert_input_string(
+                new_input_string
+            )
+            self.input_dict = self.__convert_input_dict()
+            self.refresh_all_features()
+        except ValueError as err:
+            print(
+                err,
+                "An error occurred with the new string {}".format(
+                    new_input_string
+                ),
+                sep="\n\n",
+            )
+            return
+
     def new_symbol(self, symbol, start=None, stop=None):
         """
         Introduce new symbol in the set for a given period. The period
@@ -248,10 +339,13 @@ class RefinedSet:
             date-time of exclusion in the set
 
         """
-        preload_intervals = {"time": self.available_time_intervals}
         self.refined_obj[symbol] = RefinedData(
-            symbol, self.db_path, preload=preload_intervals
+            symbol, self.db_path, preload=self.preload_data
         )
+        valid_start, valid_stop = self.refined_obj[symbol].assert_window(
+            start, stop
+        )
+        self.symbol_period[symbol] = (valid_start, valid_stop)
         for input_key in self.input_dict.keys():
             attr_abbr_key = input_key.split("_")[0]
             str_step = input_key.split("_")[1]
@@ -262,35 +356,12 @@ class RefinedSet:
             attr_name = self.__refined_attr[attr_abbr_key]
             for parameter in self.input_dict[input_key]:
                 self.refined_obj[symbol].__getattribute__(attr_name)(
-                    parameter, start, stop, time_step, True
+                    parameter, valid_start, valid_stop, time_step, True
                 )
-        valid_start = start or self.refined_obj[symbol].df.index[0]
-        valid_stop = stop or self.refined_obj[symbol].df.index[-1]
-        self.symbol_period[symbol] = (valid_start, valid_stop)
-
-    def refresh_all_features(self):
-        """
-        Compute again all common features currently in `self.input_dict`
-        """
-        for symbol in self.refined_obj.keys():
-            start = self.symbol_period[symbol][0]
-            stop = self.symbol_period[symbol][1]
-            for input_key in self.input_dict.keys():
-                attr_abbr_key = input_key.split("_")[0]
-                str_step = input_key.split("_")[1]
-                try:
-                    time_step = int(str_step)
-                except ValueError:
-                    time_step = str_step.lower()
-                attr_name = self.__refined_attr[attr_abbr_key]
-                for parameter in self.input_dict[input_key]:
-                    self.refined_obj[symbol].__getattribute__(attr_name)(
-                        parameter, start, stop, time_step, True
-                    )
 
     def remove_symbol(self, symbol):
         """
-        Remove company symbol from the set
+        Remove company symbol from the set. Use `dict.pop` method
 
         Parameters
         ----------
@@ -306,30 +377,22 @@ class RefinedSet:
         self.symbol_period.pop(symbol, None)
         return self.refined_obj.pop(symbol, None)
 
-    def memory_comsumption(self):
+    def refresh_all_features(self):
         """
-        return the total memory (approximately) being consumed
+        Compute again all common features currently in `self.input_dict`
         """
-        total_size = 0
-        for ref_obj in self.refined_obj.values():
-            feat_size = ref_obj.cache_features_size()
-            df_size = ref_obj.cache_dataframes_size()
-            total_size = total_size + feat_size + df_size
-        return total_size
-
-    def display_info(self):
-        """
-        Print on screen current status of this symbol set object
-        """
-        print("\nActual status of refined set\n")
-        for symbol in self.refined_obj.keys():
+        for symbol, ref_obj in self.refined_obj.items():
             start = self.symbol_period[symbol][0]
             stop = self.symbol_period[symbol][1]
-            print("{} from {} to {}".format(symbol, start, stop))
-        print("\nraw input : {}".format(self.raw_input_string))
-        print("\nFeature key : list of parameters used")
-        for input_key in self.input_dict.keys():
-            print("\n{:20s}".format(input_key), end=" ")
-            for value in self.input_dict[input_key]:
-                print(value, end=" ")
-        print()
+            for input_key in self.input_dict.keys():
+                attr_abbr_key = input_key.split("_")[0]
+                str_step = input_key.split("_")[1]
+                try:
+                    time_step = int(str_step)
+                except ValueError:
+                    time_step = str_step.lower()
+                attr_name = self.__refined_attr[attr_abbr_key]
+                for parameter in self.input_dict[input_key]:
+                    ref_obj.__getattribute__(attr_name)(
+                        parameter, start, stop, time_step, True
+                    )

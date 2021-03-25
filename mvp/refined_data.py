@@ -560,7 +560,7 @@ class RefinedData(RawData):
         df_slice = self.change_sample_interval(start, stop, time_step)
         money_exch = df_slice["Close"] * df_slice["Volume"]
         vol_series = money_exch.rolling(window=window).apply(
-            lambda x: mean_quadratic_freq(x)
+            lambda x: mean_quadratic_freq(x, time_step)
         )
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
@@ -597,7 +597,7 @@ class RefinedData(RawData):
         df_slice = self.change_sample_interval(start, stop, time_step)
         max_price = df_slice["High"].rolling(window=window).max()
         min_price = df_slice["Low"].rolling(window=window).min()
-        ma = self.get_simple_MA(window)
+        ma = self.get_simple_MA(window, start, stop, time_step)
         vol_series = (max_price - min_price) / ma
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
