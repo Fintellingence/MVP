@@ -1,4 +1,5 @@
 import os
+
 from mvp.refined_data import RefinedData
 
 ROOT_DIR = os.path.join(os.path.expanduser("~"), "FintelligenceData")
@@ -159,7 +160,7 @@ class RefinedSet:
                 raw_str_val = str_val
             try:
                 num_vals = list(map(int, set(raw_str_val.split(","))))
-            except Exception as ex:
+            except Exception:
                 num_vals = list(map(float, set(raw_str_val.split(","))))
             num_vals.sort()
             str_val_unique = ",".join(map(str, num_vals))

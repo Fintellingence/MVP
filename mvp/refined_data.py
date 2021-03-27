@@ -1,11 +1,9 @@
-import pandas as pd
-import numpy as np
+from math import sqrt
 
-from math import sqrt, pi
-from functools import partial
-from multiprocessing import Pool
+import numpy as np
+import pandas as pd
+from numba import float64, int32, njit, prange
 from statsmodels.tsa.stattools import adfuller
-from numba import njit, prange, int32, float64
 
 from mvp.rawdata import RawData
 
@@ -318,7 +316,7 @@ class RefinedData(RawData):
             raise ValueError(
                 "Period enclosed from {} to {} provided {} "
                 "data points, while {} shift was required".format(
-                    start, end, df_close.shape[0], shift
+                    start, stop, df_close.shape[0], shift
                 )
             )
         autocorr = df_close.autocorr(lag=shift)
@@ -355,15 +353,13 @@ class RefinedData(RawData):
         n_starts = len(starts)
         n_stops = len(stops)
         autocorr = np.empty([n_starts, n_stops])
-        invalid_values = False
         for i in range(n_starts):
             for j in range(n_stops):
                 try:
                     autocorr[i, j] = self.autocorr_period(
                         shift, starts[i], stops[j], time_step, append
                     )
-                except:
-                    invalid_values = True
+                except Exception:
                     autocorr[i, j] = np.nan
         autocorr_df = pd.DataFrame(autocorr, columns=stops, index=starts)
         autocorr_df.index.name = "start_dates"
