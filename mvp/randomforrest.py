@@ -49,12 +49,11 @@ def _partition_estimators(n_estimators, n_jobs):
     return n_jobs, n_estimators_per_job.tolist(), [0] + starts.tolist()
 
 
-def _generate_sample_indices(random_state, n_samples, indicator):
+def _generate_sample_indices(random_state, n_samples, horizon):
     random_instance = check_random_state(random_state)
     sample_indices = bootstrap_selection(
-        indicator, num_of_data=n_samples, random_state=random_instance
+        horizon, num_of_data=n_samples, random_state=random_instance
     )
-    print(sample_indices)
 
     return sample_indices
 
@@ -79,7 +78,7 @@ def _parallel_build_trees(
     n_trees,
     verbose=0,
     class_weight=None,
-    indicator=None,
+    horizon=None,
 ):
     if verbose > 1:
         print("building tree %d of %d" % (tree_idx + 1, n_trees))
@@ -92,7 +91,7 @@ def _parallel_build_trees(
             curr_sample_weight = sample_weight.copy()
 
         indices = _generate_sample_indices(
-            tree.random_state, n_samples, indicator
+            tree.random_state, n_samples, horizon
         )
         sample_counts = np.bincount(indices, minlength=n_samples)
         curr_sample_weight *= sample_counts
@@ -174,12 +173,11 @@ class BaseForest(six.with_metaclass(ABCMeta, BaseEnsemble)):
 
         return sparse_hstack(indicators).tocsr(), n_nodes_ptr
 
-    def fit(self, X, y, sample_weight=None, indicator=None):
-        print("Fit starts")
+    def fit(self, X, y, sample_weight=None, horizon=None):
         X = check_array(X, accept_sparse="csc", dtype=DTYPE)
         y = check_array(y, accept_sparse="csc", ensure_2d=False, dtype=None)
-        if indicator is None and self.bootstrap:
-            raise ValueError("Indicator is required when bootstrap is `True`")
+        if horizon is None and self.bootstrap:
+            raise ValueError("Horizon is required when bootstrap is `True`")
         if sample_weight is not None:
             sample_weight = check_array(sample_weight, ensure_2d=False)
         if issparse(X):
@@ -244,7 +242,6 @@ class BaseForest(six.with_metaclass(ABCMeta, BaseEnsemble)):
                 random_state.randint(MAX_INT, size=len(self.estimators_))
 
             trees = []
-            print("Joblib starts")
             for i in range(n_more_estimators):
                 tree = self._make_estimator(
                     append=False, random_state=random_state
@@ -264,7 +261,7 @@ class BaseForest(six.with_metaclass(ABCMeta, BaseEnsemble)):
                     len(trees),
                     verbose=self.verbose,
                     class_weight=self.class_weight,
-                    indicator=indicator,
+                    horizon=horizon,
                 )
                 for i, t in enumerate(trees)
             )

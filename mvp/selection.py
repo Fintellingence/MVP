@@ -8,6 +8,7 @@ import pandas as pd
 
 from mvp.bootstrap import sequencial_bootstrap
 
+
 def parallel_map_df(func, data, num_of_threads, num_of_chunks, **kwargs):
     """
     Apply `func` in linear distributed chunks of the data in `data`
@@ -226,15 +227,19 @@ def raw_horizon(closed_idx, horizon):
     Determine a matrix to indicate the events and their horizons based on
     indices, instead of timestamps.
     """
-    table = pd.Series(np.arange(closed_idx.shape[0], dtype=np.int32), index=closed_idx)
+    table = pd.Series(
+        np.arange(closed_idx.shape[0], dtype=np.int32), index=closed_idx
+    )
     raw_horizon = np.zeros((horizon.shape[0], 2), dtype=np.int32)
     for i, (s, e) in enumerate(horizon.iteritems()):
         raw_horizon[i][0] = table[s]
         raw_horizon[i][1] = table[e]
     return raw_horizon
-    
 
-def bootstrap_selection(np_horizon, num_of_data=-1, random_state=None, num_of_threads=None):
+
+def bootstrap_selection(
+    np_horizon, num_of_data=-1, random_state=None, num_of_threads=None
+):
     """
     Select `num_of_data` horizons by sampling with replacement
     (aka bootstrap sampling) sequentialy. The samples are drawn from a
@@ -253,8 +258,12 @@ def bootstrap_selection(np_horizon, num_of_data=-1, random_state=None, num_of_th
     data_idx : ``np.array``
         The list contaning the indices for selected events
     """
-    num_of_threads = num_of_threads if num_of_threads is not None else os.cpu_count()
-    return sequencial_bootstrap(np_horizon, num_of_threads, num_of_data, random_state)
+    num_of_threads = (
+        num_of_threads if num_of_threads is not None else os.cpu_count()
+    )
+    return sequencial_bootstrap(
+        np_horizon, num_of_threads, num_of_data, random_state
+    )
 
 
 # FIXME: Not Good
@@ -264,10 +273,13 @@ class _BasePEKFold:
     and stratified
     """
 
-    def _purge_embargo_squencial_with_test(self, horizon, train_idx, test_idx):
+    def _purge_embargo_squencial_with_test(
+        self, horizon, train_idx, test_idx, window=0
+    ):
         """
         Apply the purge and embargo processes to the `train_idx` based on the
         `test_idx` with sequencial indices representing a range of test events.
+        A possible rolling window is also considered to avoid data leakage.
 
         Parameters
         ----------
@@ -275,6 +287,8 @@ class _BasePEKFold:
             Array composed of intergers.
         `test_idx`: ``numpy.array``
             Array composed of sequencial intergers.
+        `window`: ``int``
+            Size of the window used to get the rolling statistics.
 
         Return
         ------
@@ -282,21 +296,44 @@ class _BasePEKFold:
             The new indices for training.
         """
         test_events = horizon.index[test_idx]
-        max_test_range = horizon.iloc[test_idx].max()
         left_purge_mask = horizon.iloc[train_idx] <= test_events.min()
-        _train_idx = train_idx[left_purge_mask]
+        left_train_idx = train_idx[left_purge_mask]
+        if left_train_idx.shape[0] > 0 and window > 0:
+            left_gap = (
+                (train_idx > left_train_idx[-1]) & (train_idx < test_idx[0])
+            ).sum()
+            if left_gap < window:
+                test_idx = test_idx[window - left_gap - 1 :]
+                if test_idx.shape[0] == 0:
+                    print(
+                        "The number of dropped test indices are greater than"
+                        " the fold size. Try a small number of splits"
+                    )
+                    return np.array([]), np.array([])
+        max_test_range = horizon.iloc[test_idx].max()
         first_event_after_test = horizon.index[horizon.index >= max_test_range]
         if not first_event_after_test.empty:
             first_event_after_test = first_event_after_test[0]
             embargo_gap = int(self._embargo_ratio * horizon.shape[0])
             right_purge_idx = horizon.index.get_loc(first_event_after_test)
-            _train_idx = np.concatenate(
-                [
-                    _train_idx,
-                    train_idx[train_idx >= right_purge_idx + embargo_gap],
-                ]
-            )
-        return _train_idx
+            right_train_idx = train_idx[
+                train_idx >= right_purge_idx + embargo_gap
+            ]
+            if right_train_idx.shape[0] > 0 and window > 0:
+                right_gap = (
+                    (train_idx < right_train_idx[0])
+                    & (train_idx > test_idx[-1])
+                ).sum()
+                if right_gap < window:
+                    right_train_idx = right_train_idx[window - right_gap - 1 :]
+            train_idx = np.concatenate([left_train_idx, right_train_idx])
+            if train_idx.shape[0] == 0:
+                print(
+                    "The number of dropped train indices are greater than"
+                    " the fold size. Try a small number of splits"
+                )
+                return np.array([]), np.array([])
+        return train_idx, test_idx
 
 
 class PEKFold(KFold, _BasePEKFold):
@@ -330,9 +367,11 @@ class PEKFold(KFold, _BasePEKFold):
         X = horizon.values
         super_gen = super(PEKFold, self).split(X)
         for train_idx, test_idx in super_gen:
-            train_idx = super(
+            train_idx, test_idx = super(
                 PEKFold, self
             )._purge_embargo_squencial_with_test(horizon, train_idx, test_idx)
+            if train_idx.shape[0] == 0:
+                continue
             yield train_idx, test_idx
 
 
@@ -372,9 +411,11 @@ class BestEffortStratifiedPEKFold(StratifiedKFold, _BasePEKFold):
                 test_idx, np.where(np.diff(test_idx) > 1)[0] + 1
             )
             for _test_idx in sequencial_test_idx:
-                train_idx = super(
+                train_idx, test_idx = super(
                     BestEffortStratifiedPEKFold, self
                 )._purge_embargo_squencial_with_test(
                     horizon, train_idx, _test_idx
                 )
+                if train_idx.shape[0] == 0:
+                    continue
             yield train_idx, test_idx

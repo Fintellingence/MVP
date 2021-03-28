@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from pytest import fixture, mark
 from numpy.testing import assert_array_equal
-from pandas._testing import assert_frame_equal, assert_series_equal
+from pandas._testing import assert_series_equal
 
 from mvp import selection
 
