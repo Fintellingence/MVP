@@ -255,9 +255,7 @@ class RefinedData(RawData):
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
-        # return_series = df_slice.Close - df_slice.Close.shift(periods=1)
-        return_series = 0.0
-        return_series[0] = df_slice.Close[0] - df_slice.Open[0]
+        return_series = df_slice.Close - df_slice.Close.shift(periods=1)
         gain_or_zero = return_series.apply(lambda x: 0 if x < 0 else x)
         loss_or_zero = return_series.apply(lambda x: 0 if x > 0 else -x)
         ratio = (
@@ -419,6 +417,7 @@ class RefinedData(RawData):
         mov_autocorr_ser = pd.Series(
             core_data, index=df_slice.index[window - 1 :]
         )
+        mov_autocorr_ser.name = "MOV_AUTOCORR"
         if append:
             self.__cached_features[str_code] = mov_autocorr_ser
         return mov_autocorr_ser
