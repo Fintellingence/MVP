@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import pandas as pd
 
 from mvp.refined_data import RefinedData
 
@@ -397,3 +399,60 @@ class RefinedSet:
                     ref_obj.__getattribute__(attr_name)(
                         parameter, start, stop, time_step, True
                     )
+
+    def correlation_matrix(self, time_step=1):
+        """
+        Correlation among all symbols in the set
+
+        Parameters
+        ---
+        `time_step` : ``int`` or ``str``("day")
+            time step of the dataframe sample
+
+        Return
+        ---
+        ``pandas.DataFrame``
+
+        """
+        if time_step not in self.available_time_intervals:
+            raise ValueError(
+                "Time step {} not in available values {}".format(
+                    time_step, self.available_time_intervals
+                )
+            )
+        nsymbols = len(self.refined_obj.keys())
+        mat = np.empty([nsymbols, nsymbols])
+        items_pkg = self.refined_obj.items()
+        for i, (symbol1, ref_obj1) in enumerate(items_pkg):
+            for j, (symbol2, ref_obj2) in enumerate(items_pkg):
+                if j < i:
+                    continue
+                start = max(
+                    self.symbol_period[symbol1][0],
+                    self.symbol_period[symbol2][0],
+                )
+                stop = min(
+                    self.symbol_period[symbol1][1],
+                    self.symbol_period[symbol2][1],
+                )
+                if stop <= start:
+                    corr = np.nan
+                else:
+                    cls_prices1 = ref_obj1.change_sample_interval(
+                        step=time_step
+                    ).Close.loc[start:stop]
+                    cls_prices2 = ref_obj2.change_sample_interval(
+                        step=time_step
+                    ).Close.loc[start:stop]
+                    corr = cls_prices1.corr(cls_prices2)
+                mat[i, j] = corr
+                mat[j, i] = corr
+        corr_df = pd.DataFrame(
+            mat,
+            columns=list(self.refined_obj.keys()),
+            index=list(self.refined_obj.keys()),
+            dtype=np.float64,
+        )
+        corr_df.name = "Correlation Matrix"
+        corr_df.index.name = "symbols"
+        return corr_df
