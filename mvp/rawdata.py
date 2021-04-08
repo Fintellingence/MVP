@@ -1,10 +1,11 @@
+import datetime as dt
 import os
+import sqlite3 as sql3
+
 import numpy as np
 import pandas as pd
-import datetime as dt
-import sqlite3 as sql3
 import pandas_datareader as pdr
-from numba import njit, prange, int32, float64
+from numba import float64, int32, njit, prange
 
 __all__ = ["RawData", "DailyDataYahoo"]
 
@@ -131,7 +132,7 @@ class RawData:
         self.db_version = self.db_path.split("_")[-1].split(".")[0]
         try:
             self.df = self.__get_data_from_db(self.db_path)
-        except:
+        except Exception:
             raise ValueError(
                 "symbol {} not found in database {}".format(symbol, db_path)
             )
@@ -167,6 +168,15 @@ class RawData:
         df.drop(["DateTime"], axis=1, inplace=True)
         return df
 
+    def __format_new_interval_db_name(self, time_step):
+        base_dir = os.path.dirname(self.db_path)
+        db_filename = "minute{}_database_{}.db".format(
+            time_step, self.db_version
+        )
+        if time_step == "day":
+            db_filename = "daily_database_{}.db".format(self.db_version)
+        return os.path.join(base_dir, db_filename)
+
     def __cache_insert_dataframe(self, bar_type, step):
         if isinstance(step, float):
             step = int(step)
@@ -177,21 +187,14 @@ class RawData:
             if step not in self.available_time_steps:
                 print("Time step requested {} not available".format(step))
                 return
-            base_dir = os.path.dirname(self.db_path)
-            db_filename = "minute{}_database_{}.db".format(
-                step, self.db_version
-            )
-            if step == "day":
-                db_filename = "daily_database_{}.db".format(self.db_version)
-            db_full_path = os.path.join(base_dir, db_filename)
+            db_full_path = self.__format_new_interval_db_name(step)
             if os.path.isfile(db_full_path):
                 try:
                     self.__cached_dataframes[
                         key_format
                     ] = self.__get_data_from_db(db_full_path)
-                    print("Interval {} loaded from database".format(step))
                     return
-                except:
+                except Exception:
                     pass
         self.__cached_dataframes[key_format] = self.__getattribute__(
             self.__bar_attr[bar_type]
@@ -247,15 +250,18 @@ class RawData:
         return new_df.astype({"TickVol": "int32", "Volume": "int32"})
 
     def cache_dataframes(self):
-        return list(self.__cached_dataframes)
+        """ Return dict with all cache dataframes """
+        return self.__cached_dataframes
 
     def cache_dataframes_size(self):
+        """ Return memory required for cache in bytes """
         full_size = 0
         for df in self.__cached_dataframes.values():
             full_size = full_size + df.__sizeof__()
         return full_size + self.df.__sizeof__()
 
     def cache_dataframes_clean(self):
+        """ Remove all dataframes currently in cache """
         del self.__cached_dataframes
         self.__cached_dataframes = {}
 
@@ -318,7 +324,6 @@ class RawData:
             step = int(step)
         cache_key = "tick_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
@@ -351,7 +356,6 @@ class RawData:
             step = int(step)
         cache_key = "volume_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
@@ -384,7 +388,6 @@ class RawData:
             step = int(step)
         cache_key = "money_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
@@ -410,7 +413,6 @@ class RawData:
         start, stop = self.assert_window(start, stop)
         cache_key = "time_day"
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         df_window = self.df.loc[start:stop]
         nlines = df_window.shape[0]
@@ -423,7 +425,7 @@ class RawData:
         daily_df.index.name = "DateTime"
         return daily_df.drop("OpenTime", axis=1)
 
-    def change_sample_interval(self, start=None, stop=None, step=60):
+    def change_sample_interval(self, start=None, stop=None, step=1):
         """
         Return a dataframe resizing the sample time interval
         IGNORING the market opening and closing periods.
@@ -445,9 +447,9 @@ class RawData:
         WARNING
         -------
         In case step is 5, 10, 15, 30, 60 this function is highly
-        demanding to compute for the entire 1-minute dataframe of
-        about 10^4 data bars. Tipically for the entire dataframe,
-        it takes several minutes.
+        demanding to compute in case the respective databases are
+        not provided. For the entire 1-minute dataframe of about
+        10^4 data bars, it may take up to few minutes.
 
         """
         start, stop = self.assert_window(start, stop)
@@ -457,13 +459,17 @@ class RawData:
             )
         cache_key = "time_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
-            print("Taken from cache")
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
         if step == "day":
             return self.daily_bars(start, stop)
+        try:
+            df_from_db = self.__get_data_from_db(
+                self.__format_new_interval_db_name(step)
+            )
+            return df_from_db.loc[start:stop]
+        except Exception:
+            pass
         work_df = self.df.loc[start:stop]
-        if step == 1:
-            return work_df.copy()
         nlines = work_df.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
         days_parser = work_df.index.day.to_numpy().astype(np.int32)
