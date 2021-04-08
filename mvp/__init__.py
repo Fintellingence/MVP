@@ -8,3 +8,4 @@ from mvp import data_builder
 from mvp import draw
 from mvp import primary
 from mvp import labels
+from mvp import report

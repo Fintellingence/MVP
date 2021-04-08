@@ -5,7 +5,7 @@ import pandas as pd
 from numba import float64, int32, njit, prange
 from statsmodels.tsa.stattools import adfuller
 
-import numba_stats
+from mvp import numba_stats
 from mvp.rawdata import RawData
 
 
