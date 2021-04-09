@@ -131,8 +131,8 @@ def plot_two_series(series_a, series_b):
 
 
 def plot_bollinger(model, labels, linewidth=0.2):
-    MA_name = "MA_" + str(model.features["MA"][0])
-    DEV_name = "DEV_" + str(model.features["DEV"][0])
+    MA_name = "MA_" + str(model.features["MA"])
+    DEV_name = "DEV_" + str(model.features["DEV"])
     K_value = model.features["K_value"]
     plot_data = model.feature_data.copy()
     plot_data = pd.concat([plot_data, labels], axis=1).copy()
@@ -258,8 +258,8 @@ def plot_model(model, operation_parameters, linewidth=0.2):
     close_data = model.feature_data['Close']
     label_data = mvp.labels.Labels(model.events, close_data, operation_parameters).label_data
     if model.strategy == "bollinger-bands":
-        plot_bollinger(model, label_data)
+        plot_bollinger(model, label_data, linewidth)
     if model.strategy == "crossing-MA":
-        plot_crossing_MA(model, label_data)
+        plot_crossing_MA(model, label_data, linewidth)
     if model.strategy == "classical-filter":
-        plot_classical_filter(model, label_data)
+        plot_classical_filter(model, label_data, linewidth)
