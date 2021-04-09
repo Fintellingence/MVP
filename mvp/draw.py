@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import mvp
 
 # from mvp.toolbox import time_window_df
 
@@ -241,7 +242,7 @@ def plot_classical_filter(model, labels, linewidth=0.2):
     return None
 
 
-def plot_model(model, labels, linewidth=0.2):
+def plot_model(model, operation_parameters, linewidth=0.2):
     """
     Displays the close time-series along with the indicators used by
     the primary models, also highlights Buy/Sell Sides and their
@@ -254,9 +255,11 @@ def plot_model(model, labels, linewidth=0.2):
         `labels`: ``pd.DataFrame()``
             contains a the labels of events, could come from mvp.labels.Labels.labeled_df
     """
+    close_data = model.feature_data['Close']
+    label_data = mvp.labels.Labels(model.events, close_data, operation_parameters).label_data
     if model.strategy == "bollinger-bands":
-        plot_bollinger(model, labels)
+        plot_bollinger(model, label_data)
     if model.strategy == "crossing-MA":
-        plot_crossing_MA(model, labels)
+        plot_crossing_MA(model, label_data)
     if model.strategy == "classical-filter":
-        plot_classical_filter(model, labels)
+        plot_classical_filter(model, label_data)

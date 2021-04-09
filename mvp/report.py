@@ -2,12 +2,13 @@ import pandas as pd
 import mvp
 import matplotlib.pyplot as plt
 
-def trade_book(refined_data, primary_model, operation_parameters):
-    label_data = mvp.labels.Labels(primary_model.events,refined_data.df[['Close']],operation_parameters).label_data
+def trade_book(primary_model, operation_parameters):
+    close_data = primary_model.feature_data['Close']
+    label_data = mvp.labels.Labels(primary_model.events, close_data, operation_parameters).label_data
     entries = label_data.index
     exits = label_data['PositionEnd']
-    entry_df = refined_data.df['Close'].loc[entries].reset_index().rename(columns = {'Close':'EntryPrice','DateTime':'EntryDate'})
-    exit_df = refined_data.df['Close'].loc[exits].reset_index().rename(columns = {'Close':'ExitPrice','DateTime':'ExitDate'})
+    entry_df = close_data.loc[entries].reset_index().rename(columns = {'Close':'EntryPrice','DateTime':'EntryDate'})
+    exit_df = close_data.loc[exits].reset_index().rename(columns = {'Close':'ExitPrice','DateTime':'ExitDate'})
     side_df = label_data[['Side']].reset_index().drop(columns=['DateTime'])
     trades_df = pd.concat([entry_df,exit_df,side_df],axis = 1)
     trades_df['Profit'] = trades_df['Side']*(trades_df['ExitPrice']-trades_df['EntryPrice'])
@@ -27,23 +28,27 @@ def net_profit(book):
     return gross_profit(book) + gross_loss(book)
 
 def best_trade(book):
-    return book[book['Profit'] == book['Profit'].max()]
+    return book[book['Profit'] == book['Profit'].max()].drop(columns=['NetProfit'])
 
 def worst_trade(book):
-   return book[book['Profit'] == book['Profit'].min()]
+   return book[book['Profit'] == book['Profit'].min()].drop(columns=['NetProfit'])
 
 def plot_value(book):
     book['NetProfit'].plot()
     plt.show()
     return 0
 
-def report(refined_data, primary_model, operation_parameters):
-    book = trade_book(refined_data, primary_model, operation_parameters)
+def report(primary_model, operation_parameters):
+    book = trade_book(primary_model, operation_parameters)
     operation_frequency = 'minute-1'
     print('++++++++++++++++++++')
-    print('Asset: '+refined_data.symbol)
+    print('Asset: '+primary_model.symbol)
     print('Average Holding Time: '+str(avg_holding_time(book)))
     print('Operation frequency: '+operation_frequency)
+    print('Best trade: ')
+    print(best_trade(book))
+    print('Worst trade:')
+    print(worst_trade(book))
     print('Order Book:')
     print(book)
     return 0

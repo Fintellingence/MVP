@@ -52,6 +52,7 @@ class PrimaryModel:
             "AUTOCORRELATION": "moving_autocorr",
             "AUTOCORRELATION_PERIOD": "autocorr_period",
         }
+        self.symbol = refined_data.symbol
         self.strategy = strategy
         self.features = features
         self.feature_data = self.get_feature_data(refined_data)
