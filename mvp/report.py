@@ -1,5 +1,6 @@
 import pandas as pd
 import mvp
+import matplotlib.pyplot as plt
 
 def trade_book(refined_data, primary_model, operation_parameters):
     label_data = mvp.labels.Labels(primary_model.events,refined_data.df[['Close']],operation_parameters).label_data
@@ -13,4 +14,36 @@ def trade_book(refined_data, primary_model, operation_parameters):
     trades_df['NetProfit'] = trades_df['Profit'].cumsum(skipna = False)
     return trades_df.copy()
 
+def avg_holding_time(book):
+    return (book['ExitDate']-book['EntryDate']).mean()
 
+def gross_profit(book):
+    return book[book['Profit']>0]['Profit'].sum() 
+
+def gross_loss(book):
+    return book[book['Profit']<0]['Profit'].sum() 
+
+def net_profit(book):
+    return gross_profit(book) + gross_loss(book)
+
+def best_trade(book):
+    return book[book['Profit'] == book['Profit'].max()]
+
+def worst_trade(book):
+   return book[book['Profit'] == book['Profit'].min()]
+
+def plot_value(book):
+    book['NetProfit'].plot()
+    plt.show()
+    return 0
+
+def report(refined_data, primary_model, operation_parameters):
+    book = trade_book(refined_data, primary_model, operation_parameters)
+    operation_frequency = 'minute-1'
+    print('++++++++++++++++++++')
+    print('Asset: '+refined_data.symbol)
+    print('Average Holding Time: '+str(avg_holding_time(book)))
+    print('Operation frequency: '+operation_frequency)
+    print('Order Book:')
+    print(book)
+    return 0
