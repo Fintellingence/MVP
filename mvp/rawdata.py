@@ -95,7 +95,7 @@ class RawData:
     `db_path` : ``string``
         absolute path to database file
     `available_dates` : list[``pandas.Timestamp``]
-        dates that stock market was openned (exclude holidays)
+        dates that stock market was openned (exclude holidays and weekend)
     `available_time_steps` : list[1, 5, 10, 15, 30 ,60, "day"]
         values accepted to change the sample interval from 1-minute
 
@@ -306,17 +306,29 @@ class RawData:
         (approximately) `step` ticks spaced
 
         Parameter
-        ---------
+        ---
         `start` : ``pandas.Timestamp`` or ``int``
             first index to use
         `stop` : ``pandas.Timestamp`` or ``int``
             last index to use
         `step` : ``int``
             number of ticks/deals to form a new bar (dataframe row)
+            Hint : To use some reasonable value compute the mean of
+            `TickVol` column in daily intervals
 
         Return
+        ---
         ``pandas.DataFrame``
             Dataframe sampled in ticks/deals
+
+        Warning
+        ---
+        Avoid using typically small values for `step` according to the symbol
+        since it induces small time intervals in minutes for which the
+        `change_sample_interval` interval method is preferable, because tries
+        to load data from databases without wasting computational effort.
+        Moreover, for small `step` values its variation among the bars become
+        large due to 1-minute bar fluctuations.
 
         """
         start, stop = self.assert_window(start, stop)
@@ -338,17 +350,29 @@ class RawData:
         (approximately) `step` volume spaced
 
         Parameter
-        ---------
+        ---
         `start` : ``pandas.Timestamp`` or ``int``
             first index to use
         `stop` : ``pandas.Timestamp`` or ``int``
             last index to use
         `step` : ``int``
             volume required to form a new bar (dataframe row)
+            Hint : To use some reasonable value compute the mean of
+            `Volume` column in daily intervals
 
         Return
+        ---
         ``pandas.DataFrame``
             dataframe sampled in volume
+
+        Warning
+        ---
+        Avoid using typically small values for `step` according to the symbol
+        since it induces small time intervals in minutes for which the
+        `change_sample_interval` interval method is preferable, because tries
+        to load data from databases without wasting computational effort.
+        Moreover, for small `step` values its variation among the bars become
+        large due to 1-minute bar fluctuations.
 
         """
         start, stop = self.assert_window(start, stop)
@@ -370,17 +394,29 @@ class RawData:
         (approximately) `step` money spaced
 
         Parameter
-        ---------
+        ---
         `start` : ``pandas.Timestamp`` or ``int``
             first index to use
         `stop` : ``pandas.Timestamp`` or ``int``
             last index to use
         `step` : ``float``
             money volume required to form a new bar (dataframe row)
+            Hint : To use some reasonable value compute the mean of
+            close price multiplied by the volume in daily intervals
 
         Return
+        ---
         ``pandas.DataFrame``
             dataframe sampled according to `step` money exchanged
+
+        Warning
+        ---
+        Avoid using typically small values for `step` according to the symbol
+        since it induces small time intervals in minutes for which the
+        `change_sample_interval` interval method is preferable, because tries
+        to load data from databases without wasting computational effort.
+        Moreover, for small `step` values its variation among the bars become
+        large due to 1-minute bar fluctuations.
 
         """
         start, stop = self.assert_window(start, stop)
