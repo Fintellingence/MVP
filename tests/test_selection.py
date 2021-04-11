@@ -284,49 +284,49 @@ def test_chunk_sample_weights(
 
 
 @mark.parametrize(
-    "num_of_threads, num_of_chunks", [(1, 1), (2, 100), (6, 203), (8, 8)]
+    "num_of_threads, chunk_size", [(1, 10000), (2, 100), (6, 1000), (8, 1250)]
 )
 def test_count_occurrences(
     large_closed_prices,
     large_horizons,
     large_occurrences,
     num_of_threads,
-    num_of_chunks,
+    chunk_size,
 ):
     assert_series_equal(
         selection.count_occurrences(
             large_closed_prices.index,
             large_horizons,
             num_of_threads,
-            num_of_chunks,
+            chunk_size,
         ),
         large_occurrences,
     )
 
 
 @mark.parametrize(
-    "num_of_threads, num_of_chunks", [(1, 1), (2, 100), (6, 203), (8, 8)]
+    "num_of_threads, chunk_size", [(1, 10000), (2, 100), (6, 1000), (8, 1250)]
 )
 def test_avg_uniqueness(
     large_horizons,
     large_occurrences,
     large_avg_uniqueness,
     num_of_threads,
-    num_of_chunks,
+    chunk_size,
 ):
     assert_series_equal(
         selection.avg_uniqueness(
             large_occurrences,
             large_horizons,
             num_of_threads,
-            num_of_chunks,
+            chunk_size,
         ),
         large_avg_uniqueness,
     )
 
 
 @mark.parametrize(
-    "num_of_threads, num_of_chunks", [(1, 1), (2, 100), (6, 203), (8, 8)]
+    "num_of_threads, chunk_size", [(1, 10000), (2, 100), (6, 1000), (8, 1250)]
 )
 def test_sample_weights(
     large_closed_prices,
@@ -334,7 +334,7 @@ def test_sample_weights(
     large_occurrences,
     large_sample_weights,
     num_of_threads,
-    num_of_chunks,
+    chunk_size,
 ):
     assert_series_equal(
         selection.sample_weights(
@@ -342,7 +342,7 @@ def test_sample_weights(
             large_horizons,
             large_closed_prices,
             num_of_threads,
-            num_of_chunks,
+            chunk_size,
         ),
         large_sample_weights,
     )

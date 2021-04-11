@@ -9,7 +9,7 @@ import pandas as pd
 from mvp.bootstrap import sequencial_bootstrap
 
 
-def parallel_map_df(func, data, num_of_threads, num_of_chunks, **kwargs):
+def parallel_map_df(func, data, num_of_threads, chunk_size, **kwargs):
     """
     Apply `func` in linear distributed chunks of the data in `data`
     using parallel processing.
@@ -23,8 +23,8 @@ def parallel_map_df(func, data, num_of_threads, num_of_chunks, **kwargs):
         The data that will be divided in different chunks.
     ``num_of_threads : ``int``
         The number of threads that will process the chunks.
-    ``num_of_chunks : ``int``
-        The number of chunks.
+    ``chunk_size : ``int``
+        The size of each chunk
     ``**kwargs : ``dict``
         Addicional arguments that will be passed to the `func`.
 
@@ -35,18 +35,22 @@ def parallel_map_df(func, data, num_of_threads, num_of_chunks, **kwargs):
         `data` with the arguments in `**kwargs`.
     """
 
-    def slice_data(chunks, data):
-        n_chunks = chunks + 1 if chunks < len(data) else len(data)
+    def slice_data(chunk_size, data_size):
+        n_chunks = int(np.round(data_size / chunk_size)) + 1
         chunk_idx = np.floor(np.linspace(0, len(data), n_chunks)).astype(int)
         for i in range(1, chunk_idx.size):
             yield data[chunk_idx[i - 1] : chunk_idx[i]]
 
-    slicer = slice_data(num_of_chunks, data)
+    data_size = len(data) 
     partial_func = partial(func, **kwargs)
-    with Pool(num_of_threads) as pool:
-        output = [out for out in pool.imap(partial_func, slicer)]
-    pd_out = pd.concat(output, axis=0)
-    pd_out = pd_out.loc[~pd_out.index.duplicated(keep="last")].sort_index()
+    if chunk_size < data_size:
+        slicer = slice_data(chunk_size, data_size)
+        with Pool(num_of_threads) as pool:
+            output = [out for out in pool.imap(partial_func, slicer)]
+        pd_out = pd.concat(output, axis=0)
+        pd_out = pd_out.loc[~pd_out.index.duplicated(keep="last")].sort_index()
+    else:
+        pd_out = partial_func(data)
     return pd_out
 
 
@@ -137,7 +141,7 @@ def chunk_sample_weights(event_chunks, occurrences, horizon, closed_prices):
     return weights.abs()
 
 
-def count_occurrences(closed_index, horizon, num_of_threads, num_of_chunks):
+def count_occurrences(closed_index, horizon, num_of_threads, chunck_size):
     """
     Compute all occurrences into the event space.
     """
@@ -146,7 +150,7 @@ def count_occurrences(closed_index, horizon, num_of_threads, num_of_chunks):
         chunk_count_occurrences,
         events,
         num_of_threads,
-        num_of_chunks,
+        chunck_size,
         horizon=horizon,
         closed_index=closed_index,
     )
@@ -154,7 +158,7 @@ def count_occurrences(closed_index, horizon, num_of_threads, num_of_chunks):
     return occurrences
 
 
-def avg_uniqueness(occurrences, horizon, num_of_threads, num_of_chunks):
+def avg_uniqueness(occurrences, horizon, num_of_threads, chunck_size):
     """
     Compute all average uniqueness into the event space.
     """
@@ -163,7 +167,7 @@ def avg_uniqueness(occurrences, horizon, num_of_threads, num_of_chunks):
         chunk_avg_uniqueness,
         events,
         num_of_threads,
-        num_of_chunks,
+        chunck_size,
         horizon=horizon,
         occurrences=occurrences,
     )
@@ -171,7 +175,7 @@ def avg_uniqueness(occurrences, horizon, num_of_threads, num_of_chunks):
 
 
 def sample_weights(
-    occurrences, horizon, closed_prices, num_of_threads, num_of_chunks
+    occurrences, horizon, closed_prices, num_of_threads, chunck_size
 ):
     """
     Compute weights for all events
@@ -181,7 +185,7 @@ def sample_weights(
         chunk_sample_weights,
         events,
         num_of_threads,
-        num_of_chunks,
+        chunck_size,
         horizon=horizon,
         occurrences=occurrences,
         closed_prices=closed_prices,
@@ -189,7 +193,7 @@ def sample_weights(
     return sample_weights
 
 
-def time_weights(avg_uniqueness, p=1, min_ratio=0.01, sort=False):
+def time_weights(avg_uniqueness, p=.25, min_ratio=0.01, sort=False):
     """
     Determine the weights based on time evolution (the newest ones have larger
     weights). The time evolution is represented by the cummulative sum of
