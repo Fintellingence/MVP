@@ -30,6 +30,7 @@ class BagingModelOptimizer:
         cv_splits_hp=3,
         use_weight=True,
         num_of_threads=None,
+        min_time_weight=0.25,
         time_weights_fn=time_weights,
         samples_weights_fn=sample_weights,
     ):
@@ -38,9 +39,12 @@ class BagingModelOptimizer:
         self._scaler_pipeline = scaler_pipeline
         self._cv_splits_fit = cv_splits_fit
         self._cv_splits_hp = cv_splits_hp
+        self._min_time_weight = min_time_weight
         self._time_weights_fn = time_weights_fn
         self._samples_weights_fn = samples_weights_fn
-        self._num_of_threads = os.cpu_count() if num_of_threads is None else num_of_threads
+        self._num_of_threads = (
+            os.cpu_count() if num_of_threads is None else num_of_threads
+        )
 
     def fit(
         self,
@@ -55,23 +59,62 @@ class BagingModelOptimizer:
     ):
         pass
 
-    def partial_fit(
+    def partial_fit_eval(
         self,
         data,
         labels,
+        train_idx,
+        test_idx,
         horizon,
+        np_horizon,
+        closed,
+        metrics,
         kwargs_model,
         kwargs_scaler=None,
     ):
+        if kwargs_scaler is None:
+            kwargs_scaler = {}
+        if self._scaler_pipeline is not None:
+            scaler = self._scaler_pipeline(**kwargs_scaler)
+        else:
+            scaler = None
         model = self._model_fn(**kwargs_model)
 
+        if self._use_weight:
+            train_weight = self.get_weight(self, closed, horizon.iloc[train_idx])
+            test_weight = self.get_weight(self, closed, horizon.iloc[test_idx])
+        else:
+            train_weight = None
+            test_weight = None
+        # TODO: apply scaler and weights
+        x_train, x_test = data[train_idx], data[test_idx]
+        y_train, y_test = labels[train_idx], labels[test_idx]
+        train_horizon = np_horizon[train_idx]
+        model.fit(
+            x_train,
+            y_train,
+            sample_weight=train_weight,
+            horizon=train_horizon,
+        )
+        predicted = model.predict(x_test)
+        outcomes = []
+        for metric_fn in metrics:
+            outcomes.append(metric_fn(y_test, predicted))
+
     def hp_meta_optimize(
-        self, data, labels, horizon, closed_index, hp_model, hp_scaler=None
+        self, data, labels, horizon, closed, hp_model, hp_scaler=None
     ):
-        if (self._time_weights_fn is not None) and ( self._samples_weights_fn is not None):
-            weight = 
-        horizon = raw_horizon(closed_index, horizon)
+        if self._use_weight:
+            if (self._time_weights_fn is not None) and (
+                self._samples_weights_fn is not None
+            ):
+                raise ValueError(
+                    "With `use_weight` is True, at least one of the functions,"
+                    " `time_weight_fn` or `sample_weights_fn`, have to be not None"
+                )
+
         grid_model = ParameterGrid(hp_model)
+        np_horizon = raw_horizon(closed.index, horizon)
         if hp_scaler is not None:
             grid_scaler = ParameterGrid(hp_model)
         else:
@@ -82,22 +125,36 @@ class BagingModelOptimizer:
             for kwargs_scaler in grid_model:
                 spliter = pekfold.split(horizon)
                 for train_idx, test_idx in spliter:
-                    x_train, 
-                
+                    pass
 
-        pass
-
-    def get_weight(self, closed_index, horizon, min_chunk_size=100):
+    def get_weight(self, closed, horizon, min_chunk_size=100):
         data_size = horizon.shape[0]
-        if np.ceil(data_size / min_chunk_size) >= self._num_of_threads:
-            n_chunks = self._num_of_threads
-        else:
-            n_chuncks = 1
-        occurrences = count_occurrences(closed_prices.index, horizon, 4,  // 4)
-        avg_uni = avg_uniqueness(occurrences, horizon, 4, horizon.shape[0] // 4)
-        tw = time_weights(avg_uni, 0.25)
-        sw = sample_weights(occurrences, horizon, closed_prices, 4, horizon.shape[0] // 4)
-        weights = (tw *sw).values
+        chunk_size = np.round(data_size / self._num_of_threads)
+        if chunk_size < min_chunk_size:
+            chunk_size = data_size
+        occurrences = count_occurrences(
+            closed.index,
+            horizon,
+            num_of_threads=self._num_of_threads,
+            chunck_size=chunk_size,
+        )
+        avg_uni = avg_uniqueness(
+            occurrences,
+            horizon,
+            num_of_threads=self._num_of_threads,
+            chunck_size=chunk_size,
+        )
+        tw = time_weights(avg_uni, p=self._min_time_weight)
+        # TODO: Inpect the behaviour when the first event happens in the first timestamp
+        sw = sample_weights(
+            occurrences,
+            horizon,
+            closed,
+            num_of_threads=self._num_of_threads,
+            chunck_size=chunk_size,
+        )
+        weights = (tw * sw).values
+        return weights
 
     def predict(self, data):
         pass
@@ -110,9 +167,11 @@ class EnvironmentOptimizer(BagingModelOptimizer):
         primary_model_fn,
         labels_fn,
         refined_data,
-        cv_splits_hp=3,
         cv_splits_fit=10,
+        cv_splits_hp=3,
+        use_weight=True,
         scaler_pipeline=None,
+        min_time_weight=0.25,
         time_weights_fn=time_weights,
         samples_weights_fn=sample_weights,
     ):
@@ -121,6 +180,8 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             scaler_pipeline,
             cv_splits_fit,
             cv_splits_hp,
+            use_weight,
+            min_time_weight,
             time_weights_fn,
             samples_weights_fn,
         )
@@ -173,7 +234,7 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             stats.append(feature.values)
         stats.append(sides.values)
         data = np.stack(stats, axis=1)
-        return horizon, closed.index, data, labels.values
+        return horizon, closed, data, labels.values
 
     def train(
         self,
@@ -183,10 +244,12 @@ class EnvironmentOptimizer(BagingModelOptimizer):
         kwargs_labels,
         hp_scaler=None,
     ):
-        horizon, closed_index, data, labels = self.__set_env(
+        horizon, closed, data, labels = self.__set_env(
             kwargs_features, kwargs_primary, kwargs_labels
         )
-        self.hp_meta_optimize(data, labels, horizon, closed_index, hp_model, hp_scaler)
+        self.hp_meta_optimize(
+            data, labels, horizon, closed, hp_model, hp_scaler
+        )
 
     def hp_env_optimize(
         self, hp_model, hp_features, hp_primary, hp_labels, hp_scaler=None
