@@ -5,6 +5,12 @@ import pandas as pd
 from tf.summary import summary
 from tensorboard.plugins.hparams import api as hp
 from sklearn.model_selection import ParameterGrid
+from sklearn.metrics import (
+    f1_score,
+    balanced_accuracy_score,
+    recall_score,
+    auc,
+)
 
 from mvp.labels import Labels
 from mvp.selection import (
@@ -33,7 +39,14 @@ class BagingModelOptimizer:
         min_time_weight=0.25,
         time_weights_fn=time_weights,
         samples_weights_fn=sample_weights,
+        metrics=[
+            (f1_score, True),
+            (recall_score, True),
+            (balanced_accuracy_score, True),
+            (auc, False),
+        ],
     ):
+        self._metrics = metrics
         self._use_weight = use_weight
         self._model_fn = model_fn
         self._scaler_pipeline = scaler_pipeline
@@ -59,7 +72,7 @@ class BagingModelOptimizer:
     ):
         pass
 
-    def partial_fit_eval(
+    def _partial_fit_eval(
         self,
         data,
         labels,
@@ -68,7 +81,6 @@ class BagingModelOptimizer:
         horizon,
         np_horizon,
         closed,
-        metrics,
         kwargs_model,
         kwargs_scaler=None,
     ):
@@ -81,25 +93,35 @@ class BagingModelOptimizer:
         model = self._model_fn(**kwargs_model)
 
         if self._use_weight:
-            train_weight = self.get_weight(self, closed, horizon.iloc[train_idx])
+            train_weight = self.get_weight(
+                self, closed, horizon.iloc[train_idx]
+            )
             test_weight = self.get_weight(self, closed, horizon.iloc[test_idx])
         else:
             train_weight = None
             test_weight = None
-        # TODO: apply scaler and weights
+
         x_train, x_test = data[train_idx], data[test_idx]
         y_train, y_test = labels[train_idx], labels[test_idx]
         train_horizon = np_horizon[train_idx]
+        if scaler is not None:
+            x_train = scaler.fit_transform(x_train)
         model.fit(
             x_train,
             y_train,
             sample_weight=train_weight,
             horizon=train_horizon,
         )
+        if scaler is not None:
+            x_test = scaler.transform(x_test)
         predicted = model.predict(x_test)
         outcomes = []
-        for metric_fn in metrics:
-            outcomes.append(metric_fn(y_test, predicted))
+        # TODO: Add name to the metrics
+        for metric_fn, use_weight in self._metrics:
+            outcomes.append(
+                metric_fn(y_test, predicted, sample_weight=test_weight)
+            )
+        return outcomes, model, predicted
 
     def hp_meta_optimize(
         self, data, labels, horizon, closed, hp_model, hp_scaler=None
@@ -122,10 +144,20 @@ class BagingModelOptimizer:
 
         pekfold = PEKFold()
         for kwargs_model in grid_model:
-            for kwargs_scaler in grid_model:
+            for kwargs_scaler in grid_scaler:
                 spliter = pekfold.split(horizon)
                 for train_idx, test_idx in spliter:
-                    pass
+                    outcomes, _, _= self._partial_fit_eval(
+                        data,
+                        labels,
+                        train_idx,
+                        test_idx,
+                        horizon,
+                        np_horizon,
+                        closed,
+                        kwargs_model,
+                        kwargs_scaler,
+                    )
 
     def get_weight(self, closed, horizon, min_chunk_size=100):
         data_size = horizon.shape[0]
