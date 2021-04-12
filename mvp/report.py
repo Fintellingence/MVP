@@ -13,6 +13,8 @@ def trade_book(primary_model, operation_parameters):
     trades_df = pd.concat([entry_df,exit_df,side_df],axis = 1)
     trades_df['Profit'] = trades_df['Side']*(trades_df['ExitPrice']-trades_df['EntryPrice'])
     trades_df['NetProfit'] = trades_df['Profit'].cumsum(skipna = False)
+    trades_df['RelativeProfit'] = (trades_df['Profit']*100)/trades_df['EntryPrice']
+    trades_df['EquityCurve'] = 100 + trades_df['RelativeProfit'].cumsum(skipna = False)
     return trades_df.copy()
 
 def avg_holding_time(book):
@@ -39,15 +41,20 @@ def time_range(primary_model):
 def plot_value(book):
     book['NetProfit'].plot()
     plt.show()
-    return 0
+    pass
+
+def plot_equity(book):
+    book['EquityCurve'].plot()
+    plt.show()
+    pass
 
 def report(primary_model, operation_parameters):
     book = trade_book(primary_model, operation_parameters)
-    operation_frequency = 'minute-1'
+    operation_frequency = primary_model.time_step
     print('++++++++++++++++++++')
     print('Asset: '+primary_model.symbol)
     print('Average Holding Time: '+str(avg_holding_time(book)))
-    print('Operation frequency: '+operation_frequency)
+    print('Operation time step: '+str(operation_frequency))
     print('Best trade: ')
     print(best_trade(book))
     print('Worst trade:')
