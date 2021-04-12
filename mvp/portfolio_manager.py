@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import bisect
+import numba_stats
 
 from functools import total_ordering
 from mvp.refined_data import RefinedData
@@ -219,6 +220,15 @@ class RefinedSet:
         """
         return not self.refined_obj
 
+    def has_symbol(self, symbol):
+        """ Return True if the symbol (or list of) is present in the set """
+        if not isinstance(symbol, list):
+            return symbol in self.refined_obj.keys()
+        for sym in symbol:
+            if sym not in self.refined_obj.keys():
+                return False
+        return True
+
     def memory_comsumption(self):
         """
         return the total memory (approximately) being used in bytes
@@ -230,7 +240,7 @@ class RefinedSet:
             total_size = total_size + feat_size + df_size
         return total_size
 
-    def display_info(self):
+    def display_refined_info(self):
         """
         Print on screen current status of this symbol set object
         """
@@ -415,13 +425,17 @@ class RefinedSet:
                         parameter, start, stop, time_step, True
                     )
 
-    def correlation_matrix(self, time_step=1):
+    def correlation_matrix_period(self, start=None, stop=None, time_step=1):
         """
-        Correlation among all symbols in the set
+        Correlation among all symbols in the set using a time period
 
         Parameters
         ---
-        `time_step` : ``int`` or ``str``("day")
+        `start` : ``pandas.Timestamp``
+            initial datetime of the period
+        `stop` : ``pandas.Timestamp``
+            final datetime of the period
+        `time_step` : ``int`` or ``str == "day"``
             time step of the dataframe sample
 
         Return
@@ -439,27 +453,29 @@ class RefinedSet:
         mat = np.empty([nsymbols, nsymbols])
         items_pkg = self.refined_obj.items()
         for i, (symbol1, ref_obj1) in enumerate(items_pkg):
+            mat[i, i] = 1.0
             for j, (symbol2, ref_obj2) in enumerate(items_pkg):
-                if j < i:
+                if j <= i:
                     continue
-                start = max(
+                valid_start = start or max(
                     self.symbol_period[symbol1][0],
                     self.symbol_period[symbol2][0],
                 )
-                stop = min(
+                valid_stop = stop or min(
                     self.symbol_period[symbol1][1],
                     self.symbol_period[symbol2][1],
                 )
-                if stop <= start:
-                    corr = np.nan
-                else:
-                    cls_prices1 = ref_obj1.change_sample_interval(
-                        step=time_step
-                    ).Close.loc[start:stop]
-                    cls_prices2 = ref_obj2.change_sample_interval(
-                        step=time_step
-                    ).Close.loc[start:stop]
-                    corr = cls_prices1.corr(cls_prices2)
+                if valid_stop <= valid_start:
+                    mat[i, j] = np.nan
+                    mat[j, i] = np.nan
+                    continue
+                cls_prices1 = ref_obj1.change_sample_interval(
+                    step=time_step
+                ).Close.loc[valid_start:valid_stop]
+                cls_prices2 = ref_obj2.change_sample_interval(
+                    step=time_step
+                ).Close.loc[valid_start:valid_stop]
+                corr = cls_prices1.corr(cls_prices2)
                 mat[i, j] = corr
                 mat[j, i] = corr
         corr_df = pd.DataFrame(
@@ -472,12 +488,69 @@ class RefinedSet:
         corr_df.index.name = "symbols"
         return corr_df
 
+    def moving_correlation(
+        self, symbol1, symbol2, window, start=None, stop=None, time_step=1
+    ):
+        """
+        Compute correlation of two symbols in a moving `window`
+
+        Parameters
+        ---
+        `symbol1` : ``str``
+            stock symbol present in the set
+        `symbol2` : ``str``
+            stock symbol present in the set
+        `window` : ``int``
+            window in number of bars of the dataframe
+        `start` : ``pandas.Timestamp``
+            initial datetime to consider
+        `stop` : ``pandas.Timestamp``
+            final datetime to consider
+        `time_step` : ``int``
+            available time step among dataframe rows
+            see self.available_time_intervals
+
+        Return
+        ---
+        ``pandas.Series``
+            Series with correlation in the moving window
+
+        """
+        valid_start = start or max(
+            self.symbol_period[symbol1][0],
+            self.symbol_period[symbol2][0],
+        )
+        valid_stop = stop or min(
+            self.symbol_period[symbol1][1],
+            self.symbol_period[symbol2][1],
+        )
+        ref_obj1 = self.refined_obj[symbol1]
+        ref_obj2 = self.refined_obj[symbol2]
+        cls_prices1 = ref_obj1.change_sample_interval(
+            step=time_step
+        ).Close.loc[valid_start:valid_stop]
+        cls_prices2 = ref_obj2.change_sample_interval(
+            step=time_step
+        ).Close.loc[valid_start:valid_stop]
+        clean_data = pd.concat([cls_prices1, cls_prices2], axis=1).dropna()
+        indexes = clean_data.index
+        data_set1 = clean_data.values[:, 0]
+        data_set2 = clean_data.values[:, 1]
+        mov_corr = np.empty(clean_data.shape[0], dtype=np.float64)
+        numba_stats.moving_correlation(
+            window,
+            data_set1,
+            data_set2,
+            mov_corr,
+        )
+        return pd.Series(mov_corr[window - 1 :], indexes[window - 1 :])
+
 
 @total_ordering
 class StockDeal:
     """
     Object to represent stock market shares negociations with ordering
-    methods based on date and time. Date variables assume ``pandas.Timestamp``
+    methods based on date and time.
 
     """
 
@@ -493,7 +566,7 @@ class StockDeal:
         daily_tax=0,
     ):
         """
-        Construct a deal using all required information
+        Construct a deal order in stock market using all required information
 
         Parameters
         ---
@@ -539,15 +612,46 @@ class StockDeal:
                     self.unit_price
                 )
             )
-        if abs(self.flag) != 1:
+        if abs(self.flag) != 1 and not isinstance(self.flag, int):
             raise ValueError(
                 "Flag in a deal must be 1>buy or -1>sell. {} given".format(
                     self.flag
                 )
             )
+        if not isinstance(self.deal_date, pd.Timestamp):
+            raise ValueError(
+                "{} is invalid deal date. Must be pandas.Timestamp".format(
+                    self.deal_date
+                )
+            )
 
     def __valid_input_date(self, date):
-        return date > self.deal_date
+        """ Confirm `date` is ahead of deal creation : `self.deal_date` """
+        if not isinstance(date, pd.Timestamp):
+            return False
+        return date >= self.deal_date
+
+    def __valid_input_quantity(self, quant):
+        """
+        Confirm `quant` is integer and smaller than deal `self.quantity`
+        """
+        if not isinstance(quant, int):
+            return False
+        return quant <= self.quantity
+
+    def __raise_date_error(self, date):
+        raise ValueError(
+            "{} is invalid date for deal occurred in {}".format(
+                date, self.deal_date
+            )
+        )
+
+    def __raise_quantity_error(self, quantity):
+        raise ValueError(
+            "{} is invalid quantity for deal of {} shares".format(
+                quantity, self.quantity
+            )
+        )
 
     def _valid_comparison(self, other):
         return hasattr(other, "deal_date") and hasattr(other, "symbol")
@@ -562,32 +666,92 @@ class StockDeal:
             return NotImplemented
         return (self.deal_date, self.symbol) < (other.deal_date, other.symbol)
 
-    def total_rolling_tax(self, date, quantity):
+    def total_rolling_tax(self, date, quantity=None):
         """ Compute the rolling cost of the operation up to `date` """
+        if quantity is None:
+            quantity = self.quantity
         if not self.__valid_input_date(date):
-            return 0
+            self.__raise_date_error(date)
+        if not self.__valid_input_quantity(quantity):
+            self.__raise_quantity_error(quantity)
         days_elapsed = 1 + (date - self.deal_date).days
         total_cost = quantity * self.unit_price
         return total_cost * days_elapsed * self.daily_tax
 
-    def total_taxes(self, date, quantity):
-        """ Return total amount spent with taxes up to `date` """
-        if not self.__valid_input_date(date):
-            return 0
+    def total_taxes(self, date=None, quantity=None):
+        """
+        Return total amount spent with taxes up to `date`
+        For a partial quantity (not closing the position)
+        do not include the initial fixed tax
+
+        Parameters
+        ---
+        `date` : ``pandas.Timestamp``
+            date to consider in rolling taxes (shares rent if applicable)
+        `quantity` : ``int``
+            number of shares to compute the taxes
+
+        """
+        if quantity is None:
+            quantity = self.quantity
+        if not self.__valid_input_quantity(quantity):
+            self.__raise_quantity_error(quantity)
         if quantity < self.quantity:
             inc_fixed = 0
         else:
             inc_fixed = self.fixed_tax
+        if self.flag > 0:
+            return inc_fixed + self.relative_tax * quantity * self.unit_price
         return (
             inc_fixed
             + self.relative_tax * quantity * self.unit_price
             + self.total_rolling_tax(date, quantity)
         )
 
-    def raw_result(self, date, unit_price, quantity):
+    def raw_invest(self, current_price=None, quantity=None):
+        """
+        Compute the value invested in the deal up to `date`
+        Note that for short position it require the price of
+        the shares since the investiment is aways a buy order
+
+        Parameters
+        ---
+        `current_price` : ``float``
+            Only required for sell deal
+        `quantity` : ``int``
+            number of shares to consider. Default `self.quantity`
+
+        return
+        ---
+        ``float``
+            value in currency invested according to `quantity`
+
+        """
+        if quantity is None:
+            quantity = self.quantity
+        if not self.__valid_input_quantity(quantity):
+            self.__raise_quantity_error(quantity)
+        if self.flag > 0:
+            return quantity * self.unit_price
+        if not current_price:
+            raise ValueError("Need current price to compute short investment")
+        return quantity * current_price
+
+    def total_invest(self, date=None, current_price=None, quantity=None):
+        """
+        Return the total amount in currency required including taxes
+        See also the `self.raw_invest` method which ignore taxes
+        """
+        return self.raw_invest(current_price, quantity) + self.total_taxes(
+            date, quantity
+        )
+
+    def raw_result(self, unit_price, quantity=None):
         """ Return the raw result discounting the taxes up to `date` """
-        if not self.__valid_input_date(date):
-            return 0
+        if quantity is None:
+            quantity = self.quantity
+        if not self.__valid_input_quantity(quantity):
+            self.__raise_quantity_error(quantity)
         return quantity * (unit_price - self.unit_price) * self.flag
 
     def net_result(self, date, unit_price):
@@ -610,9 +774,9 @@ class StockDeal:
 
         """
         if not self.__valid_input_date(date):
-            return 0
+            self.__raise_date_error(date)
         taxes = self.total_taxes(date, self.quantity)
-        return self.raw_result(date, unit_price, self.quantity) - taxes
+        return self.raw_result(unit_price, self.quantity) - taxes
 
     def partial_close(self, date, unit_price, cls_quant):
         """
@@ -639,18 +803,12 @@ class StockDeal:
             reduced by `cls_quant`
 
         """
-        cls_quant = int(cls_quant)
         if not self.__valid_input_date(date):
-            return 0
-        if cls_quant >= self.quantity:
-            raise ValueError(
-                "Unable to partial close. "
-                "{} required but only {} in stock".format(
-                    cls_quant, self.quantity
-                )
-            )
+            self.__raise_date_error(date)
+        if not self.__valid_input_quantity(cls_quant):
+            self.__raise_quantity_error(cls_quant)
         taxes = self.total_taxes(date, cls_quant)
-        op_result = self.raw_result(date, unit_price, cls_quant) - taxes
+        op_result = self.raw_result(unit_price, cls_quant) - taxes
         self.quantity -= cls_quant
         return op_result
 
@@ -830,27 +988,83 @@ class PortfolioRecord:
 
 
 class Portfolio(PortfolioRecord, RefinedSet):
-    def __init__(self, fixed_tax=0, relative_tax=0):
+    """
+    Portfolio Class
+    ---
+    This class provide methods to dynamically simulate a portfolio
+    with some real aspects, including some taxes and the possibility
+    of set sell orders without a suficient shares in the portfolio
+    (known as short position with also a rent tax)
+
+    This class also aims to provide a simple interface to analyze
+    results from multiple shares and compute the results (profit/
+    loss) at any input date-time. In this way its design is two-fold
+    aimed, first to use alongside orders requested from other models
+    and track the results of these orders, and second to serve as
+    input in some trainning technique
+
+    Inherit
+    ---
+    ``PortfolioRecord``
+        Class to maintain records of all orders
+    ``RefinedSet``
+        Class to provide statistical feature for set of shares
+
+    """
+
+    def __init__(self, fixed_tax=0, relative_tax=0, features=""):
+        """
+        Define a portfolio subject to some operational taxes
+        and commom features to be analyzed for all companies
+
+        Parameters
+        ---
+        `fixed_tax` : ``float``
+            fixed tax charged independent of the volume
+        `relative_tax` : ``float``
+            relative fraction of the order price charged in an order
+            Usually very small (tipically < 0.001)
+        `features` : ``str``
+            A valid string with statistical features to be loaded
+            within the shares. See `RefinedSet` for more info
+
+        """
         self.fixed_tax = fixed_tax
         self.relative_tax = relative_tax
-        RefinedSet.__init__(self, common_features="")
+        RefinedSet.__init__(self, common_features=features)
         PortfolioRecord.__init__(self)
+        self.portfolio_start = None
+        self.portfolio_end = None
 
     def __nearest_index(self, symbol, date):
-        """ Return a valid integer index of the prices dataframe """
+        """ Return the nearest valid index of the dataframe """
         return self.refined_obj[symbol].df.index.get_loc(
             date, method="nearest"
         )
 
     def __nearest_date(self, symbol, date):
+        """ Return the nearest valid date in dataframe """
         return self.refined_obj[symbol].df.index[
             self.__nearest_index(symbol, date)
         ]
 
     def __approx_price(self, symbol, date):
+        """ Return approximate price (using nearest available date) """
         return self.refined_obj[symbol].df.Close[
             self.__nearest_index(symbol, date)
         ]
+
+    def __update_portfolio_period(self, date):
+        """ Update portfolio period based in new buy or sell event """
+        delta = pd.Timedelta(days=1)
+        if not self.portfolio_start:
+            self.portfolio_start = date - delta
+        elif date < self.portfolio_start:
+            self.portfolio_start = date - delta
+        if not self.portfolio_end:
+            self.portfolio_end = date + delta
+        elif date > self.portfolio_end:
+            self.portfolio_end = date + delta
 
     def set_position_buy(self, symbol, date, quantity):
         """
@@ -878,6 +1092,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             self.fixed_tax,
             self.relative_tax,
         )
+        self.__update_portfolio_period(date)
 
     def set_position_sell(self, symbol, date, quantity, daily_tax=0.001):
         """
@@ -908,6 +1123,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             self.relative_tax,
             daily_tax,
         )
+        self.__update_portfolio_period(date)
 
     def symbol_positioning(self, date):
         """
@@ -940,7 +1156,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         Compute equity allocation status up to `date` in currency
 
         Return
-        ---
+        ------
         (``float``, ``float``)
             First tuple element is the long and second the short positions
 
@@ -963,24 +1179,22 @@ class Portfolio(PortfolioRecord, RefinedSet):
         long, short = self.equity_allocation(date)
         return long - short
 
-    def overall_result(self, date, include_taxes=True):
+    def overall_result(self, date):
         """
         Compute the result of the portfolio up to some `date`
         This include the profit/loss of all trades looking in
-        the Portfolio records and the net equity of the open
+        the portfolio records and the net result of the open
         positions (long and short)
 
         Parameters
         ---
         `date` : ``pandas.Timestamp``
             Date to consider in result evaluation
-        `include_taxes` : ``bool``
-            If true(default) apply all taxes
 
         Return
         ---
         ``float``
-            Net result from trades and open positions
+            Net result from trades and open positions in currency
 
         """
         deals_stack = {}
@@ -1004,9 +1218,20 @@ class Portfolio(PortfolioRecord, RefinedSet):
                     result += pop_deal.net_result(
                         deal.deal_date, deal.unit_price
                     )
+                    print(
+                        "result update : {} in {}".format(
+                            result, deal.deal_date
+                        )
+                    )
                 if deals_stack[deal.symbol]:
+                    print("quant = {}".format(quant))
                     result += deals_stack[deal.symbol][-1].partial_close(
                         deal.deal_date, deal.unit_price, quant
+                    )
+                    print(
+                        "result update (partial close): {} in {}".format(
+                            result, deal.deal_date
+                        )
                     )
                 else:
                     # list of deals became empty for this symbol
@@ -1028,4 +1253,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             approx_price = self.__approx_price(symbol, date)
             for deal in deals_list:
                 result += deal.net_result(date, approx_price)
+                print(
+                    "result update : {} in {}".format(result, deal.deal_date)
+                )
         return result
