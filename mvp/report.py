@@ -33,6 +33,9 @@ def best_trade(book):
 def worst_trade(book):
    return book[book['Profit'] == book['Profit'].min()].drop(columns=['NetProfit'])
 
+def time_range(primary_model):
+    return primary_model.index[0], primary_model.index[-1]
+
 def plot_value(book):
     book['NetProfit'].plot()
     plt.show()
