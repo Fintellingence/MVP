@@ -38,16 +38,6 @@ def worst_trade(book):
 def time_range(primary_model):
     return primary_model.index[0], primary_model.index[-1]
 
-def plot_value(book):
-    book['NetProfit'].plot()
-    plt.show()
-    pass
-
-def plot_equity(book):
-    book['EquityCurve'].plot()
-    plt.show()
-    pass
-
 def report(primary_model, operation_parameters):
     book = trade_book(primary_model, operation_parameters)
     operation_frequency = primary_model.time_step

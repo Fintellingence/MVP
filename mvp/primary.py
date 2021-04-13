@@ -52,7 +52,9 @@ class PrimaryModel:
             "AUTOCORRELATION": "moving_autocorr",
             "AUTOCORRELATION_PERIOD": "autocorr_period",
         }
+        self.symbol = refined_data.symbol
         self.time_step = time_step
+        self.strategy = strategy
         self.features = features
         self.feature_data = self.get_feature_data(refined_data)
         self.events = self.get_events_dataframe()[["Side"]].dropna()
