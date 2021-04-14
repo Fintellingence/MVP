@@ -593,10 +593,10 @@ class StockDeal:
         self.quantity = int(quantity)
         self.unit_price = unit_price
         self.deal_date = date
-        self.daily_tax = daily_tax
         self.flag = flag
         self.fixed_tax = fixed_tax
         self.relative_tax = relative_tax
+        self.daily_tax = daily_tax
         self.__assert_input_params()
 
     def __assert_input_params(self):
@@ -624,9 +624,14 @@ class StockDeal:
                     self.deal_date
                 )
             )
+        if self.fixed_tax < 0 or self.relative_tax < 0 or self.daily_tax < 0:
+            raise ValueError("All taxes must be positive")
 
     def __valid_input_date(self, date):
-        """ Confirm `date` is ahead of deal creation : `self.deal_date` """
+        """
+        Confirm `date` is ahead of `self.deal_date`
+        and is instance of ``pandas.Timestamp``
+        """
         if not isinstance(date, pd.Timestamp):
             return False
         return date >= self.deal_date
@@ -696,9 +701,8 @@ class StockDeal:
             quantity = self.quantity
         if not self.__valid_input_quantity(quantity):
             self.__raise_quantity_error(quantity)
-        if quantity < self.quantity:
-            inc_fixed = 0
-        else:
+        inc_fixed = 0  # discard fixed tax if not close position
+        if quantity == self.quantity:
             inc_fixed = self.fixed_tax
         if self.flag > 0:
             return inc_fixed + self.relative_tax * quantity * self.unit_price
@@ -733,7 +737,7 @@ class StockDeal:
             self.__raise_quantity_error(quantity)
         if self.flag > 0:
             return quantity * self.unit_price
-        if not current_price:
+        if current_price is None:
             raise ValueError("Need current price to compute short investment")
         return quantity * current_price
 
@@ -754,7 +758,7 @@ class StockDeal:
             self.__raise_quantity_error(quantity)
         return quantity * (unit_price - self.unit_price) * self.flag
 
-    def net_result(self, date, unit_price):
+    def net_result(self, unit_price, date=None):
         """
         Return the net result of the operation up to `date`
 
@@ -778,7 +782,7 @@ class StockDeal:
         taxes = self.total_taxes(date, self.quantity)
         return self.raw_result(unit_price, self.quantity) - taxes
 
-    def partial_close(self, date, unit_price, cls_quant):
+    def partial_close(self, unit_price, cls_quant, date=None):
         """
         Return partial result due to reduction in position
         The object internal quantity is changed reducing it by `cls_quant`
@@ -803,8 +807,6 @@ class StockDeal:
             reduced by `cls_quant`
 
         """
-        if not self.__valid_input_date(date):
-            self.__raise_date_error(date)
         if not self.__valid_input_quantity(cls_quant):
             self.__raise_quantity_error(cls_quant)
         taxes = self.total_taxes(date, cls_quant)
@@ -828,10 +830,6 @@ class PortfolioRecord:
     def empty_history(self):
         """ Return True if there are no deals registered """
         return not self.__deals
-
-    def get_all_deals(self):
-        """ Return the list of all deals recorded """
-        return self.__deals.copy()
 
     def get_deals_dataframe(self, date=None):
         """ Return all deals information as dataframe up to `date` """
@@ -892,6 +890,18 @@ class PortfolioRecord:
         )
         return raw_df.set_index("DateTime")
 
+    def get_all_deals(self):
+        """ Return the list of all deals recorded """
+        return self.__deals.copy()
+
+    def get_deals_symbol(self, symbol):
+        """ Return list with all deals of `symbol` """
+        sym_deals = []
+        for deal in self.__deals:
+            if deal.symbol == symbol:
+                sym_deals.append(deal)
+        return sym_deals
+
     def get_deals_before(self, date):
         """ Return list of deals objects occurred before `date` """
         i = 0
@@ -912,9 +922,9 @@ class PortfolioRecord:
 
     def delete_deals_symbol(self, symbol):
         """ Remove from records all deals related to the given `symbol` """
-        for deal in self.__deals:
-            if deal.symbol == symbol:
-                self.__deals.remove(deal)
+        deals_to_remove = self.get_deals_symbol(symbol)
+        for deal in deals_to_remove:
+            self.__deals.remove(deal)
 
     def delete_deals_before(self, date):
         """ Delete all deals that occurred before `date` """
@@ -1066,9 +1076,87 @@ class Portfolio(PortfolioRecord, RefinedSet):
         elif date > self.portfolio_end:
             self.portfolio_end = date + delta
 
-    def set_position_buy(self, symbol, date, quantity):
+    def __assert_invest_horizon(self, date_init, ih):
+        """ Return boolean Assessing investment horizon from initial date """
+        if isinstance(ih, pd.Timedelta) or isinstance(ih, int):
+            return True
+        if isinstance(ih, pd.Timestamp) and ih >= date_init:
+            return True
+        raise ValueError(
+            "investment horizon date type error: "
+            "{} given for {} initial date".format(ih, date_init)
+        )
+
+    def __query_stop_date(self, date_init, symbol, sl, tk, ih, flag):
         """
-        Insert a buy(long) position in the portfolio
+        Find the closest event that happen after `date_init`
+        regarded as date of a buy or sell order
+
+        Parameters
+        ---
+        `date_init` : ``pandas.Timestamp``
+            date an order (trade open position) was executed
+        `symbol` : ``str``
+            valid symbol in the portfolio
+        `sl` : ``float`` or None
+            Loss tolerance to close the trade in currency
+        `tk` : ``float`` or None
+            Profit tolerance to close the trade in currency
+        `ih` : ``pandas.Timedelta`` or ``pandas.Timestamp`` or ``int`` or None
+            investment horizon after opening a position in the market
+
+        Return
+        ---
+        None
+            if none of `sl`, `tk` or `ih` is given
+        ``pandas.Timestamp``
+            First occurrance of either `sl`, `tk` or `ih`
+
+        """
+        if sl is None and tk is None and ih is None:
+            return None
+        cls_price = self.refined_obj[symbol].df.Close
+        if ih is None:
+            ih = cls_price.index[-1]
+        self.__assert_invest_horizon(date_init, ih)
+        if isinstance(ih, pd.Timedelta):
+            date_max = date_init + ih
+        elif isinstance(ih, int):
+            time_step = cls_price.index[1] - cls_price.index[0]
+            date_max = date_init + (ih + 1) * time_step
+        else:
+            date_max = ih + pd.Timedelta(minutes=1)
+        hor_price = cls_price.loc[date_init:date_max]
+        if sl is not None:
+            try:
+                if flag > 0:
+                    sl_date = hor_price[hor_price <= sl].index[0]
+                else:
+                    sl_date = hor_price[hor_price >= sl].index[0]
+            except IndexError:
+                sl_date = hor_price.index[-1]
+        else:
+            sl_date = hor_price.index[-1]
+        if tk is not None:
+            try:
+                if flag > 0:
+                    tk_date = hor_price[hor_price >= tk].index[0]
+                else:
+                    tk_date = hor_price[hor_price <= tk].index[0]
+            except IndexError:
+                tk_date = hor_price.index[-1]
+        else:
+            tk_date = hor_price.index[-1]
+        return min(hor_price.index[-1], sl_date, tk_date)
+
+    def set_position_buy(
+        self, symbol, date, quantity, sl=None, tk=None, ih=None
+    ):
+        """
+        Insert a buy(long) position in the portfolio with possible halt
+        if at least one of `sl`(stop loss), `tk`(take profit) or `ih`
+        (invetment horizon) is given and the underlying condition is
+        fulfilled, automatically set a sell order to close the trade
 
         Parameters
         ---
@@ -1078,8 +1166,21 @@ class Portfolio(PortfolioRecord, RefinedSet):
             date the order was executed
         `quantity` : ``int`` (positive)
             How many shares to buy
+        `sl` : ``float`` between (0, 1)
+            relative loss tolerance of the investment (stop loss)
+            1.0 is the maximum loss = 100%
+        `tk` : ``float`` > 0
+            relative profit tolerance of the investment (take profit)
+        `ih` : ``int`` or ``pandas.Timestamp`` of ``pandas.Timedelta``
+            time tolerance to close the trade
 
         """
+        if tk is not None and sl is not None:
+            if tk <= 0 or sl >= 1.0 or sl <= 0:
+                raise ValueError(
+                    "Invalid take profit {} or stop loss {} "
+                    "for buy order".format(tk, sl)
+                )
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, date)
         approx_price = self.__approx_price(symbol, date)
@@ -1093,8 +1194,26 @@ class Portfolio(PortfolioRecord, RefinedSet):
             self.relative_tax,
         )
         self.__update_portfolio_period(date)
+        # convert relative values of stop loss/take profit to prices
+        if sl is not None:
+            sl = approx_price * (1 - sl)
+        if tk is not None:
+            tk = approx_price * (1 + tk)
+        cls_date = self.__query_stop_date(valid_date, symbol, sl, tk, ih, 1)
+        if cls_date is not None:
+            self.set_position_sell(symbol, cls_date, quantity)
+            self.__update_portfolio_period(cls_date)
 
-    def set_position_sell(self, symbol, date, quantity, daily_tax=0.001):
+    def set_position_sell(
+        self,
+        symbol,
+        date,
+        quantity,
+        sl=None,
+        tk=None,
+        ih=None,
+        daily_tax=0.0,
+    ):
         """
         Register a sell order(short) in the portfolio
 
@@ -1105,11 +1224,24 @@ class Portfolio(PortfolioRecord, RefinedSet):
         `date` : ``pandas.Timestamp``
             date the order was executed
         `quantity` : ``int`` (positive)
-            How many shares to buy
+            How many shares to sell
+        `sl` : ``float`` > 0
+            relative loss tolerance of the investment (stop loss)
+        `tk` : ``float`` between (0, 1)
+            relative profit tolerance of the investment (take profit)
+            1 is the maximum profit = 100%
+        `ih` : ``int`` or ``pandas.Timestamp`` of ``pandas.Timedelta``
+            time tolerance to close the trade
         `dialy_tax` : ``float``
-            the rent fraction required to maintain the order
+            the rent fraction required to maintain the order per day
 
         """
+        if tk is not None and sl is not None:
+            if tk >= 1.0 or tk <= 0 or sl <= 0:
+                raise ValueError(
+                    "Invalid take profit {} or stop loss {} "
+                    "for sell order".format(tk, sl)
+                )
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, date)
         approx_price = self.__approx_price(symbol, date)
@@ -1124,6 +1256,15 @@ class Portfolio(PortfolioRecord, RefinedSet):
             daily_tax,
         )
         self.__update_portfolio_period(date)
+        # convert relative values of stop loss/take profit to prices
+        if sl is not None:
+            sl = approx_price * (1 + sl)
+        if tk is not None:
+            tk = approx_price * (1 - tk)
+        cls_date = self.__query_stop_date(valid_date, symbol, sl, tk, ih, -1)
+        if cls_date is not None:
+            self.set_position_buy(symbol, cls_date, quantity)
+            self.__update_portfolio_period(cls_date)
 
     def symbol_positioning(self, date):
         """
@@ -1216,22 +1357,11 @@ class Portfolio(PortfolioRecord, RefinedSet):
                     pop_deal = deals_stack[deal.symbol].pop()
                     quant -= pop_deal.quantity
                     result += pop_deal.net_result(
-                        deal.deal_date, deal.unit_price
-                    )
-                    print(
-                        "result update : {} in {}".format(
-                            result, deal.deal_date
-                        )
+                        deal.unit_price, deal.deal_date
                     )
                 if deals_stack[deal.symbol]:
-                    print("quant = {}".format(quant))
                     result += deals_stack[deal.symbol][-1].partial_close(
-                        deal.deal_date, deal.unit_price, quant
-                    )
-                    print(
-                        "result update (partial close): {} in {}".format(
-                            result, deal.deal_date
-                        )
+                        deal.unit_price, quant, deal.deal_date
                     )
                 else:
                     # list of deals became empty for this symbol
@@ -1252,8 +1382,5 @@ class Portfolio(PortfolioRecord, RefinedSet):
         for symbol, deals_list in deals_stack.items():
             approx_price = self.__approx_price(symbol, date)
             for deal in deals_list:
-                result += deal.net_result(date, approx_price)
-                print(
-                    "result update : {} in {}".format(result, deal.deal_date)
-                )
+                result += deal.net_result(approx_price, date)
         return result
