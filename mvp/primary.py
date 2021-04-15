@@ -43,7 +43,7 @@ class PrimaryModel:
     the market, stored in PrimaryModel.events.
     """
 
-    def __init__(self, refined_data, strategy, features):
+    def __init__(self, refined_data, strategy, features, time_step = 1):
         self.__features = {
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
@@ -52,13 +52,14 @@ class PrimaryModel:
             "AUTOCORRELATION": "moving_autocorr",
             "AUTOCORRELATION_PERIOD": "autocorr_period",
         }
+        self.time_step = time_step
         self.strategy = strategy
         self.features = features
         self.feature_data = self.get_feature_data(refined_data)
         self.events = self.get_events_dataframe()[["Side"]].dropna()
 
     def get_feature_data(self, refined_data):
-        dataframe_list = [refined_data.df[["Close"]]]
+        dataframe_list = [refined_data.change_sample_interval(step=self.time_step)[["Close"]]]
         for feature in self.features.keys():
             if feature not in self.__features.keys():
                 continue
@@ -81,7 +82,7 @@ class PrimaryModel:
                                 pd.DataFrame(
                                     refined_data.__getattribute__(
                                         self.__features[feature]
-                                    )(parameter).rename(
+                                    )(window = parameter,time_step = self.time_step).rename(
                                         feature + "_" + str(parameter)
                                     )
                                 )
@@ -106,7 +107,7 @@ class PrimaryModel:
                             pd.DataFrame(
                                 refined_data.__getattribute__(
                                     self.__features[feature]
-                                )(parameter).rename(
+                              )(window = parameter, time_step = self.time_step).rename(
                                     feature + "_" + str(parameter)
                                 )
                             )
