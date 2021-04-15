@@ -683,6 +683,20 @@ class StockDeal:
         total_cost = quantity * self.unit_price
         return total_cost * days_elapsed * self.daily_tax
 
+    def time_rolling_tax(self, date_array, quantity=None):
+        """
+        Compute the rolling cost of the operation
+        for time index of a price series in `date_array`
+        """
+        if quantity is None:
+            quantity = self.quantity
+        if not self.__valid_input_quantity(quantity):
+            self.__raise_quantity_error(quantity)
+        days_elapsed_arr = 1 + (date_array - self.deal_date).days
+        total_cost = quantity * self.unit_price
+        tax_arr = (total_cost * days_elapsed_arr * self.daily_tax).values
+        return pd.Series(tax_arr, index=date_array)
+
     def total_taxes(self, date=None, quantity=None):
         """
         Return total amount spent with taxes up to `date`
@@ -905,6 +919,8 @@ class PortfolioRecord:
     def get_deals_before(self, date):
         """ Return list of deals objects occurred before `date` """
         i = 0
+        if not date:
+            return self.get_all_deals()
         for deal in self.__deals:
             if deal.deal_date >= date:
                 break
@@ -914,6 +930,8 @@ class PortfolioRecord:
     def get_deals_after(self, date):
         """ Return list of deals objects occurred afeter `date` """
         i = 0
+        if not date:
+            return self.get_all_deals()
         for deal in self.__deals:
             if deal.deal_date > date:
                 break
@@ -1003,7 +1021,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
     ---
     This class provide methods to dynamically simulate a portfolio
     with some real aspects, including some taxes and the possibility
-    of set sell orders without a suficient shares in the portfolio
+    of set sell orders without suficient shares in the portfolio
     (known as short position with also a rent tax)
 
     This class also aims to provide a simple interface to analyze
@@ -1049,7 +1067,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
     def __nearest_index(self, symbol, date):
         """ Return the nearest valid index of the dataframe """
         return self.refined_obj[symbol].df.index.get_loc(
-            date, method="nearest"
+            date, method="backfill"
         )
 
     def __nearest_date(self, symbol, date):
@@ -1087,7 +1105,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             "{} given for {} initial date".format(ih, date_init)
         )
 
-    def __query_stop_date(self, date_init, symbol, sl, tk, ih, flag):
+    def __query_stop_date(self, date_init, symbol, sl, tp, ih, flag):
         """
         Find the closest event that happen after `date_init`
         regarded as date of a buy or sell order
@@ -1100,7 +1118,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             valid symbol in the portfolio
         `sl` : ``float`` or None
             Loss tolerance to close the trade in currency
-        `tk` : ``float`` or None
+        `tp` : ``float`` or None
             Profit tolerance to close the trade in currency
         `ih` : ``pandas.Timedelta`` or ``pandas.Timestamp`` or ``int`` or None
             investment horizon after opening a position in the market
@@ -1108,12 +1126,12 @@ class Portfolio(PortfolioRecord, RefinedSet):
         Return
         ---
         None
-            if none of `sl`, `tk` or `ih` is given
+            if none of `sl`, `tp` or `ih` is given
         ``pandas.Timestamp``
-            First occurrance of either `sl`, `tk` or `ih`
+            First occurrance of either `sl`, `tp` or `ih`
 
         """
-        if sl is None and tk is None and ih is None:
+        if sl is None and tp is None and ih is None:
             return None
         cls_price = self.refined_obj[symbol].df.Close
         if ih is None:
@@ -1137,24 +1155,24 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 sl_date = hor_price.index[-1]
         else:
             sl_date = hor_price.index[-1]
-        if tk is not None:
+        if tp is not None:
             try:
                 if flag > 0:
-                    tk_date = hor_price[hor_price >= tk].index[0]
+                    tp_date = hor_price[hor_price >= tp].index[0]
                 else:
-                    tk_date = hor_price[hor_price <= tk].index[0]
+                    tp_date = hor_price[hor_price <= tp].index[0]
             except IndexError:
-                tk_date = hor_price.index[-1]
+                tp_date = hor_price.index[-1]
         else:
-            tk_date = hor_price.index[-1]
-        return min(hor_price.index[-1], sl_date, tk_date)
+            tp_date = hor_price.index[-1]
+        return min(hor_price.index[-1], sl_date, tp_date)
 
     def set_position_buy(
-        self, symbol, date, quantity, sl=None, tk=None, ih=None
+        self, symbol, date, quantity, sl=None, tp=None, ih=None
     ):
         """
         Insert a buy(long) position in the portfolio with possible halt
-        if at least one of `sl`(stop loss), `tk`(take profit) or `ih`
+        if at least one of `sl`(stop loss), `tp`(take profit) or `ih`
         (invetment horizon) is given and the underlying condition is
         fulfilled, automatically set a sell order to close the trade
 
@@ -1169,17 +1187,17 @@ class Portfolio(PortfolioRecord, RefinedSet):
         `sl` : ``float`` between (0, 1)
             relative loss tolerance of the investment (stop loss)
             1.0 is the maximum loss = 100%
-        `tk` : ``float`` > 0
+        `tp` : ``float`` > 0
             relative profit tolerance of the investment (take profit)
         `ih` : ``int`` or ``pandas.Timestamp`` of ``pandas.Timedelta``
             time tolerance to close the trade
 
         """
-        if tk is not None and sl is not None:
-            if tk <= 0 or sl >= 1.0 or sl <= 0:
+        if tp is not None and sl is not None:
+            if tp <= 0 or sl >= 1.0 or sl <= 0:
                 raise ValueError(
                     "Invalid take profit {} or stop loss {} "
-                    "for buy order".format(tk, sl)
+                    "for buy order".format(tp, sl)
                 )
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, date)
@@ -1193,13 +1211,13 @@ class Portfolio(PortfolioRecord, RefinedSet):
             self.fixed_tax,
             self.relative_tax,
         )
-        self.__update_portfolio_period(date)
+        self.__update_portfolio_period(valid_date)
         # convert relative values of stop loss/take profit to prices
         if sl is not None:
             sl = approx_price * (1 - sl)
-        if tk is not None:
-            tk = approx_price * (1 + tk)
-        cls_date = self.__query_stop_date(valid_date, symbol, sl, tk, ih, 1)
+        if tp is not None:
+            tp = approx_price * (1 + tp)
+        cls_date = self.__query_stop_date(valid_date, symbol, sl, tp, ih, 1)
         if cls_date is not None:
             self.set_position_sell(symbol, cls_date, quantity)
             self.__update_portfolio_period(cls_date)
@@ -1210,7 +1228,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         date,
         quantity,
         sl=None,
-        tk=None,
+        tp=None,
         ih=None,
         daily_tax=0.0,
     ):
@@ -1227,7 +1245,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             How many shares to sell
         `sl` : ``float`` > 0
             relative loss tolerance of the investment (stop loss)
-        `tk` : ``float`` between (0, 1)
+        `tp` : ``float`` between (0, 1)
             relative profit tolerance of the investment (take profit)
             1 is the maximum profit = 100%
         `ih` : ``int`` or ``pandas.Timestamp`` of ``pandas.Timedelta``
@@ -1236,11 +1254,11 @@ class Portfolio(PortfolioRecord, RefinedSet):
             the rent fraction required to maintain the order per day
 
         """
-        if tk is not None and sl is not None:
-            if tk >= 1.0 or tk <= 0 or sl <= 0:
+        if tp is not None and sl is not None:
+            if tp >= 1.0 or tp <= 0 or sl <= 0:
                 raise ValueError(
                     "Invalid take profit {} or stop loss {} "
-                    "for sell order".format(tk, sl)
+                    "for sell order".format(tp, sl)
                 )
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, date)
@@ -1255,13 +1273,13 @@ class Portfolio(PortfolioRecord, RefinedSet):
             self.relative_tax,
             daily_tax,
         )
-        self.__update_portfolio_period(date)
+        self.__update_portfolio_period(valid_date)
         # convert relative values of stop loss/take profit to prices
         if sl is not None:
             sl = approx_price * (1 + sl)
-        if tk is not None:
-            tk = approx_price * (1 - tk)
-        cls_date = self.__query_stop_date(valid_date, symbol, sl, tk, ih, -1)
+        if tp is not None:
+            tp = approx_price * (1 - tp)
+        cls_date = self.__query_stop_date(valid_date, symbol, sl, tp, ih, -1)
         if cls_date is not None:
             self.set_position_buy(symbol, cls_date, quantity)
             self.__update_portfolio_period(cls_date)
@@ -1384,3 +1402,150 @@ class Portfolio(PortfolioRecord, RefinedSet):
             for deal in deals_list:
                 result += deal.net_result(approx_price, date)
         return result
+
+    def symbols_result_time_series(self, time_step="day", stop_date=None):
+        """
+        Compute portfolio result evolution along time for each symbol
+
+        Parameters
+        ---
+        `time_step` : ``int`` or "day"
+            available time step to consider for each candle stick
+        `stop_date` : ``pandas.Timestamp``
+            datetime to stop the analysis. If not given use last deal date
+
+        Return
+        ---
+        ``dict`` {`symbol` : `result_series`}
+            `symbol` : valid code of shares in stock market
+            `result_series` : result along time
+
+        """
+        if self.empty_history():
+            raise IOError("Empty portfolio")
+        if stop_date is None:
+            stop_date = self.portfolio_end
+        deal_events = self.get_deals_before(stop_date)
+        if not deal_events:
+            raise ValueError("There are no deals up to {}".format(stop_date))
+        deals_stack = {}
+        stack_status = {}
+        sym_res = {}
+        trades = {}
+        for i, deal in enumerate(deal_events):
+            if deal.symbol not in sym_res.keys():
+                sym_res[deal.symbol] = pd.Series([], dtype=float)
+                trades[deal.symbol] = 0.0
+            if deal.symbol not in deals_stack.keys():
+                # means there is no open position for this symbol
+                price = deal.unit_price
+                quant = deal.quantity
+                deals_stack[deal.symbol] = [deal]
+                stack_status[deal.symbol] = (quant, price)
+            elif deals_stack[deal.symbol][0].flag * deal.flag > 0:
+                # means the new deal raised the current position
+                prev_quant = stack_status[deal.symbol][0]
+                prev_price = stack_status[deal.symbol][1]
+                quant = prev_quant + deal.quantity
+                mean_price = (
+                    prev_quant * prev_price + deal.unit_price * deal.quantity
+                ) / quant
+                deals_stack[deal.symbol].append(deal)
+                stack_status[deal.symbol] = (quant, mean_price)
+            else:
+                # means counter order from current position
+                quant = deal.quantity
+                stack_flag = deals_stack[deal.symbol][0].flag
+                old_quant = stack_status[deal.symbol][0]
+                old_price = stack_status[deal.symbol][1]
+                trade_quant = min(quant, old_quant)
+                raw_trade_result = (
+                    trade_quant * stack_flag * (deal.unit_price - old_price)
+                )
+                trade_taxes = 0
+                while deals_stack[deal.symbol]:
+                    if quant - deals_stack[deal.symbol][-1].quantity < 0:
+                        stack_top = deals_stack[deal.symbol][-1]
+                        trade_taxes += stack_top.total_taxes(
+                            deal.deal_date, quant
+                        )
+                        stack_top.quantity -= quant
+                        stack_status[deal.symbol] = (
+                            old_quant - deal.quantity,
+                            old_price,
+                        )
+                        quant = 0
+                        break
+                    pop_deal = deals_stack[deal.symbol].pop()
+                    trade_taxes += pop_deal.total_taxes(deal.deal_date)
+                    quant -= pop_deal.quantity
+                if not deals_stack[deal.symbol]:
+                    # list of deals became empty for this symbol
+                    deals_stack.pop(deal.symbol)
+                    stack_status.pop(deal.symbol)
+                    if quant > 0:
+                        # reverse position
+                        new_deal = StockDeal(
+                            deal.symbol,
+                            quant,
+                            deal.unit_price,
+                            deal.deal_date,
+                            deal.flag,
+                            deal.fixed_tax,
+                            deal.relative_tax,
+                            deal.daily_tax,
+                        )
+                        deals_stack[deal.symbol] = [new_deal]
+                        stack_status[deal.symbol] = (quant, deal.unit_price)
+                trades[deal.symbol] += raw_trade_result - trade_taxes
+            last_deal_date = deal.deal_date
+            if i + 1 < len(deal_events):
+                next_deal_date = deal_events[i + 1].deal_date
+            else:
+                next_deal_date = stop_date
+            time_index = (
+                self.refined_obj[deal.symbol]
+                .change_sample_interval(step=time_step)
+                .loc[last_deal_date:next_deal_date]
+                .index
+            )
+            open_position_res = {}
+            for symbol, (quant, mean_price) in stack_status.items():
+                position_flag = deals_stack[symbol][0].flag
+                price_series = (
+                    self.refined_obj[symbol]
+                    .change_sample_interval(step=time_step)
+                    .Close.loc[last_deal_date:next_deal_date]
+                )
+                if price_series.empty:
+                    continue
+                raw_result_series = (
+                    quant * position_flag * (price_series - mean_price)
+                )
+                const_tax = (
+                    len(deals_stack[symbol]) * self.fixed_tax
+                    + self.relative_tax * mean_price * quant
+                )
+                roll_tax = np.zeros(price_series.size)
+                if position_flag < 0:
+                    for short_deal in deals_stack[symbol]:
+                        roll_tax += short_deal.time_rolling_tax(
+                            price_series.index
+                        ).values
+                accum_roll_tax_series = const_tax + pd.Series(
+                    roll_tax, index=price_series.index
+                )
+                open_position_res[symbol] = (
+                    raw_result_series - accum_roll_tax_series
+                )
+            for symbol in sym_res.keys():
+                trade_ser = pd.Series(
+                    trades[symbol] * np.ones(time_index.size), time_index
+                )
+                if symbol in open_position_res.keys():
+                    sym_res[symbol] = sym_res[symbol].append(
+                        trade_ser + open_position_res[symbol]
+                    )
+                else:
+                    sym_res[symbol] = sym_res[symbol].append(trade_ser)
+        return sym_res
