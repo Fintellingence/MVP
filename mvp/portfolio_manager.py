@@ -32,7 +32,7 @@ class RefinedSet:
     def __init__(
         self,
         db_path=DB_PATH_FINTELLIGENCE,
-        common_features="MA_DAY:10,20:DEV_DAY:10,20",
+        common_features="MA_DAY:10,20:DEV_DAY:10,20:RET_DAY:1",
         preload={"time": [5, 10, 15, 30, 60, "day"]},
     ):
         """
@@ -85,6 +85,7 @@ class RefinedSet:
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
             "RSI": "get_RSI",
+            "RET": "get_returns",
             "FRACDIFF": "frac_diff",
         }
         self.available_time_intervals = [1, 5, 10, 15, 30, 60, "day"]
