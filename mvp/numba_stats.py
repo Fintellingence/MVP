@@ -61,6 +61,7 @@ def moving_correlation(window, data_set1, data_set2, mv_corr):
     Compute correlation using moving `window` data points
     All arrays are required to have the same size despite
     the output array `mv_corr` waste the first `(window - 1)` elements
+    All arrays must have the same size
 
     Parameters
     ---
@@ -91,6 +92,8 @@ def moving_correlation(window, data_set1, data_set2, mv_corr):
 
     """
     set_size = data_set1.size
+    if window > set_size:
+        return
     corr = correlation(window, data_set1, data_set2)
     avg1 = average(window, data_set1)
     avg2 = average(window, data_set2)
