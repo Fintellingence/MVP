@@ -32,7 +32,7 @@ class RefinedSet:
     def __init__(
         self,
         db_path=DB_PATH_FINTELLIGENCE,
-        common_features="MA_DAY:10,20:DEV_DAY:10,20",
+        common_features="MA_DAY:10,20:DEV_DAY:10,20:RET_DAY:1",
         preload={"time": [5, 10, 15, 30, 60, "day"]},
     ):
         """
@@ -85,6 +85,7 @@ class RefinedSet:
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
             "RSI": "get_RSI",
+            "RET": "get_returns",
             "FRACDIFF": "frac_diff",
         }
         self.available_time_intervals = [1, 5, 10, 15, 30, 60, "day"]
@@ -544,6 +545,62 @@ class RefinedSet:
             mov_corr,
         )
         return pd.Series(mov_corr[window - 1 :], indexes[window - 1 :])
+
+    def get_common_feature_dict(
+        self,
+        attr_str,
+        spec_args,
+        start=None,
+        stop=None,
+        time_step=1,
+        as_dataframe=False,
+    ):
+        """
+        Return time series features for all symbols in the set
+        The feature must be represented as time series, if it
+        instead gives a number, an error will occur
+
+        Parameters
+        ---
+        `attr_str` : ``str``
+            refined class feature to compute. Accept either a feature code
+            as in string given in class initialization or the attribute of
+            refined object as string
+        `spec_args` : ``int`` or ``tuple``
+            the first one or few argumets required in refined attribute
+            requested, including all before `start` and `stop`
+        `start` : ``pandas.Timestamp``
+            beginning of time interval of feature time series
+        `stop` : ``pandas.Timestamp``
+            end of time interval of feature time series
+        `time_step` : ``int`` or "day"
+            valid time interval of candlestick
+        `as_dataframe` : ``bool``
+            Define the return data structure
+            `False` : ``dict``
+            `True` : ``pandas.DataFrame``
+
+        Return
+        ---
+        either dictionary or data-frame depending on `as_dataframe`
+        ``dict`` {``str`` : ``pandas.Series``}
+            symbols as keys
+        ``pandas.DataFrame``
+            symbols as columns
+
+        """
+        if attr_str in self.__refined_attr.keys():
+            attr_str = self.__refined_attr[attr_str]
+        feat_dict = {}
+        if isinstance(spec_args, tuple):
+            params = (*spec_args, start, stop, time_step)
+        else:
+            params = (spec_args, start, stop, time_step)
+        for symbol, ref_obj in self.refined_obj.items():
+            feat_dict[symbol] = ref_obj.__getattribute__(attr_str)(*params)
+        if not as_dataframe:
+            return feat_dict
+        return pd.DataFrame(feat_dict)
 
 
 @total_ordering
@@ -1040,7 +1097,14 @@ class Portfolio(PortfolioRecord, RefinedSet):
 
     """
 
-    def __init__(self, fixed_tax=0, relative_tax=0, features=""):
+    def __init__(
+        self,
+        fixed_tax=0,
+        relative_tax=0,
+        db_path=DB_PATH_FINTELLIGENCE,
+        common_features="",
+        preload={"time": [5, 10, 15, 30, 60, "day"]},
+    ):
         """
         Define a portfolio subject to some operational taxes
         and commom features to be analyzed for all companies
@@ -1050,16 +1114,21 @@ class Portfolio(PortfolioRecord, RefinedSet):
         `fixed_tax` : ``float``
             fixed tax charged independent of the volume
         `relative_tax` : ``float``
-            relative fraction of the order price charged in an order
+            relative fraction of the operation price charged in an order
             Usually very small (tipically < 0.001)
-        `features` : ``str``
+        `db_path` : ``str``
+            full path to (with filename) to database file
+        `commom_features` : ``str``
             A valid string with statistical features to be loaded
             within the shares. See `RefinedSet` for more info
+        `preload` : ``dict`` {str : list}
+            dataframe with candle sticks to be loaded in memory
 
         """
+        ref_set_args = (db_path, common_features, preload)
         self.fixed_tax = fixed_tax
         self.relative_tax = relative_tax
-        RefinedSet.__init__(self, common_features=features)
+        RefinedSet.__init__(self, *(ref_set_args))
         PortfolioRecord.__init__(self)
         self.portfolio_start = None
         self.portfolio_end = None
@@ -1403,7 +1472,9 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 result += deal.net_result(approx_price, date)
         return result
 
-    def symbols_result_time_series(self, time_step="day", stop_date=None):
+    def symbols_result_time_series(
+        self, time_step="day", stop_date=None, as_dataframe=False
+    ):
         """
         Compute portfolio result evolution along time for each symbol
 
@@ -1412,13 +1483,18 @@ class Portfolio(PortfolioRecord, RefinedSet):
         `time_step` : ``int`` or "day"
             available time step to consider for each candle stick
         `stop_date` : ``pandas.Timestamp``
-            datetime to stop the analysis. If not given use last deal date
+            datetime to stop the analysis. Default `self.portfolio_end`
+        `as_dataframe` : ``bool``
+            if True return a ``pandas.DataFrame`` columns label by symbols
 
         Return
         ---
         ``dict`` {`symbol` : `result_series`}
             `symbol` : valid code of shares in stock market
             `result_series` : result along time
+        or
+        ``pandas.DataFrame``
+            columns label by symbols
 
         """
         if self.empty_history():
@@ -1432,6 +1508,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         stack_status = {}
         sym_res = {}
         trades = {}
+        invest_series = pd.Series([], dtype=float)
         for i, deal in enumerate(deal_events):
             if deal.symbol not in sym_res.keys():
                 sym_res[deal.symbol] = pd.Series([], dtype=float)
@@ -1510,6 +1587,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 .index
             )
             open_position_res = {}
+            open_position_invest = {}
             for symbol, (quant, mean_price) in stack_status.items():
                 position_flag = deals_stack[symbol][0].flag
                 price_series = (
@@ -1519,6 +1597,13 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 )
                 if price_series.empty:
                     continue
+                if position_flag > 0:
+                    raw_invest_period = pd.Series(
+                        quant * mean_price * np.ones(price_series.size),
+                        price_series.index,
+                    )
+                else:
+                    raw_invest_period = quant * price_series
                 raw_result_series = (
                     quant * position_flag * (price_series - mean_price)
                 )
@@ -1538,6 +1623,13 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 open_position_res[symbol] = (
                     raw_result_series - accum_roll_tax_series
                 )
+                open_position_invest[symbol] = (
+                    raw_invest_period + accum_roll_tax_series
+                )
+            total_invest = pd.Series(np.zeros(time_index.size), time_index)
+            for invest in open_position_invest.values():
+                total_invest = total_invest.add(invest, fill_value=0)
+            invest_series = invest_series.append(total_invest)
             for symbol in sym_res.keys():
                 trade_ser = pd.Series(
                     trades[symbol] * np.ones(time_index.size), time_index
@@ -1548,4 +1640,9 @@ class Portfolio(PortfolioRecord, RefinedSet):
                     )
                 else:
                     sym_res[symbol] = sym_res[symbol].append(trade_ser)
-        return sym_res
+        if not as_dataframe:
+            return sym_res
+        df = pd.DataFrame(sym_res)
+        df["NET_RESULT"] = df.sum(axis=1, skipna=True)
+        df["INVESTMENT"] = invest_series
+        return df.replace(np.nan, 0)

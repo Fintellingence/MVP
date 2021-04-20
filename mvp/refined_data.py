@@ -239,7 +239,7 @@ class RefinedData(RawData):
         return moving_std.dropna()
 
     def get_returns(
-        self, window = 1, start=None, stop=None, time_step=1, append=False
+        self, window=1, start=None, stop=None, time_step=1, append=False
     ):
         """
         Returns the return series time series of close price
@@ -249,12 +249,14 @@ class RefinedData(RawData):
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
-        return_df = (df_slice["Close"] - df_slice["Close"].shift(1))/df_slice["Close"].shift(1)
+        return_df = (
+            df_slice["Close"] - df_slice["Close"].shift(window)
+        ) / df_slice["Close"].shift(window)
         return_df.name = "RET"
         if append:
             self.__cached_features[str_code] = return_df.dropna()
-        return return_df.dropna() 
-        
+        return return_df.dropna()
+
     def get_RSI(
         self, window, start=None, stop=None, time_step=1, append=False
     ):
