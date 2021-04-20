@@ -141,7 +141,6 @@ class RefinedData(RawData):
             "FRACDIFF": "frac_diff",
         }
         self.__cached_features = {}
-        self.volume_density(append=True)
         for feature in requested_features.keys():
             if feature not in self.__attr.keys():
                 continue
@@ -163,13 +162,8 @@ class RefinedData(RawData):
                 except ValueError as err:
                     print(err, ": param {} given".format(parameter))
 
-    def __code_formatter(self, name, start, stop, time_step, extra_par):
-        fmt_start = start.strftime("%Y%m%d")
-        fmt_stop = stop.strftime("%Y%m%d")
-        str_code = "{}_{}_{}_{}_{}".format(
-            name, fmt_start, fmt_stop, time_step, extra_par
-        )
-        return str_code
+    def __code_formatter(self, name, time_step, extra_par):
+        return "{}_{}_{}".format(name, time_step, extra_par)
 
     def cache_features_keys(self):
         """ internal keys used to cached features. Information purposes """
@@ -187,21 +181,16 @@ class RefinedData(RawData):
         del self.__cached_features
         self.__cached_features = {}
 
-    def volume_density(self, start=None, stop=None, time_step=1, append=False):
+    def volume_density(self, start=None, stop=None, time_step=1):
         """
         Return the average volume exchange per tick/deal
         """
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("VOLDEN", start, stop, time_step, 1)
-        if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code].copy()
         df_slice = self.change_sample_interval(start, stop, time_step)
         vol_den = df_slice["Volume"] / df_slice["TickVol"]
         clean_data = vol_den.replace([-np.inf, np.inf], np.nan).copy()
         clean_data.dropna(inplace=True)
         clean_data.name = "DEAL_DEN"
-        if append:
-            self.__cached_features[str_code] = clean_data.astype(int)
         return clean_data.astype(int)
 
     def get_simple_MA(
@@ -210,15 +199,21 @@ class RefinedData(RawData):
         """
         Return simple moving average time series of close price
         """
+        str_code = self.__code_formatter("MA", time_step, window)
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("MA", start, stop, time_step, window)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code].copy()
-        df_slice = self.change_sample_interval(start, stop, time_step)
-        moving_avg = df_slice["Close"].rolling(window=window).mean()
-        moving_avg.name = "MA"
+            return self.__cached_features[str_code].copy().loc[start:stop]
+        if append:
+            df_slice = self.change_sample_interval(
+                *(self.assert_window()), time_step
+            )
+        else:
+            df_slice = self.change_sample_interval(start, stop, time_step)
+        moving_avg = df_slice["Close"].rolling(window).mean()
+        moving_avg.name = "MovingAverage"
         if append:
             self.__cached_features[str_code] = moving_avg.dropna()
+            return moving_avg[start:stop].dropna()
         return moving_avg.dropna()
 
     def get_deviation(
@@ -228,14 +223,20 @@ class RefinedData(RawData):
         Return moving standard deviation time series of close price
         """
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("DEV", start, stop, time_step, window)
+        str_code = self.__code_formatter("DEV", time_step, window)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code].copy()
-        df_slice = self.change_sample_interval(start, stop, time_step)
-        moving_std = df_slice["Close"].rolling(window=window).std()
-        moving_std.name = "DEV"
+            return self.__cached_features[str_code].copy().loc[start:stop]
+        if append:
+            df_slice = self.change_sample_interval(
+                *(self.assert_window()), time_step
+            )
+        else:
+            df_slice = self.change_sample_interval(start, stop, time_step)
+        moving_std = df_slice["Close"].rolling(window).std()
+        moving_std.name = "StandardDeviation"
         if append:
             self.__cached_features[str_code] = moving_std.dropna()
+            return moving_std.loc[start:stop].dropna()
         return moving_std.dropna()
 
     def get_returns(
@@ -245,35 +246,40 @@ class RefinedData(RawData):
         Returns the return series time series of close price
         """
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("RET", start, stop, time_step, window)
+        str_code = self.__code_formatter("RET", time_step, window)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code].copy()
-        df_slice = self.change_sample_interval(start, stop, time_step)
-        return_df = (
+            return self.__cached_features[str_code].copy().loc[start:stop]
+        if append:
+            df_slice = self.change_sample_interval(
+                *(self.assert_window()), time_step
+            )
+        else:
+            df_slice = self.change_sample_interval(start, stop, time_step)
+        return_series = (
             df_slice["Close"] - df_slice["Close"].shift(window)
         ) / df_slice["Close"].shift(window)
-        return_df.name = "RET"
+        return_series.name = "ReturnSeries"
         if append:
-            self.__cached_features[str_code] = return_df.dropna()
-        return return_df.dropna()
+            self.__cached_features[str_code] = return_series.dropna()
+            return return_series.loc[start:stop].dropna()
+        return return_series.dropna()
 
     def get_RSI(
         self, window, start=None, stop=None, time_step=1, append=False
     ):
         """
         Return moving Relative Strength Index time series of close price
-
-        Warning
-        ---
-        In order to return the same size convention of other moving
-        quantities, the first value is set to zero in returns series
-
         """
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("RSI", start, stop, time_step, window)
+        str_code = self.__code_formatter("RSI", time_step, window)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code].copy()
-        df_slice = self.change_sample_interval(start, stop, time_step)
+            return self.__cached_features[str_code].copy().loc[start:stop]
+        if append:
+            df_slice = self.change_sample_interval(
+                *(self.assert_window()), time_step
+            )
+        else:
+            df_slice = self.change_sample_interval(start, stop, time_step)
         return_series = df_slice.Close - df_slice.Close.shift(periods=1)
         gain_or_zero = return_series.apply(lambda x: 0 if x < 0 else x)
         loss_or_zero = return_series.apply(lambda x: 0 if x > 0 else -x)
@@ -282,10 +288,11 @@ class RefinedData(RawData):
             / loss_or_zero.rolling(window=window).mean().dropna()
         )
         rsi_series = ratio.apply(lambda x: 100 - 100 / (1 + x))
-        rsi_series.name = "RSI"
+        rsi_series.name = "RelativeStrengthIndex"
         if append:
-            self.__cached_features[str_code] = rsi_series
-        return rsi_series
+            self.__cached_features[str_code] = rsi_series.dropna()
+            return rsi_series.loc[start:stop].dropna()
+        return rsi_series.dropna()
 
     def autocorr_period(
         self, shift, start=None, stop=None, time_step=1, append=False
@@ -316,21 +323,20 @@ class RefinedData(RawData):
 
         """
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter(
-            "AUTOCORR", start, stop, time_step, shift
-        )
+        extra_code = "{}_{}_{}".format(shift, start, stop)
+        str_code = self.__code_formatter("AUTOCORR", time_step, extra_code)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code]
         df_slice = self.change_sample_interval(start, stop, time_step)
-        df_close = df_slice["Close"]
-        if shift >= df_close.size:
+        cls_price = df_slice["Close"]
+        if shift >= cls_price.size:
             raise ValueError(
                 "Period enclosed from {} to {} provided {} "
                 "data points, while {} shift was required".format(
-                    start, stop, df_close.size, shift
+                    start, stop, cls_price.size, shift
                 )
             )
-        autocorr = df_close.autocorr(lag=shift)
+        autocorr = cls_price.autocorr(lag=shift)
         if append:
             self.__cached_features[str_code] = autocorr
         return autocorr
@@ -408,14 +414,17 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         str_code = self.__code_formatter(
             "MOV_AUTOCORR",
-            start,
-            stop,
             time_step,
             "{}_{}".format(window, shift),
         )
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code].copy()
-        df_slice = self.change_sample_interval(start, stop, time_step)
+            return self.__cached_features[str_code].copy().loc[start:stop]
+        if append:
+            df_slice = self.change_sample_interval(
+                *(self.assert_window()), time_step
+            )
+        else:
+            df_slice = self.change_sample_interval(start, stop, time_step)
         close_prices = df_slice["Close"].values
         if close_prices.size < window:
             raise ValueError(
@@ -436,9 +445,10 @@ class RefinedData(RawData):
         mov_autocorr_ser = pd.Series(
             core_data, index=df_slice.index[window - 1 :]
         )
-        mov_autocorr_ser.name = "MOV_AUTOCORR"
+        mov_autocorr_ser.name = "Autocorrelation"
         if append:
             self.__cached_features[str_code] = mov_autocorr_ser
+            return mov_autocorr_ser.loc[start:stop]
         return mov_autocorr_ser
 
     def __frac_diff_weights(self, d, tolerance, max_weights=1e8):
@@ -512,19 +522,24 @@ class RefinedData(RawData):
 
         """
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter(
-            "FRAC_DIFF", start, stop, time_step, d
-        )
+        str_code = self.__code_formatter("FRAC_DIFF", time_step, d)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code]
-        df_slice = self.change_sample_interval(start, stop, time_step)
+            return self.__cached_features[str_code].loc[start:stop]
+        if append:
+            df_slice = self.change_sample_interval(
+                *(self.assert_window()), time_step
+            )
+        else:
+            df_slice = self.change_sample_interval(start, stop, time_step)
         w = self.__frac_diff_weights(d, weights_tol)
         close_series = df_slice["Close"]
         fracdiff_series = close_series.rolling(window=w.size).apply(
             lambda x: self.__apply_weights(w, x), raw=True
         )
+        fracdiff_series.name = "FracDiff"
         if append:
             self.__cached_features[str_code] = fracdiff_series.dropna()
+            return fracdiff_series.loc[start:stop].dropna()
         return fracdiff_series.dropna()
 
     def adf_test(self, frac_diff):
@@ -562,18 +577,24 @@ class RefinedData(RawData):
 
         """
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter(
-            "VOLA_FREQ", start, stop, time_step, window
-        )
+        str_code = self.__code_formatter("VOLA_FREQ", time_step, window)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code]
-        df_slice = self.change_sample_interval(start, stop, time_step)
-        money_exch = df_slice["Close"] * df_slice["Volume"]
-        vol_series = money_exch.rolling(window=window).apply(
+            return self.__cached_features[str_code].loc[start:stop]
+        if append:
+            df_slice = self.change_sample_interval(
+                *(self.assert_window()), time_step
+            )
+        else:
+            df_slice = self.change_sample_interval(start, stop, time_step)
+        target = df_slice["Close"]
+        if isinstance(time_step, str):
+            time_step = 1
+        vol_series = target.rolling(window).apply(
             lambda x: mean_quadratic_freq(x, time_step)
         )
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
+            return vol_series.loc[start:stop].dropna()
         return vol_series.dropna()
 
     def vola_amplitude(
@@ -598,16 +619,21 @@ class RefinedData(RawData):
 
         """
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter(
-            "VOLA_AMPL", start, stop, time_step, window
-        )
+        str_code = self.__code_formatter("VOLA_AMPL", time_step, window)
         if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code]
-        df_slice = self.change_sample_interval(start, stop, time_step)
-        max_price = df_slice["High"].rolling(window=window).max()
-        min_price = df_slice["Low"].rolling(window=window).min()
+            return self.__cached_features[str_code].loc[start:stop]
+        if append:
+            df_slice = self.change_sample_interval(
+                *(self.assert_window()), time_step
+            )
+        else:
+            df_slice = self.change_sample_interval(start, stop, time_step)
+        max_price = df_slice["High"].rolling(window).max()
+        min_price = df_slice["Low"].rolling(window).min()
         ma = self.get_simple_MA(window, start, stop, time_step)
         vol_series = (max_price - min_price) / ma
+        vol_series.name = "AmplitudeVolatility"
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
+            return vol_series.loc[start:stop].dropna()
         return vol_series.dropna()

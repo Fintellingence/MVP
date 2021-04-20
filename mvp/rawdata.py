@@ -258,18 +258,21 @@ class RawData:
         full_size = 0
         for df in self.__cached_dataframes.values():
             full_size = full_size + df.__sizeof__()
-        return full_size + self.df.__sizeof__()
+        return full_size
 
     def cache_dataframes_clean(self):
         """ Remove all dataframes currently in cache """
+        minute1_df_recovery = self.df.copy()
         del self.__cached_dataframes
+        del self.df
+        self.df = minute1_df_recovery.copy()
         self.__cached_dataframes = {}
+        self.__cached_dataframes["time_1"] = self.df
 
-    def assert_window(self, start, stop):
+    def assert_window(self, start=None, stop=None):
         """
         Ensure that two variables can be used to slice a dataframe window
-        either by time or index location. In case `None` is given the
-        first and last point of dataframe is considered
+        If ``None`` types are given return the constraining dates of data
 
         Parameters
         ----------
