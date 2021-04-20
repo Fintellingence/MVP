@@ -112,6 +112,10 @@ def plot_time_candles(raw_data, start, stop, time_step=1):
     plt.show()
 
 def plot_symbol(refined_data, time_step = 1):
+    """
+    Basic Auxiliar function to plot symbols via refined_data.RefinedData()
+    objects.
+    """
     data = refined_data.change_sample_interval(step = time_step)
     fig, ax = plt.subplots()
     with sns.axes_style('darkgrid'):
@@ -304,16 +308,27 @@ def plot_classical_filter(model, labels, linewidth=1.0, point_size = 15):
 
 def plot_model(model, operation_parameters, linewidth=0.8, point_size = 15):
     """
-    Displays the close time-series along with the indicators used by
-    the primary models, also highlights Buy/Sell Sides and their
-    success (label = 1, or -1)
+    Displays the target (usually Close) time-series along with the indicators
+    used by the primary models to generate triggers, also highlights Buy/Sell
+    Sides and their success (label = 1, or -1)
 
     Parameters
     ----------
         `model` : ``mvp.primary.PrimaryModel``
             provides all data for plotting signals and indicators
-        `labels`: ``pd.DataFrame()``
-            contains a the labels of events, could come from mvp.labels.Labels.labeled_df
+        `operation_parameters`: ``dict``
+            Inside `OperationParameters` key we have to provide another dict 
+            containing three values:
+             - StopLoss (SL)
+             - TakeProfit (TP)
+             - InvestmentHorizon (IH)
+             - MarginMode (margin_mode)
+            These values should be provided like the following:
+                {'SL': 0.01, 'TP': 0.01, 'IH': 1000,'margin_mode':'percent'}}
+        `linewidth`: ```float`
+            specifies linewidth parameter for line plots (series/indicators)
+        `point_size`: ``float``
+            specifies point size parameter for scatter plots (events)
     """
     close_data = model.feature_data['Close']
     label_data = mvp.labels.Labels(model.events, close_data, operation_parameters).label_data

@@ -1,6 +1,5 @@
 import pandas as pd
 import mvp
-import matplotlib.pyplot as plt
 
 def trade_book(primary_model, operation_parameters):
     close_data = primary_model.feature_data['Close']
