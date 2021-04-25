@@ -3,7 +3,6 @@ from math import sqrt
 import numpy as np
 import pandas as pd
 from numba import float64, int32, njit, prange
-from statsmodels.tsa.stattools import adfuller
 
 import numba_stats
 from mvp.rawdata import RawData
@@ -52,14 +51,14 @@ def numba_weights(d, tolerance, w_array, w_size, last_index):
 
 def mean_quadratic_freq(data, time_spacing=1):
     """
-    Use `data` Fourier transform to compute mean quadratic freq of the spectrum
+    Use `data` Fourier transform to compute mean quadratic freq
 
     Parameters
     ----------
     `data` : ``numpy.array``
         data series in time basis
     `time_spacing` : ``float``
-        sample time spacing usually in minutes
+        sample time spacing among data points
 
     Return
     ------
@@ -79,10 +78,41 @@ class RefinedData(RawData):
     some simple statistical features which provide more tools
     to analyze data and support models
 
+    Most part of attributes depend on a set of common parameters
+    which are related to time period, bar type and size. A brief
+    explanation is provided below
+
+    `start` : ``pandas.Timestamp`` or ``int``
+        The initial date/time instant to consider in computation
+        or index of dataframe. Preferably ``pandas.Timestamp``
+    `stop` : ``pandas.Timestamp`` or ``int``
+        The final date/time instante to consider in computation
+        or index of dataframe. Preferably ``pandas.Timestamp``
+    `step` : ``int`` (especially string "day")
+        Dataframe bar's spacing value according to `target`. The
+        values can change drastically depending on `target`, see
+        some examples below
+    `target` : ``str``
+        String fromatted as "bar_type:data_field". Parameters of
+        this pair are
+            bar_type : ["time", "tick", "volume", "money"]
+            data_field : ["open", "high", "low", "close", "volume"]
+
+    Consider the following example: if `target = "money:close"` and
+    `step = 10000000` the feature requested will be computed over
+    close prices from candlesticks built after 10 million have been
+    negotiated in the stock market.
+
+    Another usage of `target` and `step` parameter is the basic way
+    the candlesticks are used. If `target = "time:close"` and
+    `step = 15` means the feature requested will be computed over
+    close prices from candlesticks built after every 15 minuters of
+    negotiation in the stock market
+
     Inherit
     -------
     ``mvp.rawdata.RawData``
-        class to load data from database and sample it in different formats
+        class to read databases and sample it in different formats
 
     """
 
@@ -90,80 +120,80 @@ class RefinedData(RawData):
         self,
         symbol,
         db_path,
-        preload={"time": [5, 10, 15, 30, 60, "day"]},
+        preload={"time": [60, "day"]},
         requested_features={},
-        start=None,
-        stop=None,
-        time_step=1,
+        step=1,
+        target="time:close",
     ):
         """
         Initialize the class reading data from database. If only `symbol`
-        and `db_path` are given simply initialize the RawData class from
-        inheritance. Some common features may be computed in initialization
-        passing some of the optional parametersi. These features computed
-        in initialization are NECESSARILY set in cache memory
+        and `db_path` are given simply initialize `RawData`. Some common
+        features may be computed in initialization which are NECESSARILY
+        set in cache memory to avoid computing effort in next calls
 
         Parameters
         ----------
         `symbol` : ``str``
-            symbol code of the company to load data
+            company symbol code listed in stock market
         `db_path` : ``str``
-            full path to database file
-        `preload` : ``dict``
-            dictionary to inform dataframes set in cache memory
-            {
-                "time": list[``int`` / "day"]   (new time interval of bars)
-                "tick": list[``int``]       (bars in amount of deals occurred)
-                "volume": list[``int``]     (bars in amount of volume)
-                "money": list[``int``]      (bars in amount of money)
-            }
-        `requested_features` : ``dict``
+            full path to 1-minute database file
+        `preload` : ``dict`` {`bar_type` : `step`}
+            dictionary to inform dataframes to set in cache memory
+            Available `bar_type` are given below while `step` must
+            be ``int`` or ``list`` of integeres. In case `bar_type`
+            is "time", `step` also admit the string "day"
+            Available bar types:
+                "time"
+                "tick"
+                "volume"
+                "money"
+        `requested_features` : ``dict`` {`feature_name` : `parameter`}
             Dictionary codifying some features to compute in initialization
-            {
-                "MA": ``int``         (window size)
-                "DEV": ``int``        (window size)
-                "RSI": ``int``        (window size)
-                "FRACDIFF": ``float`` (differentiation order between 0 and 1)
-            }
-        `start` : ``pd.Timestamp`` or ``int``
-            index of Dataframe to start in computation of requested features
-        `stop` : ``pd.Timestamp`` or ``int``
-            index of Dataframe to stop in computation of requested features
-        `time_step` : ``int`` or "day"
-            define the sample time interval to compute requested features
+            Available values of `feature_name`:`parameter` pairs
+                "sma" : ``int``
+                "dev" : ``int``
+                "rsi" : ``int``
+                "returns" : ``int``
+                "vol_den" : ()
+                "fracdiff" : ``int``
+                "autocorr_mov" : (``int``, ``int``)
+                "vola_freq" : ``int``
+                "vola_gain" : ``int``
+            Where `parameter` also accepts list of types listed above
+        `step` : ``int`` or "day"
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]
 
         """
         RawData.__init__(self, symbol, db_path, preload)
-        self.__attr = {
-            "MA": "get_simple_MA",
-            "DEV": "get_deviation",
-            "RSI": "get_RSI",
-            "FRACDIFF": "frac_diff",
-        }
         self.__cached_features = {}
-        for feature in requested_features.keys():
-            if feature not in self.__attr.keys():
+        extra_args = {"step": step, "target": target, "append": True}
+        for feature, params in requested_features.items():
+            feature = feature.lower()
+            method_str = "get_" + feature
+            if not hasattr(self, method_str):
+                print("Method {} not found in RefinedData".format(method_str))
                 continue
-            if isinstance(requested_features[feature], list):
-                parameters_list = requested_features[feature]
-                for parameter in parameters_list:
-                    try:
-                        self.__getattribute__(self.__attr[feature])(
-                            parameter, start, stop, time_step, True
-                        )
-                    except Exception as err:
-                        print(err, ": param {} given".format(parameter))
-            else:
-                parameter = requested_features[feature]
+            method = self.__getattribute__(method_str)
+            if not isinstance(params, list):
+                params = [params]
+            for param in params:
                 try:
-                    self.__getattribute__(self.__attr[feature])(
-                        parameter, start, stop, time_step, True
-                    )
-                except ValueError as err:
-                    print(err, ": param {} given".format(parameter))
+                    if isinstance(param, tuple):
+                        method(*param, **extra_args)
+                    else:
+                        method(param, **extra_args)
+                except Exception as err:
+                    print("\nError in {}\n\n".format(method_str), err)
 
-    def __code_formatter(self, name, time_step, extra_par):
-        return "{}_{}_{}".format(name, time_step, extra_par)
+    def __code_formatter(self, name, step, extra_par, target):
+        """ Format string to use as key for cache dictionary """
+        return "{}_{}_{}_{}".format(name, step, extra_par, target)
 
     def cache_features_keys(self):
         """ internal keys used to cached features. Information purposes """
@@ -177,62 +207,165 @@ class RefinedData(RawData):
         return full_size
 
     def cache_clean(self):
-        """ delete all cached memory """
+        """ delete all features in cache memory """
         del self.__cached_features
         self.__cached_features = {}
 
-    def volume_density(self, start=None, stop=None, time_step=1):
-        """
-        Return the average volume exchange per tick/deal
-        """
-        start, stop = self.assert_window(start, stop)
-        df_slice = self.change_sample_interval(start, stop, time_step)
-        vol_den = df_slice["Volume"] / df_slice["TickVol"]
-        clean_data = vol_den.replace([-np.inf, np.inf], np.nan).copy()
-        clean_data.dropna(inplace=True)
-        clean_data.name = "DEAL_DEN"
-        return clean_data.astype(int)
-
-    def get_simple_MA(
-        self, window, start=None, stop=None, time_step=1, append=False
+    def get_vol_den(
+        self, start=None, stop=None, step=1, target="time:close", append=False
     ):
         """
-        Return simple moving average time series of close price
+        Average volume exchange per tick/deal
+
+        Parameters
+        ----------
+        `start` : ``pandas.Timestamp``
+            initial time instant to slice the data timeseries
+        `stop` : ``pandas.Timestamp``
+            final time instant to slice the data timeseries
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name`, is not applicable in this feature
+        `append` : ``bool``
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
+
+        Return
+        ------
+        ``pandas.Series``
+
         """
-        str_code = self.__code_formatter("MA", time_step, window)
+        str_code = self.__code_formatter("MA", step, 1, target)
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
+        bar_method = self.__getattribute__(target.split(":")[0] + "_bars")
         if append:
-            df_slice = self.change_sample_interval(
-                *(self.assert_window()), time_step
-            )
+            df_slice = bar_method(step=step)
         else:
-            df_slice = self.change_sample_interval(start, stop, time_step)
-        moving_avg = df_slice["Close"].rolling(window).mean()
+            df_slice = bar_method(start, stop, step)
+        vol_den = df_slice["Volume"] / df_slice["TickVol"]
+        clean_data = vol_den.replace([-np.inf, np.inf], np.nan).copy()
+        clean_data.dropna(inplace=True)
+        clean_data.name = "VolumeDensity"
+        if append:
+            self.__cached_features[str_code] = clean_data.astype(int)
+            return clean_data[start:stop].astype(int)
+        return clean_data.astype(int)
+
+    def get_sma(
+        self,
+        window,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
+        append=False,
+    ):
+        """
+        Compute simple moving average(sma)
+
+        Parameters
+        ----------
+        `window` : ``int``
+            number of data points to consider in each evaluation
+        `start` : ``pandas.Timestamp``
+            initial time instant to slice the data timeseries
+        `stop` : ``pandas.Timestamp``
+            final time instant to slice the data timeseries
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
+        `append` : ``bool``
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
+
+        Return
+        ------
+        ``pandas.Series``
+            simple moving average
+
+        """
+        str_code = self.__code_formatter("MA", step, window, target)
+        start, stop = self.assert_window(start, stop)
+        if str_code in self.__cached_features.keys():
+            return self.__cached_features[str_code].copy().loc[start:stop]
+        bar_type, field_name = target.split(":")
+        field_method = self.__getattribute__("get_" + field_name)
+        if append:
+            target_series = field_method(step=step, bar_type=bar_type)
+        else:
+            target_series = field_method(start, stop, step, bar_type)
+        moving_avg = target_series.rolling(window).mean()
         moving_avg.name = "MovingAverage"
         if append:
             self.__cached_features[str_code] = moving_avg.dropna()
             return moving_avg[start:stop].dropna()
         return moving_avg.dropna()
 
-    def get_deviation(
-        self, window, start=None, stop=None, time_step=1, append=False
+    def get_dev(
+        self,
+        window,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
+        append=False,
     ):
         """
-        Return moving standard deviation time series of close price
+        Compute moving standard deviation(dev)
+
+        Parameters
+        ----------
+        `window` : ``int``
+            number of data points to consider in each evaluation
+        `start` : ``pandas.Timestamp``
+            initial time instant to slice the data timeseries
+        `stop` : ``pandas.Timestamp``
+            final time instant to slice the data timeseries
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
+        `append` : ``bool``
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
+
+        Return
+        ------
+        ``pandas.Series``
+            moving standard deviation
+
         """
+        str_code = self.__code_formatter("DEV", step, window, target)
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("DEV", time_step, window)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
+        bar_type, field_name = target.split(":")
+        field_method = self.__getattribute__("get_" + field_name)
         if append:
-            df_slice = self.change_sample_interval(
-                *(self.assert_window()), time_step
-            )
+            target_series = field_method(step=step, bar_type=bar_type)
         else:
-            df_slice = self.change_sample_interval(start, stop, time_step)
-        moving_std = df_slice["Close"].rolling(window).std()
+            target_series = field_method(start, stop, step, bar_type)
+        moving_std = target_series.rolling(window).std()
         moving_std.name = "StandardDeviation"
         if append:
             self.__cached_features[str_code] = moving_std.dropna()
@@ -240,47 +373,114 @@ class RefinedData(RawData):
         return moving_std.dropna()
 
     def get_returns(
-        self, window=1, start=None, stop=None, time_step=1, append=False
+        self,
+        window=1,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
+        append=False,
     ):
         """
-        Returns the return series time series of close price
+        Compute normalized returns of buy operations executed in a window
+
+        Parameters
+        ----------
+        `window` : ``int``
+            number of data points to consider in each evaluation
+        `start` : ``pandas.Timestamp``
+            initial time instant to slice the data timeseries
+        `stop` : ``pandas.Timestamp``
+            final time instant to slice the data timeseries
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
+        `append` : ``bool``
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
+
+        Return
+        ------
+        ``pandas.Series``
+            normalized returns
+
         """
+        str_code = self.__code_formatter("RET", step, window, target)
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("RET", time_step, window)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
+        bar_type, field_name = target.split(":")
+        field_method = self.__getattribute__("get_" + field_name)
         if append:
-            df_slice = self.change_sample_interval(
-                *(self.assert_window()), time_step
-            )
+            target_series = field_method(step=step, bar_type=bar_type)
         else:
-            df_slice = self.change_sample_interval(start, stop, time_step)
+            target_series = field_method(start, stop, step, bar_type)
         return_series = (
-            df_slice["Close"] - df_slice["Close"].shift(window)
-        ) / df_slice["Close"].shift(window)
+            target_series - target_series.shift(window)
+        ) / target_series.shift(window)
         return_series.name = "ReturnSeries"
         if append:
             self.__cached_features[str_code] = return_series.dropna()
             return return_series.loc[start:stop].dropna()
         return return_series.dropna()
 
-    def get_RSI(
-        self, window, start=None, stop=None, time_step=1, append=False
+    def get_rsi(
+        self,
+        window,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
+        append=False,
     ):
         """
-        Return moving Relative Strength Index time series of close price
+        Return moving Relative Strength Index time series
+
+        Parameters
+        ----------
+        `window` : ``int``
+            number of data points to consider in each evaluation
+        `start` : ``pandas.Timestamp``
+            initial time instant to slice the data timeseries
+        `stop` : ``pandas.Timestamp``
+            final time instant to slice the data timeseries
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
+        `append` : ``bool``
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
+
+        Return
+        ------
+        ``pandas.Series``
+
         """
+        str_code = self.__code_formatter("RSI", step, window, target)
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("RSI", time_step, window)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
+        bar_type, field_name = target.split(":")
+        field_method = self.__getattribute__("get_" + field_name)
         if append:
-            df_slice = self.change_sample_interval(
-                *(self.assert_window()), time_step
-            )
+            target_series = field_method(step=step, bar_type=bar_type)
         else:
-            df_slice = self.change_sample_interval(start, stop, time_step)
-        return_series = df_slice.Close - df_slice.Close.shift(periods=1)
+            target_series = field_method(start, stop, step, bar_type)
+        return_series = target_series - target_series.shift(periods=1)
         gain_or_zero = return_series.apply(lambda x: 0 if x < 0 else x)
         loss_or_zero = return_series.apply(lambda x: 0 if x > 0 else -x)
         ratio = (
@@ -294,15 +494,21 @@ class RefinedData(RawData):
             return rsi_series.loc[start:stop].dropna()
         return rsi_series.dropna()
 
-    def autocorr_period(
-        self, shift, start=None, stop=None, time_step=1, append=False
+    def get_autocorr_period(
+        self,
+        shift,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
+        append=False,
     ):
         """
         Compute auto-correlation function in a time period
         According to pandas the autocorrelation is computed as follows:
         Given a set {y1, y2, ... , yN} divide it in {y1, y2, ..., yN-s}
-        and {ys, ys+1, ..., yN}, compute the average for each set and
-        than compute the covariance between the two sets.
+        and {ys, ys+1, ..., yN}, compute the average for each set, then
+        compute the covariance between the two sets.
 
         Parameters
         ----------
@@ -312,10 +518,19 @@ class RefinedData(RawData):
             first dataframe index of the period
         `stop` : ``pandas.Timestamp`` or ``int``
             last dataframe index of the period
-        `time_step` : ``int``
-            available ones in `RefinedData.available_time_steps`
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
         `append` : ``bool``
-            whether to include in class cache memory each entry
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
 
         Return
         ------
@@ -324,69 +539,93 @@ class RefinedData(RawData):
         """
         start, stop = self.assert_window(start, stop)
         extra_code = "{}_{}_{}".format(shift, start, stop)
-        str_code = self.__code_formatter("AUTOCORR", time_step, extra_code)
+        str_code = self.__code_formatter("AUTOCORR", step, extra_code, target)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code]
-        df_slice = self.change_sample_interval(start, stop, time_step)
-        cls_price = df_slice["Close"]
-        if shift >= cls_price.size:
+        bar_type, field_name = target.split(":")
+        field_method = self.__getattribute__("get_" + field_name)
+        target_series = field_method(start, stop, step, bar_type)
+        if shift >= target_series.size:
             raise ValueError(
                 "Period enclosed from {} to {} provided {} "
                 "data points, while {} shift was required".format(
-                    start, stop, cls_price.size, shift
+                    start, stop, target_series.size, shift
                 )
             )
-        autocorr = cls_price.autocorr(lag=shift)
+        autocorr = target_series.autocorr(lag=shift)
         if append:
             self.__cached_features[str_code] = autocorr
         return autocorr
 
-    def autocorr_period_matrix(
-        self, shift, starts, stops, time_step=1, append=False
+    def get_autocorr_many(
+        self,
+        shift,
+        starts,
+        stops,
+        step=1,
+        target="time:close",
+        append=False,
     ):
         """
         Compute auto-correlation function for multiple time intervals
-        For each start and stop call `RefinedData.autocorr_period`
+        For each start and stop call `self.autocorr_period`
 
         Parameters
         ----------
         `shift` : ``int``
             displacement to separate the two data samples
         `starts` : ``list`` of ``pandas.Timestamp``
-            list of first date/minute of the period
+            list of first date/minute of the period. Size of `stops`
         `stops` : ``list`` of ``pandas.Timestamp``
-            list of end of the period
-        `time_step` : ``int`` or "day"
-            values in RefinedData.available_time_steps
+            list of end of the period. Size of `starts`
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
         `append` : ``bool``
-            whether to append in class cache memory for every window formed
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
 
         Return
         ------
         ``pandas.DataFrame``
-            matrix of autocorrelation indexed by `starts` and `stops`
+            Several results of autocorrelation in different periods
 
         """
-        n_starts = len(starts)
-        n_stops = len(stops)
-        autocorr = np.empty([n_starts, n_stops])
-        for i in range(n_starts):
-            for j in range(n_stops):
-                try:
-                    autocorr[i, j] = self.autocorr_period(
-                        shift, starts[i], stops[j], time_step, append
-                    )
-                except Exception:
-                    autocorr[i, j] = np.nan
-        autocorr_df = pd.DataFrame(autocorr, columns=stops, index=starts)
-        autocorr_df.index.name = "start_dates"
+        if len(starts) != len(stops):
+            raise ValueError("starts and stops must have same size")
+        autocorr = np.empty(len(starts))
+        for i, (start, stop) in enumerate(zip(starts, stops)):
+            try:
+                autocorr[i] = self.get_autocorr_period(
+                    shift, start, stop, step, target, append
+                )
+            except Exception:
+                autocorr[i] = np.nan
+        autocorr_df = pd.DataFrame(
+            [stops, autocorr], columns=["FinalDate", "Autocorr"], index=starts
+        )
+        autocorr_df.index.name = "InitialDate"
         return autocorr_df
 
-    def moving_autocorr(
-        self, window, shift, start=None, stop=None, time_step=1, append=False
+    def get_autocorr_mov(
+        self,
+        window,
+        shift,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
+        append=False,
     ):
         """
-        Compute auto-correlation in a moving `window` using close price
+        Compute auto-correlation in a moving `window`
 
         Parameters
         ----------
@@ -398,8 +637,19 @@ class RefinedData(RawData):
             First index/date. Default is the beginning of dataframe
         `stop` : ``pd.Timestamp`` or ``int``
             Last index/date. Default is the end of dataframe
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
         `append` : ``bool``
-            whether to append in class cache or not
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
 
         Return
         ------
@@ -412,38 +662,37 @@ class RefinedData(RawData):
                 "than the moving window {}".format(shift, window)
             )
         start, stop = self.assert_window(start, stop)
+        par_code = "{}_{}".format(window, shift)
         str_code = self.__code_formatter(
-            "MOV_AUTOCORR",
-            time_step,
-            "{}_{}".format(window, shift),
+            "MOV_AUTOCORR", step, par_code, target
         )
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
+        bar_type, field_name = target.split(":")
+        field_method = self.__getattribute__("get_" + field_name)
         if append:
-            df_slice = self.change_sample_interval(
-                *(self.assert_window()), time_step
-            )
+            target_series = field_method(step=step, bar_type=bar_type)
         else:
-            df_slice = self.change_sample_interval(start, stop, time_step)
-        close_prices = df_slice["Close"].values
-        if close_prices.size < window:
+            target_series = field_method(start, stop, step, bar_type)
+        target_vals = target_series.values
+        if target_vals.size < window:
             raise ValueError(
                 "The number of data points between {} and {} "
                 "is {} while window of size {} was required".format(
-                    start, stop, close_prices.size, window
+                    start, stop, target_vals.size, window
                 )
             )
-        pts = close_prices.size
+        pts = target_vals.size
         corr_window = window - shift
-        lag_series = close_prices[: pts - shift]
-        adv_series = close_prices[shift:]
+        lag_series = target_vals[: pts - shift]
+        adv_series = target_vals[shift:]
         mov_autocorr = np.zeros(pts - shift)
         numba_stats.moving_correlation(
             corr_window, lag_series, adv_series, mov_autocorr
         )
         core_data = mov_autocorr[corr_window - 1 :]
         mov_autocorr_ser = pd.Series(
-            core_data, index=df_slice.index[window - 1 :]
+            core_data, index=target_series.index[window - 1 :]
         )
         mov_autocorr_ser.name = "Autocorrelation"
         if append:
@@ -460,7 +709,7 @@ class RefinedData(RawData):
         `d` : ``float``
             order of fractional differentiation. Usually between 0 and 1
         `tolerance` : ``float``
-            minumum accepted value for weights to compute in series
+            minumum acceptable value for weights to compute in series
         `max_weights` : ``int``
             max number of weights (to avoid excessive memory consumption)
 
@@ -492,12 +741,13 @@ class RefinedData(RawData):
     def __apply_weights(self, weights, x_vector):
         return np.dot(weights[::-1], x_vector)
 
-    def frac_diff(
+    def get_fracdiff(
         self,
         d,
         start=None,
         stop=None,
-        time_step=1,
+        step=1,
+        target="time:close",
         append=False,
         weights_tol=1e-5,
     ):
@@ -513,27 +763,39 @@ class RefinedData(RawData):
             first dataframe index of the period
         `stop` : ``pandas.Timestamp`` or ``int``
             last dataframe index of the period
-        `time_step` : ``int``
-            available ones in `RefinedData.available_time_steps`
-        `append` : ``bool`` (default False)
-            To append or not in cache memory
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
+        `append` : ``bool``
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
         `weights_tol` : ``float``
             minimum value for a weight in the binomial series expansion
 
+        Return
+        ------
+        ``pandas.Timeseries``
+
         """
+        str_code = self.__code_formatter("FRAC_DIFF", step, d, target)
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("FRAC_DIFF", time_step, d)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].loc[start:stop]
+        bar_type, field_name = target.split(":")
+        field_method = self.__getattribute__("get_" + field_name)
         if append:
-            df_slice = self.change_sample_interval(
-                *(self.assert_window()), time_step
-            )
+            target_series = field_method(step=step, bar_type=bar_type)
         else:
-            df_slice = self.change_sample_interval(start, stop, time_step)
+            target_series = field_method(start, stop, step, bar_type)
         w = self.__frac_diff_weights(d, weights_tol)
-        close_series = df_slice["Close"]
-        fracdiff_series = close_series.rolling(window=w.size).apply(
+        fracdiff_series = target_series.rolling(window=w.size).apply(
             lambda x: self.__apply_weights(w, x), raw=True
         )
         fracdiff_series.name = "FracDiff"
@@ -542,12 +804,14 @@ class RefinedData(RawData):
             return fracdiff_series.loc[start:stop].dropna()
         return fracdiff_series.dropna()
 
-    def adf_test(self, frac_diff):
-        adf = adfuller(frac_diff, maxlag=1, regression="c", autolag=None)
-        return adf
-
-    def vola_freq(
-        self, window, start=None, stop=None, time_step=1, append=False
+    def get_vola_freq(
+        self,
+        window,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
+        append=False,
     ):
         """
         Introduce/compute a measure of volatility based on how rapidly
@@ -559,80 +823,115 @@ class RefinedData(RawData):
 
         Parameters
         ----------
-        `window` : `` int ``
-            number of data points to consider in FFT
-        `start` : ``pandas.Timestamp`` or ``int``
-            first dataframe index of the period
-        `stop` : ``pandas.Timestamp`` or ``int``
-            last dataframe index of the period
-        `time_step` : ``int``
-            available ones in `RefinedData.available_time_steps`
-        `append` : ``bool`` (default False)
-            To append or not in cache memory
+        `window` : ``int``
+            number of data points to consider in each evaluation
+        `start` : ``pandas.Timestamp``
+            initial time instant to slice the data timeseries
+        `stop` : ``pandas.Timestamp``
+            final time instant to slice the data timeseries
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
+        `append` : ``bool``
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
 
         Return
         ------
         `` pandas.Series ``
             Each Timestamp index contains the mean quadratic frequency.
 
+        Warning
+        -------
+        High demanding for large datasets (more than 10^4 data points)
+
         """
+        str_code = self.__code_formatter("VOLA_FREQ", step, window, target)
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("VOLA_FREQ", time_step, window)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].loc[start:stop]
+        bar_type, field_name = target.split(":")
+        field_method = self.__getattribute__("get_" + field_name)
         if append:
-            df_slice = self.change_sample_interval(
-                *(self.assert_window()), time_step
-            )
+            target_series = field_method(step=step, bar_type=bar_type)
         else:
-            df_slice = self.change_sample_interval(start, stop, time_step)
-        target = df_slice["Close"]
-        if isinstance(time_step, str):
-            time_step = 1
-        vol_series = target.rolling(window).apply(
-            lambda x: mean_quadratic_freq(x, time_step)
+            target_series = field_method(start, stop, step, bar_type)
+        if isinstance(step, str):
+            step = 1
+        vol_series = target_series.rolling(window).apply(
+            lambda x: mean_quadratic_freq(x, step)
         )
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
             return vol_series.loc[start:stop].dropna()
         return vol_series.dropna()
 
-    def vola_amplitude(
-        self, window, start=None, stop=None, time_step=1, append=False
+    def get_vola_gain(
+        self,
+        window,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
+        append=False,
     ):
         """
-        Compute the best possible trading in a interval of the
-        previous `window` data bars. Use the difference of the
-        max and min values of the stock price divided by the
-        moving average.
+        Profit of the best possible trade divide by its mean value
+        in a moving window, that is, the best profit relative to
+        its moving average. Note this is also the absolute value
+        of the maximum loss in the period.
 
         Parameters
         ----------
-        `window` : `` int ``
-            number of data points to consider
+        `window` : ``int``
+            number of data points to consider in each evaluation
+        `start` : ``pandas.Timestamp``
+            initial time instant to slice the data timeseries
+        `stop` : ``pandas.Timestamp``
+            final time instant to slice the data timeseries
+        `step` : ``int``
+            accumulated amount of dataframe field to form new bar
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
+        `append` : ``bool``
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
 
         Return
         ------
-        `` pandas.Series ``
-            Each Timestamp index contains the max gain ratio of
-            the previous `window` data bars.
+        ``pandas.Series``
+            Maximum profit/loss divided by moving average series
 
         """
+        str_code = self.__code_formatter("VOLA_GAIN", step, window, target)
         start, stop = self.assert_window(start, stop)
-        str_code = self.__code_formatter("VOLA_AMPL", time_step, window)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].loc[start:stop]
+        bar_type, field_name = target.split(":")
         if append:
-            df_slice = self.change_sample_interval(
-                *(self.assert_window()), time_step
-            )
+            kwargs = {"step": step, "bar_type": bar_type}
+            max_price = self.get_high(**kwargs).rolling(window).max()
+            min_price = self.get_low(**kwargs).rolling(window).min()
         else:
-            df_slice = self.change_sample_interval(start, stop, time_step)
-        max_price = df_slice["High"].rolling(window).max()
-        min_price = df_slice["Low"].rolling(window).min()
-        ma = self.get_simple_MA(window, start, stop, time_step)
+            args = (start, stop, step, bar_type)
+            max_price = self.get_high(*args).rolling(window).max()
+            min_price = self.get_low(*args).rolling(window).min()
+        ma = self.get_sma(window, start, stop, step, bar_type + ":close")
         vol_series = (max_price - min_price) / ma
-        vol_series.name = "AmplitudeVolatility"
+        vol_series.name = "GainVolatility"
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
             return vol_series.loc[start:stop].dropna()

@@ -139,7 +139,7 @@ class RawData:
         self.available_dates = self.df.index.normalize()
         self.available_time_steps = [1, 5, 10, 15, 30, 60, "day"]
         self.__bar_attr = {
-            "time": "change_sample_interval",
+            "time": "time_bars",
             "tick": "tick_bars",
             "volume": "volume_bars",
             "money": "money_bars",
@@ -303,6 +303,46 @@ class RawData:
             raise ValueError("{} is not greater than {}".format(stop, start))
         return start, stop
 
+    def __appropriate_step(self, start, stop, bar_type):
+        """ Compute a suitable step for `bar_type` not being time """
+        daily_df = self.daily_bars(start, stop)
+        if bar_type == "tick":
+            return daily_df.TickVol.mean()
+        elif bar_type == "volume":
+            return daily_df.Volume.mean()
+        else:
+            return (daily_df.Volume * daily_df.Close).mean()
+
+    def get_close(self, start=None, stop=None, step=1, bar_type="time"):
+        bar_method = self.__getattribute__(bar_type + "_bars")
+        if bar_type != "time" and step == 1:
+            step = self.__appropriate_step(start, stop, bar_type)
+        return bar_method(start, stop, step).Close
+
+    def get_open(self, start=None, stop=None, step=1, bar_type="time"):
+        bar_method = self.__getattribute__(bar_type + "_bars")
+        if bar_type != "time" and step == 1:
+            step = self.__appropriate_step(start, stop, bar_type)
+        return bar_method(start, stop, step).Open
+
+    def get_high(self, start=None, stop=None, step=1, bar_type="time"):
+        bar_method = self.__getattribute__(bar_type + "_bars")
+        if bar_type != "time" and step == 1:
+            step = self.__appropriate_step(start, stop, bar_type)
+        return bar_method(start, stop, step).High
+
+    def get_low(self, start=None, stop=None, step=1, bar_type="time"):
+        bar_method = self.__getattribute__(bar_type + "_bars")
+        if bar_type != "time" and step == 1:
+            step = self.__appropriate_step(start, stop, bar_type)
+        return bar_method(start, stop, step).Low
+
+    def get_volume(self, start=None, stop=None, step=1, bar_type="time"):
+        bar_method = self.__getattribute__(bar_type + "_bars")
+        if bar_type != "time" and step == 1:
+            step = self.__appropriate_step(start, stop, bar_type)
+        return bar_method(start, stop, step).Volume
+
     def tick_bars(self, start=None, stop=None, step=10000):
         """
         Convert 1-minute time spaced dataframe to
@@ -328,7 +368,7 @@ class RawData:
         ---
         Avoid using typically small values for `step` according to the symbol
         since it induces small time intervals in minutes for which the
-        `change_sample_interval` interval method is preferable, because tries
+        `time_bars` interval method is preferable, because tries
         to load data from databases without wasting computational effort.
         Moreover, for small `step` values its variation among the bars become
         large due to 1-minute bar fluctuations.
@@ -372,7 +412,7 @@ class RawData:
         ---
         Avoid using typically small values for `step` according to the symbol
         since it induces small time intervals in minutes for which the
-        `change_sample_interval` interval method is preferable, because tries
+        `time_bars` interval method is preferable, because tries
         to load data from databases without wasting computational effort.
         Moreover, for small `step` values its variation among the bars become
         large due to 1-minute bar fluctuations.
@@ -416,7 +456,7 @@ class RawData:
         ---
         Avoid using typically small values for `step` according to the symbol
         since it induces small time intervals in minutes for which the
-        `change_sample_interval` interval method is preferable, because tries
+        `time_bars` interval method is preferable, because tries
         to load data from databases without wasting computational effort.
         Moreover, for small `step` values its variation among the bars become
         large due to 1-minute bar fluctuations.
@@ -464,7 +504,7 @@ class RawData:
         daily_df.index.name = "DateTime"
         return daily_df.drop("OpenTime", axis=1)
 
-    def change_sample_interval(self, start=None, stop=None, step=1):
+    def time_bars(self, start=None, stop=None, step=1):
         """
         Return a dataframe resizing the sample time interval
         IGNORING the market opening and closing periods.
