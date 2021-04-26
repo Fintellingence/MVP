@@ -1,20 +1,16 @@
-import datetime as dt
 import os
 import sqlite3 as sql3
 
 import numpy as np
 import pandas as pd
-import pandas_datareader as pdr
 from numba import float64, int32, njit, prange
-
-__all__ = ["RawData", "DailyDataYahoo"]
 
 
 @njit(int32(int32, float64[:], int32[:], float64))
 def indexing_cusum(n, values, accum_ind, threshold):
     """
     Mark all new indexes before which the accumulated
-    sum of `values` exceeded a `threshold`. Used to
+    sum of `values` exceeded `threshold`. Applied to
     mark indexes of new candles in a dataframe.
 
     Parameters
@@ -26,6 +22,12 @@ def indexing_cusum(n, values, accum_ind, threshold):
     `accum_ind` : ``numpy.array(int32)``
         store indexes strides in which cusum exceeds the threshold. Size `n`
     `threshold` : ``float``
+        When cusum exceed this value restart the cusum to 0 and mark the index
+
+    Return
+    ------
+    ``int``
+        number of indexes marked (number of elements in `accum_ind`)
 
     """
     cusum = 0.0
@@ -54,6 +56,11 @@ def indexing_new_days(n, days, new_days_ind):
     `new_days_ind` : ``numpy.array(numpy.int32)``
         store indexes in which a new day begins. Must have size of `n`
 
+    Return
+    ------
+    ``int``
+        number of days transition found
+
     """
     new_days_ind[0] = 0
     j = 1
@@ -66,8 +73,7 @@ def indexing_new_days(n, days, new_days_ind):
 
 def get_db_symbols(db_path):
     """
-    Get all symbols from sqlite using the file in `db_path`.
-
+    Get all symbols from database file located in `db_path`.
     """
     conn = sql3.connect(db_path)
     cursor = conn.cursor()
@@ -81,19 +87,35 @@ def get_db_symbols(db_path):
 
 class RawData:
     """
-    Class to read symbol from minute-1 database and set as dataframe. Provide
-    methods to sample the dataframe in other formats than 1-minute time
-    spaced bar, which may provide enhanced statistical properties.
+    Class to read databases and manipulate dataframes for
+    a stock market company. Provide methods to reset data
+    in different types of candlesticks than time based on
+    stock deal rate such as volume and money exchanged in
+    stock market
+
+    Also provide methods to access basic candlestick data
+    such as open, high, low and close values
+
+    Some general parameters are required to access data:
+
+    `start` : ``pandas.Timestamp``(preferable) or ``int``(acceptable)
+        Initial date/time to start the data time series
+        If integer take it as index from 1-minute dataframe series
+    `stop` :  ``pandas.Timestamp``(preferable) or ``int``(acceptable)
+        Final date/time to stop the data time series
+        If integer take it as index from 1-minute dataframe series
+    `step` : ``int``
+        Value of accumulated quantity to form new bars
+        For example, in `time_bars` is how many minutes
+        and in `tick_bars` is how many deals
 
     Instance Variables
     ------------------
     `df` : ``pandas.DataFrame``
-        dataframe containing the fundamental 1-minute stock prices
+        Fundamental dataframe containing the 1-minute stock prices
         open-high-low-close-volume values.
     `symbol` : ``string``
         company symbol code in stock market
-    `db_path` : ``string``
-        absolute path to database file
     `available_dates` : list[``pandas.Timestamp``]
         dates that stock market was openned (exclude holidays and weekend)
     `available_time_steps` : list[1, 5, 10, 15, 30 ,60, "day"]
@@ -104,7 +126,7 @@ class RawData:
     def __init__(self, symbol, db_path, preload={}):
         """
         Initialize a class with 1-minute time frame stock prices data
-        and optionally other types of candle bars if informed in `preload`
+        and optionally other types of bars if informed in `preload`
 
         Parameters
         ----------
@@ -138,29 +160,19 @@ class RawData:
             )
         self.available_dates = self.df.index.normalize()
         self.available_time_steps = [1, 5, 10, 15, 30, 60, "day"]
-        self.__bar_attr = {
-            "time": "time_bars",
-            "tick": "tick_bars",
-            "volume": "volume_bars",
-            "money": "money_bars",
-        }
         self.__cached_dataframes = {}
         self.__cached_dataframes["time_1"] = self.df
-        for df_type in preload.keys():
-            if df_type not in self.__bar_attr.keys():
-                print(
-                    "bar {} requested not in availabe ones : {}".format(
-                        df_type, list(self.__bar_attr.keys())
-                    )
-                )
+        for bar_type, params in preload.items():
+            if not hasattr(self, bar_type + "_bars"):
+                print("bar {} requested not available".format(bar_type))
                 continue
-            if isinstance(preload[df_type], list):
-                for step in preload[df_type]:
-                    self.__cache_insert_dataframe(df_type, step)
-            else:
-                self.__cache_insert_dataframe(df_type, preload[df_type])
+            if not isinstance(params, list):
+                params = [params]
+            for param in params:
+                self.__cache_insert_dataframe(bar_type, param)
 
     def __get_data_from_db(self, db_path):
+        """ Query in database the self.symbol """
         conn = sql3.connect(db_path)
         df = pd.read_sql("SELECT * FROM {}".format(self.symbol), conn)
         conn.close()
@@ -178,6 +190,7 @@ class RawData:
         return os.path.join(base_dir, db_filename)
 
     def __cache_insert_dataframe(self, bar_type, step):
+        """ Insert dataframe in inner memory cache dictionary """
         if isinstance(step, float):
             step = int(step)
         key_format = "{}_{}".format(bar_type, step)
@@ -188,17 +201,15 @@ class RawData:
                 print("Time step requested {} not available".format(step))
                 return
             db_full_path = self.__format_new_interval_db_name(step)
-            if os.path.isfile(db_full_path):
-                try:
-                    self.__cached_dataframes[
-                        key_format
-                    ] = self.__get_data_from_db(db_full_path)
-                    return
-                except Exception:
-                    pass
-        self.__cached_dataframes[key_format] = self.__getattribute__(
-            self.__bar_attr[bar_type]
-        )(step=step)
+            try:
+                self.__cached_dataframes[key_format] = self.__get_data_from_db(
+                    db_full_path
+                )
+                return
+            except Exception:
+                pass
+        bar_method = self.__getattribute__(bar_type + "_bars")
+        self.__cached_dataframes[key_format] = bar_method(step=step)
 
     def __reassemble_df(self, df, strides):
         """
@@ -273,6 +284,7 @@ class RawData:
         """
         Ensure that two variables can be used to slice a dataframe window
         If ``None`` types are given return the constraining dates of data
+        Integers are considered as index of minute-1 dataframe
 
         Parameters
         ----------
@@ -285,7 +297,7 @@ class RawData:
             `start`, `stop` values as time indexing
 
         """
-        if start == stop == None:
+        if start is None and stop is None:
             return self.df.index[0], self.df.index[-1]
         if start == None:
             start = self.df.index[0]
@@ -601,37 +613,3 @@ class RawData:
         )
         new_df.set_index("DateTime", inplace=True)
         return new_df
-
-
-class DailyDataYahoo:
-    """
-    Class to read symbol from day-1 Yahoo database and set as data-frame
-    """
-
-    def __init__(self, symbol, db_path):
-        self.symbol = symbol
-        if not os.path.isfile(db_path):
-            raise IOError("Database file {} not found".format(db_path))
-        self.db_path = db_path
-        self.df = self.__get_data_from_db()
-
-    def __get_data_from_db(self):
-        conn = sql3.connect(self.db_path)
-        try:
-            df = pd.read_sql("SELECT * FROM {}".format(self.symbol), conn)
-            df.index = pd.to_datetime(df["Date"])
-            df.drop(["Date"], axis=1, inplace=True)
-        except Exception as e:
-            init_day = dt.date(2010, 1, 2)
-            final_day = dt.date.today()
-            print(
-                e,
-                "Trying to download with pandas-datareader"
-                " from {} to {}".format(init_day, final_day),
-            )
-            df = pdr.DataReader(
-                self.symbol + ".SA", "yahoo", init_day, final_day
-            )
-            df.rename(columns={"Adj Close": "AdjClose"}, inplace=True)
-        conn.close()
-        return df
