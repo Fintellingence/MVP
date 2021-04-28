@@ -49,17 +49,20 @@ def _partition_estimators(n_estimators, n_jobs):
     return n_jobs, n_estimators_per_job.tolist(), [0] + starts.tolist()
 
 
-def _generate_sample_indices(random_state, n_samples, horizon):
+def _generate_sample_indices(random_state, n_samples, horizon, n_jobs=None):
     random_instance = check_random_state(random_state)
     sample_indices = bootstrap_selection(
-        horizon, num_of_data=n_samples, random_state=random_instance
+        horizon,
+        num_of_data=n_samples,
+        random_state=random_instance,
+        num_of_threads=n_jobs,
     )
 
     return sample_indices
 
 
-def _generate_unsampled_indices(random_state, n_samples):
-    sample_indices = _generate_sample_indices(random_state, n_samples)
+def _generate_unsampled_indices(random_state, n_samples, n_jobs=None):
+    sample_indices = _generate_sample_indices(random_state, n_samples, n_jobs=n_jobs)
     sample_counts = np.bincount(sample_indices, minlength=n_samples)
     unsampled_mask = sample_counts == 0
     indices_range = np.arange(n_samples)
@@ -91,7 +94,10 @@ def _parallel_build_trees(
             curr_sample_weight = sample_weight.copy()
 
         indices = _generate_sample_indices(
-            tree.random_state, n_samples, horizon
+            tree.random_state,
+            n_samples,
+            horizon,
+            n_jobs=forest.n_bootstrap_jobs,
         )
         sample_counts = np.bincount(indices, minlength=n_samples)
         curr_sample_weight *= sample_counts
@@ -126,6 +132,7 @@ class BaseForest(six.with_metaclass(ABCMeta, BaseEnsemble)):
         bootstrap=False,
         oob_score=False,
         n_jobs=1,
+        n_bootstrap_jobs=1,
         random_state=None,
         verbose=0,
         warm_start=False,
@@ -140,6 +147,7 @@ class BaseForest(six.with_metaclass(ABCMeta, BaseEnsemble)):
         self.bootstrap = bootstrap
         self.oob_score = oob_score
         self.n_jobs = n_jobs
+        self.n_bootstrap_jobs = n_bootstrap_jobs
         self.random_state = random_state
         self.verbose = verbose
         self.warm_start = warm_start
@@ -329,6 +337,7 @@ class ForestClassifier(
         bootstrap=False,
         oob_score=False,
         n_jobs=1,
+        n_bootstrap_jobs=1,
         random_state=None,
         verbose=0,
         warm_start=False,
@@ -342,6 +351,7 @@ class ForestClassifier(
             bootstrap=bootstrap,
             oob_score=oob_score,
             n_jobs=n_jobs,
+            n_bootstrap_jobs=n_bootstrap_jobs,
             random_state=random_state,
             verbose=verbose,
             warm_start=warm_start,
@@ -364,7 +374,7 @@ class ForestClassifier(
 
         for estimator in self.estimators_:
             unsampled_indices = _generate_unsampled_indices(
-                estimator.random_state, n_samples
+                estimator.random_state, n_samples, n_jobs=self.n_bootstrap_jobs
             )
             p_estimator = estimator.predict_proba(
                 X[unsampled_indices, :], check_input=False
@@ -541,6 +551,7 @@ class RandomForestClassifier(ForestClassifier):
         bootstrap=True,
         oob_score=False,
         n_jobs=1,
+        n_bootstrap_jobs=1,
         random_state=None,
         verbose=0,
         warm_start=False,
@@ -564,6 +575,7 @@ class RandomForestClassifier(ForestClassifier):
             bootstrap=bootstrap,
             oob_score=oob_score,
             n_jobs=n_jobs,
+            n_bootstrap_jobs=n_bootstrap_jobs,
             random_state=random_state,
             verbose=verbose,
             warm_start=warm_start,

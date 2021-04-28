@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import logging.handlers
 from joblib import dump
@@ -30,6 +31,28 @@ from mvp.selection import (
 )
 
 
+def save_params(
+    run_dir,
+    metrics,
+    scaler,
+    **kwargs,
+):
+    s_metrics = {}
+    for name, (_, weight) in metrics.items():
+        s_metrics[name] = weight
+
+    if scaler is not None:
+        s_scaler = {}
+        for (name, fn) in scaler.__dict__["steps"]:
+            s_scaler[name] = str(fn)
+    else:
+        s_scaler = None
+    kwargs["scaler"] = s_scaler
+    kwargs["metrics"] = s_metrics
+    with open(os.path.join(run_dir, "params.json"), "w") as f:
+        json.dump(kwargs, f, indent=4)
+
+
 # TODO: Consider the use of HParams objects insted of dicts
 def save_hp_performance(
     base_dir,
@@ -38,12 +61,15 @@ def save_hp_performance(
     avg_metrics,
     hist_data,
     metric_names,
+    name,
     step,
     s_features=None,
     s_primary=None,
     s_labels=None,
 ):
-    log_dir = os.path.join(base_dir, "hp_set-" + str(step))
+    log_dir = os.path.join(
+        base_dir,
+    )
     with summary.create_file_writer(log_dir).as_default():
         hparams = {}
         hparams.update(kwargs_model)
@@ -64,7 +90,9 @@ def save_hp_performance(
 def create_log_file(name, log_dir):
     os.makedirs(log_dir, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(
-        "logs/{}.log".format(name), maxBytes=200 * 1024 * 1024, backupCount=1
+        os.path.join(log_dir, "{}.log".format(name)),
+        maxBytes=200 * 1024 * 1024,
+        backupCount=1,
     )
     handler.setLevel(logging.INFO)
     handler.setFormatter(
@@ -97,6 +125,8 @@ class BagingModelOptimizer:
             "BAcc": (balanced_accuracy_score, False),
             # "AUC": (auc, False),
         },
+        verbose=0,
+        seed=12345,
     ):
         self._metrics = metrics
         self._run_dir = run_dir
@@ -122,6 +152,8 @@ class BagingModelOptimizer:
                     "With `use_weight` is True, at least one of the functions,"
                     " `time_weight_fn` or `sample_weights_fn`, have to be defined"
                 )
+        self._verbose = verbose
+        self._random_state = np.random.RandomState(seed)
 
     def __is_better(self, last, best):
         for l, b in zip(last, best):
@@ -152,7 +184,15 @@ class BagingModelOptimizer:
         else:
             train_weight = None
             test_weight = None
-        model = self._model_fn(**kwargs_model)
+
+        # n_jobs = int(np.ceil(self._num_of_threads * 0.8))
+        # n_bootstrap_jobs = self._num_of_threads - n_jobs
+        model = self._model_fn(
+            n_jobs=self._num_of_threads,
+            n_bootstrap_jobs=self._num_of_threads,
+            random_state=self._random_state,
+            **kwargs_model,
+        )
         return model, scaler, train_weight, test_weight
 
     def __partial_fit_eval(
@@ -208,6 +248,7 @@ class BagingModelOptimizer:
         kwargs_model,
         kwargs_scaler=None,
     ):
+        print("Training the last model with all training dataset...  ", end="")
         model, scaler, train_weight, _ = self.__set_model(
             kwargs_scaler,
             kwargs_model,
@@ -222,6 +263,7 @@ class BagingModelOptimizer:
             sample_weight=train_weight,
             horizon=np_horizon,
         )
+        print("DONE")
         return model, scaler
 
     def get_weight(self, closed, horizon, min_chunk_size=100):
@@ -285,7 +327,8 @@ class BagingModelOptimizer:
         cv_hist_values = np.zeros((self._cv_splits_fit, len(metric_names)))
         cv_bar = tqdm(
             total=self._cv_splits_fit,
-            desc="Assessing the Cross-Validation for the Best Configuration",
+            position=0,
+            desc="Assessing CV for the Best Configuration",
             colour="green",
         )
 
@@ -326,6 +369,7 @@ class BagingModelOptimizer:
             cv_metric_values,
             cv_hist_values.T,
             metric_names,
+            "best_hp_set",
             0,
             s_features,
             s_primary,
@@ -388,8 +432,10 @@ class BagingModelOptimizer:
             n_steps *= len(v)
         hp_bar = tqdm(
             total=n_steps,
-            desc="Grid Searching for Hyper-Parameter",
-            colour="green",
+            position=1,
+            leave=False,
+            desc="Searching into Hyper-Parameter Grid",
+            colour="red",
         )
 
         hp_step = 0
@@ -402,8 +448,9 @@ class BagingModelOptimizer:
                 cv_bar = tqdm(
                     total=self._cv_splits_hp,
                     desc="Assessing the Cross-Validation",
+                    position=2,
                     leave=False,
-                    colour="green",
+                    colour="blue",
                 )
                 cv_hist_values = np.zeros(
                     (self._cv_splits_hp, len(metric_names))
@@ -447,6 +494,7 @@ class BagingModelOptimizer:
                     cv_metric_values,
                     cv_hist_values.T,
                     metric_names,
+                    "hp_set-" + str(hp_step),
                     hp_step,
                     s_features,
                     s_primary,
@@ -473,8 +521,9 @@ class BagingModelOptimizer:
             )
         )
         self._file_log.info(summary_outcomes)
-        print("\n" + summary_outcomes + "\n")
-        return (metric_names[0], best_metric_value[0])
+        if self._verbose > 0:
+            print("\n" + summary_outcomes + "\n")
+        return ("Avg_" + metric_names[0], best_metric_value[0])
 
 
 class EnvironmentOptimizer(BagingModelOptimizer):
@@ -501,22 +550,16 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             "BAcc": (balanced_accuracy_score, False),
             # "AUC": (auc, False),
         },
-        preload={"time": [5, 10, 15, 30, 60, "day"]}
+        preload={"time": [5, 10, 15, 30, 60, "day"]},
+        verbose=0,
+        seed=12345,
     ):
-        self._labels_fn = labels_fn
-        self._primary_model_fn = primary_model_fn
-        self._cv_splits_hp = cv_splits_hp
-        self._run_dir = os.path.join(
+        run_dir = os.path.join(
             log_dir, author, "run-" + dt.now().strftime("%Y%m%d-%H%M%S")
         )
-        self._refined_data = RefinedData(symbol, db_path, preload=preload)
-        self._file_log = create_log_file("environment", log_dir=self._run_dir)
-        self._best_kwargs_model = None
-        self._best_kwargs_scaler = None
-        self._best_kwargs_labels = None
         super(EnvironmentOptimizer, self).__init__(
             model_fn,
-            self._run_dir,
+            run_dir,
             scaler_pipeline,
             cv_splits_fit,
             cv_splits_hp,
@@ -526,7 +569,17 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             time_weights_fn,
             samples_weights_fn,
             metrics,
+            verbose,
+            seed,
         )
+        self._labels_fn = labels_fn
+        self._primary_model_fn = primary_model_fn
+        self._cv_splits_hp = cv_splits_hp
+        self._refined_data = RefinedData(symbol, db_path, preload=preload)
+        self._file_log = create_log_file("environment", log_dir=self._run_dir)
+        self._best_kwargs_labels = None
+        self._best_kwargs_primary = None
+        self._best_kwargs_features = None
         # TODO: Ensure that all functions to get features in refined data have the format "get_<NAME>"
         self._feature_acrons = {
             "MA": "get_simple_MA",
@@ -534,6 +587,26 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             "RSI": "get_RSI",
             "FRACDIFF": "frac_diff",
         }
+        save_params(
+            run_dir,
+            metrics,
+            scaler_pipeline,
+            seed=seed,
+            author=author,
+            symbol=symbol,
+            db_path=db_path,
+            use_weight=use_weight,
+            min_time_weight=min_time_weight,
+            cv_splits_fit=cv_splits_fit,
+            cv_splits_hp=cv_splits_hp,
+            num_of_threads=num_of_threads,
+            preload=preload,
+            model_fn=model_fn.__name__,
+            primary_model_fn=primary_model_fn.__name__,
+            labels_fn=labels_fn.__name__,
+            time_weights_fn=time_weights_fn.__name__,
+            samples_weights_fn=samples_weights_fn.__name__,
+        )
 
     # TODO: Implement case 2
     def __set_env(
@@ -546,7 +619,7 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             total=len(steps),
             desc="Setting Environment [Primary]",
             leave=False,
-            colour="green",
+            colour="red",
         )
         steps = iter(steps)
 
@@ -665,7 +738,9 @@ class EnvironmentOptimizer(BagingModelOptimizer):
                 "At least one of the values, kwargs_features or"
                 " _best_kwargs_features, have to be setted"
             )
-        elif kwargs_features is None and self._best_kwargs_features is not None:
+        elif (
+            kwargs_features is None and self._best_kwargs_features is not None
+        ):
             kwargs_features = self._best_kwargs_features.copy()
         if kwargs_primary is None and self._best_kwargs_primary is None:
             raise ValueError(
@@ -710,7 +785,11 @@ class EnvironmentOptimizer(BagingModelOptimizer):
         for v in hp_labels.values():
             n_steps *= len(v)
         hp_bar = tqdm(
-            total=n_steps, desc="Mapping the Features", colour="green"
+            total=n_steps,
+            position=0,
+            leave=False,
+            desc="Mapping the Features",
+            colour="green",
         )
         for kwargs_features in grid_features:
             kwargs_features, s_features = self.__parser_features(
@@ -747,6 +826,7 @@ class EnvironmentOptimizer(BagingModelOptimizer):
                         best_kwargs_scaler = self._best_kwargs_scaler
                     self._best_kwargs_model = None
                     self._best_kwargs_scaler = None
+                    hp_bar.set_postfix(**{out_metric[0]: out_metric[1]})
                     hp_bar.update()
         hp_bar.close()
         self._best_kwargs_model = best_kwargs_model
@@ -754,4 +834,18 @@ class EnvironmentOptimizer(BagingModelOptimizer):
         self._best_kwargs_labels = best_kwargs_labels
         self._best_kwargs_primary = best_kwargs_primary
         self._best_kwargs_features = best_kwargs_features
-        return self.train()
+        model, scaler, cv_predictions = self.train()
+        if self._verbose > 0:
+            print(
+                "\n The K-fold cross-validation training"
+                " with grid search was finished."
+                "\n All logs are saved in files {} and {},"
+                " you also can use Tensorboard to "
+                "analyse the outcomes, to do so, make"
+                "\n `tensorboard --logdir {}`".format(
+                    os.path.join(self._run_dir, "environment.log"),
+                    os.path.join(self._run_dir, "metamodel.log"),
+                    self._run_dir,
+                )
+            )
+        return model, scaler, cv_predictions
