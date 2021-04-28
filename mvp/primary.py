@@ -1,16 +1,15 @@
 import pandas as pd
-import mvp
 import numpy as np
-import datetime as dt
-from mvp.refined_data import RefinedData
-
 
 class PrimaryModel:
     """
-        This class implements event-driven trading strategies, which generate Buy/Sell triggers whenever certain conditions are met
-    by the parameters/indicators. It shoud be understood as being defined by a model-type (so far only 3 supported), and the parameters
-    for the given model type. The class then generates the trading signals automatically by evoking the `PrimaryModel.events()` method and
-    storing the information in the `.PrimaryModel.events_df` attribute.
+    This class implements event-driven trading strategies, which generate Buy/
+    Sell triggers whenever certain conditions are met by the parameters/
+    indicators. It shoud be understood as being defined by a model-type (so 
+    far only 3 supported), and the parameters for the given model type. The 
+    class then generates the trading signals automatically by evoking the 
+    `PrimaryModel.events()` method and storing the information in the 
+    `.PrimaryModel.events_df` attribute.
         This class uses refined_data data to process three models:
 
     - Crossing Averages Model
@@ -22,8 +21,9 @@ class PrimaryModel:
     `refined_data` : ``refined_data.RefinedData Object``
         A RefinedData object from the file refined_data.py
     `strategy` : ``str``
-        Three available types: ``crossing-MA``, `bollinger-bands``, ``classical-filter``
-    `parameters` : ``dict```
+        Three available types: ``crossing-MA``, `bollinger-bands``, 
+        ``classical-filter``
+    `features` : ``dict```
         A dict containing model parameters keys:
             For Crossing Averages Model it should be like:
                 {'MA':[500,1000]}
@@ -31,19 +31,29 @@ class PrimaryModel:
                 {'MA':500,'DEV':20,'K_value':2}
             For Classical Model it should be like
                 {'threshold': 0.01}
+    `time_step` : ``int/str``
+        An ``int`` available: 1,5,15,30,60 
+        or a ``str`` available: 'day'
 
     Usage
     -----
-    The user should provide a RefinedData object contaning no a priori calculated statistics (only 'OHLC', Volume, TickVol) along with the
-    desired model-type and its parameters.  This class is intended to be used in the following flow:
+    The user should provide a RefinedData object contaning no a priori 
+    calculated statistics (only 'OHLC', Volume, TickVol) along with the
+    desired model-type and its parameters.  This class is intended to be used 
+    in the following flow:
 
-    Given a .db containing ('OHLC', Volume, TickVol) time series data, one should instantiate a RefinedData to read the time-series and feed
-    the PrimaryModel class. The class then calculates the necessary features for the desired strategy in a curated data in the `PrimaryModel.feature_data`
-    attribute. The feature_data is then used to generate the event triggers, labeled by the appropriate Side of
-    the market, stored in PrimaryModel.events.
+    Given a .db containing ('OHLC', Volume, TickVol) time series data, one
+    should instantiate a RefinedData to read the time-series and feed the 
+    PrimaryModel class. The class then calculates the necessary features for
+    the desired strategy in a dataset in the `PrimaryModel.feature_data`
+    attribute. The feature_data is then used to generate the event triggers,
+    which are stored in `PrimaryModel.events`, containing the Side of the
+    model. The `time_step` parameters allows the calculation of the same model
+    in different time-frames, being defaulted to the 1-minute scale. 
+    
     """
 
-    def __init__(self, refined_data, strategy, features, time_step = 1):
+    def __init__(self, refined_data, strategy, features, time_step=1):
         self.__features = {
             "MA": "get_simple_MA",
             "DEV": "get_deviation",
@@ -52,6 +62,7 @@ class PrimaryModel:
             "AUTOCORRELATION": "moving_autocorr",
             "AUTOCORRELATION_PERIOD": "autocorr_period",
         }
+        self.symbol = refined_data.symbol
         self.time_step = time_step
         self.strategy = strategy
         self.features = features
@@ -59,7 +70,9 @@ class PrimaryModel:
         self.events = self.get_events_dataframe()[["Side"]].dropna()
 
     def get_feature_data(self, refined_data):
-        dataframe_list = [refined_data.change_sample_interval(step=self.time_step)[["Close"]]]
+        dataframe_list = [
+            refined_data.change_sample_interval(step=self.time_step)[["Close"]]
+        ]
         for feature in self.features.keys():
             if feature not in self.__features.keys():
                 continue
@@ -82,7 +95,10 @@ class PrimaryModel:
                                 pd.DataFrame(
                                     refined_data.__getattribute__(
                                         self.__features[feature]
-                                    )(window = parameter,time_step = self.time_step).rename(
+                                    )(
+                                        window=parameter,
+                                        time_step=self.time_step,
+                                    ).rename(
                                         feature + "_" + str(parameter)
                                     )
                                 )
@@ -107,7 +123,9 @@ class PrimaryModel:
                             pd.DataFrame(
                                 refined_data.__getattribute__(
                                     self.__features[feature]
-                              )(window = parameter, time_step = self.time_step).rename(
+                                )(
+                                    window=parameter, time_step=self.time_step
+                                ).rename(
                                     feature + "_" + str(parameter)
                                 )
                             )
@@ -140,11 +158,13 @@ class PrimaryModel:
 
     def events_crossing_MA(self):
         """
-        Public method which computes the events triggered by a crossing moving average trading strategy.
-        Given that the PrimaryModel class was initialized with two MA parameters, this method identifies
-        the pd.Timestamp() value of a crossing of averages as well as the side signal: Buy or Sell,
-        depending on the direction of the crossing. A pd.Dataframe() indexed by pd.Timestamp() and valued
-        in a Boolean field (Buy: 1, Sell: -1) is returned.
+        Public method which computes the events triggered by a crossing moving
+        average trading strategy. Given that the PrimaryModel class was 
+        initialized with two MA parameters, this method identifies the 
+        pd.Timestamp() value of a crossing of averages as well as the side 
+        signal: Buy or Sell, depending on the direction of the crossing. A 
+        pd.Dataframe() indexed by pd.Timestamp() and valued in a Boolean field
+        (Buy: 1, Sell: -1) is returned.
 
         Parameters
         ----------
@@ -159,8 +179,9 @@ class PrimaryModel:
 
         ``pd.DataFrame()``
             columns = ['DateTime','Side']
-            'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
-            'Side' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+            'DateTime' is the pd.index column, containing pd.Timestamp()
+            values for the calculated events. 'Side' is a coulmn containing
+            the side of the stratgey: Buy = 1, Sell = -1.
         """
         MA_params = list(set(self.features["MA"]))
         if len(MA_params) > 2:
@@ -195,16 +216,20 @@ class PrimaryModel:
 
     def events_classical_filter(self, threshold=0.1):
         """
-        Public method which computes the events triggered by a Classical Filter trading strategy. This method firs identifies all
-        local inflexions of 'Close' prices of a given asset. It then calculates the CUSUM of returns from an inflexion and generates an
-        event trigger for the first pd.Timestamp() value for which the CUSUM > threshold. The side of the event is a Buy if the inflexion
-        is a minimum, and a Sell if it is a maximum. A pd.Dataframe() indexed by pd.Timestamp() and valued in a Bool (Buy: 1, Sell: -1)
-        is returned.
+        Public method which computes the events triggered by a Classical Filter
+        trading strategy. This method firs identifies all local inflexions of
+        'Close' prices of a given asset. It then calculates the CUSUM of 
+        returns from an inflexion and generates an event trigger for the first
+        pd.Timestamp() value for which the CUSUM > threshold. The side of the
+        event is a Buy if the inflexion is a minimum, and a Sell if it is a 
+        maximum. A pd.Dataframe() indexed by pd.Timestamp() and valued in a 
+        Bool (Buy: 1, Sell: -1) is returned.
 
         Parameters
         ----------
         ``threshold``: 'float'
-            defines the threshold for the CUSUM operation. When CUSUM achieves threshold, an event is triggered.
+            defines the threshold for the CUSUM operation. When CUSUM achieves
+            threshold, an event is triggered.
 
         Modified
         ----------
@@ -215,8 +240,9 @@ class PrimaryModel:
 
         ``pd.DataFrame()``
             columns = ['DateTime','Side']
-            'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
-            'Side' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+            'DateTime' is the pd.index column, containing pd.Timestamp() 
+            values for the calculated events. 'Side' is a coulmn containing 
+            the side of the stratgey: Buy = 1, Sell = -1.
         """
         close_data = self.feature_data[["Close"]]
         close_data["Min"] = close_data[
@@ -277,11 +303,13 @@ class PrimaryModel:
 
     def events_bollinger(self):
         """
-        Public method which computes the events triggered by a Bollinger Bands trading strategy. Given that the PrimaryModel
-        class was initialized with a DEV, MA, and K_value parameter, this method identifies the pd.Timestamp() value of a crossing
-        of the close price with respect to the upper and lower Bollinger Band, which gives us the side signal: Buy or Sell,
-        depending on the crossed band. A pd.Dataframe() indexed by pd.Timestamp() and valued in a Bool (Buy: 1, Sell: -1)
-        is returned.
+        Public method which computes the events triggered by a Bollinger Bands
+        trading strategy. Given that the PrimaryModel class was initialized 
+        with a DEV, MA, and K_value parameter, this method identifies the 
+        pd.Timestamp() value of a crossing of the close price with respect to
+        the upper and lower Bollinger Band, which gives us the side signal: 
+        Buy or Sell, depending on the crossed band. A pd.Dataframe() indexed 
+        by pd.Timestamp() and valued in a Bool (Buy: 1, Sell: -1) is returned.
 
         Parameters
         ----------
@@ -296,8 +324,9 @@ class PrimaryModel:
 
         ``pd.DataFrame()``
             columns = ['DateTime','Side']
-            'DateTime' is the pd.index column, containing pd.Timestamp() values for the calculated events.
-            'Side' is a coulmn containing the side of the stratgey: Buy = 1, Sell = -1.
+            'DateTime' is the pd.index column, containing pd.Timestamp() 
+            values for the calculated events. 'Side' is a coulmn containing 
+            the side of the stratgey: Buy = 1, Sell = -1.
         """
         if isinstance(self.features["MA"], list):
             if len(self.features["MA"]) > 1:
@@ -359,4 +388,4 @@ class PrimaryModel:
                 self.events().set_index("DateTime"),
             ],
             axis=1,
-        )
+            )    
