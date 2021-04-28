@@ -1,6 +1,7 @@
 import os
 import logging
 import logging.handlers
+from joblib import dump
 from datetime import datetime as dt
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -18,6 +19,7 @@ from sklearn.metrics import (
     auc,
 )
 
+from mvp.refined_data import RefinedData
 from mvp.selection import (
     count_occurrences,
     avg_uniqueness,
@@ -37,12 +39,21 @@ def save_hp_performance(
     hist_data,
     metric_names,
     step,
+    s_features=None,
+    s_primary=None,
+    s_labels=None,
 ):
     log_dir = os.path.join(base_dir, "hp_set-" + str(step))
     with summary.create_file_writer(log_dir).as_default():
         hparams = {}
         hparams.update(kwargs_model)
         hparams.update(kwargs_scaler)
+        if s_features is not None:
+            hparams["features"] = s_features
+        if s_primary is not None:
+            hparams["primary"] = s_primary
+        if s_labels is not None:
+            hparams["labels"] = s_labels
         hp.hparams(hparams)
         for name, value in avg_metrics.items():
             summary.scalar(name, value, step=step)
@@ -213,176 +224,6 @@ class BagingModelOptimizer:
         )
         return model, scaler
 
-    def cv_fit(
-        self,
-        data,
-        labels,
-        closed,
-        horizon,
-        kwargs_model=None,
-        kwargs_scaler=None,
-    ):
-        if kwargs_model is None and self._best_kwargs_model is None:
-            raise ValueError(
-                "At least one of the values, kwargs_model or"
-                " _best_kwargs_model, have to be setted"
-            )
-        if kwargs_model is None and self._best_kwargs_model is not None:
-            kwargs_model = self._best_kwargs_model.copy()
-        if kwargs_scaler is None and self._best_kwargs_scaler is None:
-            kwargs_scaler = {}
-        if kwargs_scaler is None and self._best_kwargs_scaler is not None:
-            kwargs_scaler = self._best_kwargs_scaler
-
-        metric_names = list(self._metrics.keys())
-        np_horizon = raw_horizon(closed.index, horizon)
-        base_dir = os.path.join(self._run_dir, "model_fitting")
-        pekfold = PEKFold(n_splits=self._cv_splits_fit)
-        cv_metric_values = np.zeros(len(self._metrics))
-        cv_hist_values = np.zeros((self._cv_splits_fit, len(metric_names)))
-        cv_bar = tqdm(
-            total=self._cv_splits_fit,
-            desc="Processing CV to Assess the Model",
-        )
-
-        cv_step = 0
-        predictions = []
-        spliter = pekfold.split(horizon)
-        for train_idx, test_idx in spliter:
-            outcomes, predicted, index = self.__partial_fit_eval(
-                data,
-                labels,
-                train_idx,
-                test_idx,
-                horizon,
-                np_horizon,
-                closed,
-                kwargs_model,
-                kwargs_scaler,
-            )
-            partial_metric_value = np.array(list(outcomes.values()))
-            cv_hist_values[cv_step] = partial_metric_value
-            cv_metric_values += partial_metric_value
-            cv_step += 1
-            cv_bar.update()
-            cv_bar.set_postfix(**outcomes)
-            predictions.append(pd.Series(predicted, index=index))
-        cv_metric_values /= self._cv_splits_fit
-        cv_metric_values = dict(
-            zip(
-                ["avg_" + name for name in metric_names],
-                cv_metric_values,
-            )
-        )
-        save_hp_performance(
-            base_dir,
-            kwargs_model,
-            kwargs_scaler,
-            cv_metric_values,
-            cv_hist_values.T,
-            metric_names,
-            0,
-        )
-        self._file_log.info(
-            "The fit based on CV were done.\n\t {}".format(cv_metric_values)
-        )
-        model, scaler = self.__fit(
-            data,
-            labels,
-            horizon,
-            np_horizon,
-            closed,
-            kwargs_model,
-            kwargs_scaler,
-        )
-        return model, scaler, predictions, cv_metric_values
-
-    def hp_meta_optimize(
-        self, data, labels, horizon, closed, hp_model, hp_scaler=None
-    ):
-        if hp_scaler is None:
-            hp_scaler = {}
-        grid_model = ParameterGrid(hp_model)
-        grid_scaler = ParameterGrid(hp_scaler)
-        np_horizon = raw_horizon(closed.index, horizon)
-        base_dir = os.path.join(self._run_dir, "hp_tuning")
-
-        n_steps = 1
-        for v in hp_model.values():
-            n_steps *= len(v)
-        for v in hp_scaler.values():
-            n_steps *= len(v)
-        hp_bar = tqdm(total=n_steps, desc="Hyper-Parameter Grid Search")
-
-        hp_step = 0
-        metric_names = list(self._metrics.keys())
-        best_metric_value = np.zeros(len(self._metrics))
-        pekfold = PEKFold(n_splits=self._cv_splits_hp)
-        for kwargs_model in grid_model:
-            for kwargs_scaler in grid_scaler:
-                cv_step = 0
-                cv_bar = tqdm(
-                    total=self._cv_splits_hp,
-                    desc="Processing CV for a Hyper-Parameter",
-                    leave=False,
-                )
-                cv_hist_values = np.zeros(
-                    (self._cv_splits_hp, len(metric_names))
-                )
-                cv_metric_values = np.zeros(len(self._metrics))
-                spliter = pekfold.split(horizon)
-                for train_idx, test_idx in spliter:
-                    outcomes, _, _= self.__partial_fit_eval(
-                        data,
-                        labels,
-                        train_idx,
-                        test_idx,
-                        horizon,
-                        np_horizon,
-                        closed,
-                        kwargs_model,
-                        kwargs_scaler,
-                    )
-                    partial_metric_value = np.array(list(outcomes.values()))
-                    cv_hist_values[cv_step] = partial_metric_value
-                    cv_metric_values += partial_metric_value
-                    cv_step += 1
-                    cv_bar.update()
-                    cv_bar.set_postfix(**outcomes)
-                cv_bar.close()
-                cv_metric_values /= self._cv_splits_hp
-                if self.__is_better(cv_metric_values, best_metric_value):
-                    best_metric_value = cv_metric_values
-                    self._best_kwargs_model = kwargs_model
-                    self._best_kwargs_scaler = kwargs_scaler
-                cv_metric_values = dict(
-                    zip(
-                        ["avg_" + name for name in metric_names],
-                        cv_metric_values,
-                    )
-                )
-                hp_bar.update()
-                save_hp_performance(
-                    base_dir,
-                    kwargs_model,
-                    kwargs_scaler,
-                    cv_metric_values,
-                    cv_hist_values.T,
-                    metric_names,
-                    hp_step,
-                )
-                hp_step += 1
-        self._file_log.info(
-            "The grid search based on CV were done with {} = {}."
-            "\n\t[best model parameters] {}"
-            "\n\t[best scaler parameters] {}".format(
-                metric_names[0],
-                best_metric_value[0],
-                self._best_kwargs_model,
-                self._best_kwargs_scaler,
-            )
-        )
-
     def get_weight(self, closed, horizon, min_chunk_size=100):
         data_size = horizon.shape[0]
         chunk_size = np.round(data_size / self._num_of_threads)
@@ -412,14 +253,238 @@ class BagingModelOptimizer:
         weights = (tw * sw).values
         return weights
 
+    def cv_fit(
+        self,
+        data,
+        labels,
+        closed,
+        horizon,
+        kwargs_model=None,
+        kwargs_scaler=None,
+        s_features=None,
+        s_primary=None,
+        s_labels=None,
+    ):
+        if kwargs_model is None and self._best_kwargs_model is None:
+            raise ValueError(
+                "At least one of the values, kwargs_model or"
+                " _best_kwargs_model, have to be setted"
+            )
+        elif kwargs_model is None and self._best_kwargs_model is not None:
+            kwargs_model = self._best_kwargs_model.copy()
+        if kwargs_scaler is None and self._best_kwargs_scaler is None:
+            kwargs_scaler = {}
+        elif kwargs_scaler is None and self._best_kwargs_scaler is not None:
+            kwargs_scaler = self._best_kwargs_scaler.copy()
+
+        metric_names = list(self._metrics.keys())
+        np_horizon = raw_horizon(closed.index, horizon)
+        base_dir = os.path.join(self._run_dir, "model_fitting")
+        pekfold = PEKFold(n_splits=self._cv_splits_fit)
+        cv_metric_values = np.zeros(len(self._metrics))
+        cv_hist_values = np.zeros((self._cv_splits_fit, len(metric_names)))
+        cv_bar = tqdm(
+            total=self._cv_splits_fit,
+            desc="Assessing the Cross-Validation for the Best Configuration",
+            colour="green",
+        )
+
+        cv_step = 0
+        predictions = []
+        spliter = pekfold.split(horizon)
+        for train_idx, test_idx in spliter:
+            outcomes, predicted, index = self.__partial_fit_eval(
+                data,
+                labels,
+                train_idx,
+                test_idx,
+                horizon,
+                np_horizon,
+                closed,
+                kwargs_model,
+                kwargs_scaler,
+            )
+            partial_metric_value = np.array(list(outcomes.values()))
+            cv_hist_values[cv_step] = partial_metric_value
+            cv_metric_values += partial_metric_value
+            cv_step += 1
+            cv_bar.update()
+            cv_bar.set_postfix(**outcomes)
+            predictions.append(pd.Series(predicted, index=index))
+        cv_bar.close()
+        cv_metric_values /= self._cv_splits_fit
+        cv_metric_values = dict(
+            zip(
+                ["avg_" + name for name in metric_names],
+                cv_metric_values,
+            )
+        )
+        save_hp_performance(
+            base_dir,
+            kwargs_model,
+            kwargs_scaler,
+            cv_metric_values,
+            cv_hist_values.T,
+            metric_names,
+            0,
+            s_features,
+            s_primary,
+            s_labels,
+        )
+        summary_outcomes = (
+            "The model fitting and the performance avaliation based on CV were done with"
+            "\n\t[Avg Metrics] = {}"
+            "\n\t[Features] {}"
+            "\n\t[Primary] {}"
+            "\n\t[Labels] {}"
+            "\n\t[Best model parameters] {}"
+            "\n\t[Best scaler parameters] {}".format(
+                cv_metric_values,
+                s_features,
+                s_primary,
+                s_labels,
+                kwargs_model,
+                kwargs_scaler,
+            )
+        )
+        self._file_log.info(summary_outcomes)
+        model, scaler = self.__fit(
+            data,
+            labels,
+            horizon,
+            np_horizon,
+            closed,
+            kwargs_model,
+            kwargs_scaler,
+        )
+        dump(model, os.path.join(base_dir, "fitted_model.pkl"))
+        if scaler is not None:
+            dump(scaler, os.path.join(base_dir, "fitted_scaler.pkl"))
+        return model, scaler, predictions, cv_metric_values
+
+    def hp_meta_optimize(
+        self,
+        data,
+        labels,
+        horizon,
+        closed,
+        hp_model,
+        hp_scaler=None,
+        s_features=None,
+        s_primary=None,
+        s_labels=None,
+    ):
+        if hp_scaler is None:
+            hp_scaler = {}
+        grid_model = ParameterGrid(hp_model)
+        grid_scaler = ParameterGrid(hp_scaler)
+        np_horizon = raw_horizon(closed.index, horizon)
+        base_dir = os.path.join(self._run_dir, "hp_tuning")
+
+        n_steps = 1
+        for v in hp_model.values():
+            n_steps *= len(v)
+        for v in hp_scaler.values():
+            n_steps *= len(v)
+        hp_bar = tqdm(
+            total=n_steps,
+            desc="Grid Searching for Hyper-Parameter",
+            colour="green",
+        )
+
+        hp_step = 0
+        metric_names = list(self._metrics.keys())
+        best_metric_value = np.zeros(len(self._metrics))
+        pekfold = PEKFold(n_splits=self._cv_splits_hp)
+        for kwargs_model in grid_model:
+            for kwargs_scaler in grid_scaler:
+                cv_step = 0
+                cv_bar = tqdm(
+                    total=self._cv_splits_hp,
+                    desc="Assessing the Cross-Validation",
+                    leave=False,
+                    colour="green",
+                )
+                cv_hist_values = np.zeros(
+                    (self._cv_splits_hp, len(metric_names))
+                )
+                cv_metric_values = np.zeros(len(self._metrics))
+                spliter = pekfold.split(horizon)
+                for train_idx, test_idx in spliter:
+                    outcomes, _, _ = self.__partial_fit_eval(
+                        data,
+                        labels,
+                        train_idx,
+                        test_idx,
+                        horizon,
+                        np_horizon,
+                        closed,
+                        kwargs_model,
+                        kwargs_scaler,
+                    )
+                    partial_metric_value = np.array(list(outcomes.values()))
+                    cv_hist_values[cv_step] = partial_metric_value
+                    cv_metric_values += partial_metric_value
+                    cv_step += 1
+                    cv_bar.update()
+                    cv_bar.set_postfix(**outcomes)
+                cv_bar.close()
+                cv_metric_values /= self._cv_splits_hp
+                if self.__is_better(cv_metric_values, best_metric_value):
+                    best_metric_value = cv_metric_values
+                    self._best_kwargs_model = kwargs_model
+                    self._best_kwargs_scaler = kwargs_scaler
+                cv_metric_values = dict(
+                    zip(
+                        ["avg_" + name for name in metric_names],
+                        cv_metric_values,
+                    )
+                )
+                save_hp_performance(
+                    base_dir,
+                    kwargs_model,
+                    kwargs_scaler,
+                    cv_metric_values,
+                    cv_hist_values.T,
+                    metric_names,
+                    hp_step,
+                    s_features,
+                    s_primary,
+                    s_labels,
+                )
+                hp_step += 1
+                hp_bar.update()
+        hp_bar.close()
+        summary_outcomes = (
+            "The grid search based on CV were done with"
+            "\n\t[Avg {}] = {}"
+            "\n\t[Features] {}"
+            "\n\t[Primary] {}"
+            "\n\t[Labels] {}"
+            "\n\t[Best model parameters] {}"
+            "\n\t[Best scaler parameters] {}".format(
+                metric_names[0],
+                best_metric_value[0],
+                s_features,
+                s_primary,
+                s_labels,
+                self._best_kwargs_model,
+                self._best_kwargs_scaler,
+            )
+        )
+        self._file_log.info(summary_outcomes)
+        print("\n" + summary_outcomes + "\n")
+        return (metric_names[0], best_metric_value[0])
+
 
 class EnvironmentOptimizer(BagingModelOptimizer):
     def __init__(
         self,
+        symbol,
+        db_path,
         model_fn,
         primary_model_fn,
         labels_fn,
-        refined_data,
         author,
         cv_splits_fit=10,
         cv_splits_hp=3,
@@ -436,15 +501,19 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             "BAcc": (balanced_accuracy_score, False),
             # "AUC": (auc, False),
         },
+        preload={"time": [5, 10, 15, 30, 60, "day"]}
     ):
         self._labels_fn = labels_fn
         self._primary_model_fn = primary_model_fn
-        self._refined_data = refined_data
         self._cv_splits_hp = cv_splits_hp
         self._run_dir = os.path.join(
             log_dir, author, "run-" + dt.now().strftime("%Y%m%d-%H%M%S")
         )
+        self._refined_data = RefinedData(symbol, db_path, preload=preload)
         self._file_log = create_log_file("environment", log_dir=self._run_dir)
+        self._best_kwargs_model = None
+        self._best_kwargs_scaler = None
+        self._best_kwargs_labels = None
         super(EnvironmentOptimizer, self).__init__(
             model_fn,
             self._run_dir,
@@ -458,6 +527,13 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             samples_weights_fn,
             metrics,
         )
+        # TODO: Ensure that all functions to get features in refined data have the format "get_<NAME>"
+        self._feature_acrons = {
+            "MA": "get_simple_MA",
+            "DEV": "get_deviation",
+            "RSI": "get_RSI",
+            "FRACDIFF": "frac_diff",
+        }
 
     # TODO: Implement case 2
     def __set_env(
@@ -466,7 +542,12 @@ class EnvironmentOptimizer(BagingModelOptimizer):
         steps = ["[Labels]"]
         for feature_name in kwargs_features.keys():
             steps.append("[" + feature_name + "]")
-        bar = tqdm(total=len(steps), desc="Setting Environment [Primary]")
+        bar = tqdm(
+            total=len(steps),
+            desc="Setting Environment [Primary]",
+            leave=False,
+            colour="green",
+        )
         steps = iter(steps)
 
         # TODO: Implement a way to process different parameter (volume, frac diff) and a better way to access the raw data
@@ -530,25 +611,147 @@ class EnvironmentOptimizer(BagingModelOptimizer):
                 (labels == 0).sum(),
             )
         )
+        bar.close()
         return horizon, closed, data, labels.values
+
+    def __parser_features(self, kwargs_features):
+        summary = {}
+        new_kwargs = {}
+        for k, v in kwargs_features.items():
+            name = k.split("__")[0]
+            param = k.split("__")[1]
+            f_name = self._feature_acrons[name]
+            if f_name not in new_kwargs:
+                summary[name] = ""
+                new_kwargs[f_name] = {}
+            summary[name] += param[0] + ":" + str(v) + ","
+            new_kwargs[f_name][param] = v
+        str_summary = ""
+        for name, s in summary.items():
+            str_summary += "[" + name + "]" + s[0:-1]
+        return new_kwargs, str_summary
+
+    def __parser_primary(self, kwargs_primary):
+        str_summary = ""
+        new_kwargs = {}
+        strategy = kwargs_primary.pop("strategy")
+        str_summary += "s" + ":" + strategy + ","
+        new_kwargs["strategy"] = strategy
+        new_kwargs["features"] = {}
+        for k, v in kwargs_primary.items():
+            new_kwargs["features"][k] = v
+            str_summary += k[0] + ":" + str(v) + ","
+        return new_kwargs, str_summary[0:-1]
+
+    # TODO: Maybe a better solution be not to use the dictionary in Labels initialization
+    def __parser_labels(self, kwargs_labels):
+        str_summary = ""
+        new_kwargs = {"operation_parameters": {}}
+        for k, v in kwargs_labels.items():
+            new_kwargs["operation_parameters"][k] = v
+            str_summary += k[0] + ":" + str(v) + ","
+        return new_kwargs, str_summary[0:-1]
 
     def train(
         self,
-        hp_model,
-        kwargs_features,
-        kwargs_primary,
-        kwargs_labels,
-        hp_scaler=None,
+        kwargs_model=None,
+        kwargs_scaler=None,
+        kwargs_features=None,
+        kwargs_primary=None,
+        kwargs_labels=None,
     ):
+        if kwargs_features is None and self._best_kwargs_features is None:
+            raise ValueError(
+                "At least one of the values, kwargs_features or"
+                " _best_kwargs_features, have to be setted"
+            )
+        elif kwargs_features is None and self._best_kwargs_features is not None:
+            kwargs_features = self._best_kwargs_features.copy()
+        if kwargs_primary is None and self._best_kwargs_primary is None:
+            raise ValueError(
+                "At least one of the values, kwargs_primary or"
+                " _best_kwargs_primary, have to be setted"
+            )
+        elif kwargs_primary is None and self._best_kwargs_primary is not None:
+            kwargs_primary = self._best_kwargs_primary.copy()
+        if kwargs_labels is None and self._best_kwargs_labels is None:
+            raise ValueError(
+                "At least one of the values, kwargs_labels or"
+                " _best_kwargs_labels, have to be setted"
+            )
+        elif kwargs_labels is None and self._best_kwargs_labels is not None:
+            kwargs_labels = self._best_kwargs_labels.copy()
+
         horizon, closed, data, labels = self.__set_env(
             kwargs_features, kwargs_primary, kwargs_labels
         )
-        self.hp_meta_optimize(
-            data, labels, horizon, closed, hp_model, hp_scaler
+        model, scaler, cv_predictions, metrics = self.cv_fit(
+            data, labels, closed, horizon
         )
-        model, scaler, predictions, metrics = self.cv_fit(data, labels, closed, horizon)
+        return model, scaler, cv_predictions
 
-    def hp_env_optimize(
+    def env_optimize(
         self, hp_model, hp_features, hp_primary, hp_labels, hp_scaler=None
     ):
-        pass
+        if hp_scaler is None:
+            hp_scaler = {}
+        grid_features = ParameterGrid(hp_features)
+        grid_primary = ParameterGrid(hp_primary)
+        grid_labels = ParameterGrid(hp_labels)
+
+        n_steps = 1
+        best_metric = 0
+        for d in hp_features:
+            for v in d.values():
+                n_steps *= len(v)
+        for d in hp_primary:
+            for v in d.values():
+                n_steps *= len(v)
+        for v in hp_labels.values():
+            n_steps *= len(v)
+        hp_bar = tqdm(
+            total=n_steps, desc="Mapping the Features", colour="green"
+        )
+        for kwargs_features in grid_features:
+            kwargs_features, s_features = self.__parser_features(
+                kwargs_features
+            )
+            for kwargs_primary in grid_primary:
+                kwargs_primary, s_primary = self.__parser_primary(
+                    kwargs_primary
+                )
+                for kwargs_labels in grid_labels:
+                    kwargs_labels, s_labels = self.__parser_labels(
+                        kwargs_labels
+                    )
+                    horizon, closed, data, labels = self.__set_env(
+                        kwargs_features, kwargs_primary, kwargs_labels
+                    )
+                    out_metric = self.hp_meta_optimize(
+                        data,
+                        labels,
+                        horizon,
+                        closed,
+                        hp_model,
+                        hp_scaler,
+                        s_features,
+                        s_primary,
+                        s_labels,
+                    )
+                    if out_metric[1] > best_metric:
+                        best_metric = out_metric[1]
+                        best_kwargs_labels = kwargs_labels
+                        best_kwargs_primary = kwargs_primary
+                        best_kwargs_features = kwargs_features
+                        best_kwargs_model = self._best_kwargs_model
+                        best_kwargs_scaler = self._best_kwargs_scaler
+                    self._best_kwargs_model = None
+                    self._best_kwargs_scaler = None
+                    hp_bar.update()
+        hp_bar.close()
+        self._best_kwargs_model = best_kwargs_model
+        self._best_kwargs_scaler = best_kwargs_scaler
+        self._best_kwargs_labels = best_kwargs_labels
+        self._best_kwargs_primary = best_kwargs_primary
+        self._best_kwargs_features = best_kwargs_features
+        return self.train()
