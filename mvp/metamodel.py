@@ -10,14 +10,17 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 import tensorflow.summary as summary
 from tensorboard.plugins.hparams import api as hp
 from sklearn.model_selection import ParameterGrid
+
 from sklearn.metrics import (
     f1_score,
     balanced_accuracy_score,
     precision_score,
     auc,
+    roc_curve,
 )
 
 from mvp.refined_data import RefinedData
@@ -31,12 +34,81 @@ from mvp.selection import (
 )
 
 
+# TODO: Put into draw module
+def draw_roc_curve(path_dir, cv_expected, cv_true_probs, interpolation_size=100):
+    """ Draw ROC curve based on a set of binary probabilities. """
+    fig = plt.figure(dpi=300)
+    ax = fig.subplots(1, 1, sharey=False)
+    aucs = []
+    tprs = []
+    fprs = np.linspace(0, 1, interpolation_size)
+    for i, (expected, true_probs) in enumerate(
+        zip(cv_expected, cv_true_probs)
+    ):
+        # TODO: How determine the best threshold
+        fpr, tpr, thresholds = roc_curve(expected, true_probs)
+        tprs.append(np.interp(fprs, fpr, tpr))
+        tprs[-1][0] = 0.0
+        roc_auc = auc(fpr, tpr)
+        aucs.append(roc_auc)
+        ax.plot(
+            fpr,
+            tpr,
+            lw=1,
+            alpha=0.3,
+            label="ROC fold {} (AUC = {:.2f})".format(i, roc_auc),
+        )
+
+    ax.plot(
+        [0, 1],
+        [0, 1],
+        linestyle="--",
+        lw=2,
+        color="r",
+        label="Random Classifier",
+        alpha=0.8,
+    )
+
+    mean_tpr = np.mean(tprs, axis=0)
+    mean_tpr[-1] = 1.0
+    mean_auc = auc(fprs, mean_tpr)
+    std_auc = np.std(aucs)
+    ax.plot(
+        fprs,
+        mean_tpr,
+        color="b",
+        label=r"Mean ROC (AUC = {:.2f} $\pm$ {:.2f})".format(mean_auc, std_auc),
+        lw=2,
+        alpha=0.8,
+    )
+
+    std_tpr = np.std(tprs, axis=0)
+    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+    plt.fill_between(
+        fprs,
+        tprs_lower,
+        tprs_upper,
+        color="grey",
+        alpha=0.2,
+        label=r"$\pm$ 1 $\sigma$",
+    )
+
+    ax.set_xlim([-0.05, 1.05])
+    ax.set_ylim([-0.05, 1.05])
+    ax.set_xlabel("FPR $\left(\\frac{FP}{FP + TN}\\right)$")
+    ax.set_ylabel("TPR $\left(\\frac{TP}{TP + FN}\\right)$")
+    ax.legend(loc="lower right")
+    plt.savefig(os.path.join(path_dir, "roc.png"))
+
+
 def save_params(
     run_dir,
     metrics,
     scaler,
     **kwargs,
 ):
+    """ Save parameters into `run_dir` in a json file."""
     s_metrics = {}
     for name, (_, weight) in metrics.items():
         s_metrics[name] = weight
@@ -67,10 +139,8 @@ def save_hp_performance(
     s_primary=None,
     s_labels=None,
 ):
-    log_dir = os.path.join(
-        base_dir,
-    )
-    with summary.create_file_writer(log_dir).as_default():
+    """ Save the hyper-parameters using Tensorboard"""
+    with summary.create_file_writer(base_dir).as_default():
         hparams = {}
         hparams.update(kwargs_model)
         hparams.update(kwargs_scaler)
@@ -88,6 +158,7 @@ def save_hp_performance(
 
 
 def create_log_file(name, log_dir):
+    """ Create a file in `log_dir` with name `name` to save the logs"""
     os.makedirs(log_dir, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(
         os.path.join(log_dir, "{}.log".format(name)),
@@ -106,7 +177,47 @@ def create_log_file(name, log_dir):
     return logger
 
 
-class BagingModelOptimizer:
+class BaggingModelOptimizer:
+    """
+    Optimize any Bagging model based on sklearn classes.
+
+    Parameters
+    ----------
+    `model_fn` : ``callable``
+        A callable object that instantiates a baging model.
+    `run_dir` : ``str``
+        The path in which the outcomes from optimization will be saved.
+    `scaler_pipeline` : ``Pipeline``
+        A sklearn ``Pipeline`` composed of the steps to preprocess data.
+    `cv_splits_fit` : ``int``
+        The number of folds that will be used in the CV during the final fitting.
+    `cv_splits_hp` : ``int``
+        The number of folds that will be used in the CV.
+    `use_weight` : ``bool``
+        Whether the sample weights are used or not.
+    `num_of_threads` : ``int``
+        Number of threads to be used in the training.
+    `min_time_weight` : ``float``
+        The minimum value assigned to the weight based on timestamp
+        (only used if `use_weight=True`)
+    `time_weights_fn` : ``callable``
+        A callable to create the weights based on timestamp.
+    `samples_weights_fn` : ``callable``
+        A callable to create the weights based on horizon overlapping and return values.
+    `metrics` : ``dict``
+        The metrics to be reported during the optimization process. The first metric
+        is used to guide the selection of the best set of hyper-parameters.
+        Each key of the dictionary must be the name of the metric, and the value
+        must be a ``tuple`` with two elements, a ``callabel`` used to apply the metric
+        and a ``bool`` to indicate whether the sample weights will be used or not
+        to assess the metric.
+    `verbose` : ``int``
+        It is either 0 or 1. It 1, some log information will be shown in the terminal.
+        Regardless the verbose value, these information is always accessed in log files.
+    `seed` : ``int``
+        The seed to initiate the numpy ``RandomState``.
+
+    """
     def __init__(
         self,
         model_fn,
@@ -120,10 +231,9 @@ class BagingModelOptimizer:
         time_weights_fn=time_weights,
         samples_weights_fn=sample_weights,
         metrics={
-            "Precision": (precision_score, False),
-            "F1": (f1_score, False),
-            "BAcc": (balanced_accuracy_score, False),
-            # "AUC": (auc, False),
+            "Precision": (precision_score, True),
+            "F1": (f1_score, True),
+            "BAcc": (balanced_accuracy_score, True),
         },
         verbose=0,
         seed=12345,
@@ -156,6 +266,7 @@ class BagingModelOptimizer:
         self._random_state = np.random.RandomState(seed)
 
     def __is_better(self, last, best):
+        """ Determine if the set of values in `last` is greater than `best`"""
         for l, b in zip(last, best):
             if l > b:
                 return True
@@ -169,6 +280,7 @@ class BagingModelOptimizer:
         train_horizon,
         test_horizon=None,
     ):
+        """ Initiate the model and the scaler based on the kwargs, the weights are also initiated"""
         if kwargs_scaler is None:
             kwargs_scaler = {}
         if self._scaler_pipeline is not None:
@@ -184,9 +296,6 @@ class BagingModelOptimizer:
         else:
             train_weight = None
             test_weight = None
-
-        # n_jobs = int(np.ceil(self._num_of_threads * 0.8))
-        # n_bootstrap_jobs = self._num_of_threads - n_jobs
         model = self._model_fn(
             n_jobs=self._num_of_threads,
             n_bootstrap_jobs=self._num_of_threads,
@@ -207,6 +316,7 @@ class BagingModelOptimizer:
         kwargs_model,
         kwargs_scaler=None,
     ):
+        """ Fit and evaluate the model based on partial configuration"""
         model, scaler, train_weight, test_weight = self.__set_model(
             kwargs_scaler,
             kwargs_model,
@@ -228,6 +338,8 @@ class BagingModelOptimizer:
             sample_weight=train_weight,
             horizon=train_horizon,
         )
+        # TODO: Discuss the way that the prediction is assessed
+        predicted_proba = model.predict_proba(x_test)
         predicted = model.predict(x_test)
         for name, (metric_fn, use_weight) in self._metrics.items():
             if use_weight:
@@ -236,7 +348,7 @@ class BagingModelOptimizer:
                 )
             else:
                 outcomes[name] = metric_fn(y_test, predicted)
-        return outcomes, predicted, horizon.index[test_idx]
+        return outcomes, predicted, horizon.index[test_idx], predicted_proba
 
     def __fit(
         self,
@@ -248,6 +360,7 @@ class BagingModelOptimizer:
         kwargs_model,
         kwargs_scaler=None,
     ):
+        """ Fit the model using all training data"""
         print("Training the last model with all training dataset...  ", end="")
         model, scaler, train_weight, _ = self.__set_model(
             kwargs_scaler,
@@ -267,6 +380,7 @@ class BagingModelOptimizer:
         return model, scaler
 
     def get_weight(self, closed, horizon, min_chunk_size=100):
+        """ Get the sample weights based on timestamp, horizon overlappig, and return values"""
         data_size = horizon.shape[0]
         chunk_size = np.round(data_size / self._num_of_threads)
         if chunk_size < min_chunk_size:
@@ -307,6 +421,7 @@ class BagingModelOptimizer:
         s_primary=None,
         s_labels=None,
     ):
+        """ Fit the model using a pre-defined configuration and report statistics using CV"""
         if kwargs_model is None and self._best_kwargs_model is None:
             raise ValueError(
                 "At least one of the values, kwargs_model or"
@@ -333,10 +448,12 @@ class BagingModelOptimizer:
         )
 
         cv_step = 0
-        predictions = []
+        cv_predictions = []
+        cv_expected = []
+        cv_true_probs = []
         spliter = pekfold.split(horizon)
         for train_idx, test_idx in spliter:
-            outcomes, predicted, index = self.__partial_fit_eval(
+            outcomes, predicted, index, probs = self.__partial_fit_eval(
                 data,
                 labels,
                 train_idx,
@@ -353,7 +470,9 @@ class BagingModelOptimizer:
             cv_step += 1
             cv_bar.update()
             cv_bar.set_postfix(**outcomes)
-            predictions.append(pd.Series(predicted, index=index))
+            cv_predictions.append(pd.Series(predicted, index=index))
+            cv_expected.append(labels[test_idx])
+            cv_true_probs.append(probs[:, 1])
         cv_bar.close()
         cv_metric_values /= self._cv_splits_fit
         cv_metric_values = dict(
@@ -375,6 +494,7 @@ class BagingModelOptimizer:
             s_primary,
             s_labels,
         )
+        draw_roc_curve(base_dir, cv_expected, cv_true_probs)
         summary_outcomes = (
             "The model fitting and the performance avaliation based on CV were done with"
             "\n\t[Avg Metrics] = {}"
@@ -404,7 +524,7 @@ class BagingModelOptimizer:
         dump(model, os.path.join(base_dir, "fitted_model.pkl"))
         if scaler is not None:
             dump(scaler, os.path.join(base_dir, "fitted_scaler.pkl"))
-        return model, scaler, predictions, cv_metric_values
+        return model, scaler, cv_predictions, cv_metric_values
 
     def hp_meta_optimize(
         self,
@@ -418,6 +538,7 @@ class BagingModelOptimizer:
         s_primary=None,
         s_labels=None,
     ):
+        """ Apply the grid search to determine the best hyper parameter for the model"""
         if hp_scaler is None:
             hp_scaler = {}
         grid_model = ParameterGrid(hp_model)
@@ -458,7 +579,7 @@ class BagingModelOptimizer:
                 cv_metric_values = np.zeros(len(self._metrics))
                 spliter = pekfold.split(horizon)
                 for train_idx, test_idx in spliter:
-                    outcomes, _, _ = self.__partial_fit_eval(
+                    outcomes, _, _, _ = self.__partial_fit_eval(
                         data,
                         labels,
                         train_idx,
@@ -526,7 +647,61 @@ class BagingModelOptimizer:
         return ("Avg_" + metric_names[0], best_metric_value[0])
 
 
-class EnvironmentOptimizer(BagingModelOptimizer):
+class EnvironmentOptimizer(BaggingModelOptimizer):
+    """
+    Optimize the finance environment selecting the sub-optimal statistical features and
+    hyper-parameters for a defined Bagging model based on sklearn classes.
+
+    Parameters
+    ----------
+    `symbol` : ``str``
+        The symbol that will be used to collected the data.
+    `db_path` : ``str``
+        The path to the database.
+    `model_fn` : ``callable``
+        A callable object that instantiates a baging model.
+    `primary_model_fn` : ``callable``
+        A callable object that instantiates the primary model.
+    `labels_fn` : ``callable``
+        A callable object that instantiates a label model.
+    `author` : ``str``
+        The author name.
+    `scaler_pipeline` : ``Pipeline``
+        A sklearn ``Pipeline`` composed of the steps to preprocess data.
+    `cv_splits_fit` : ``int``
+        The number of folds that will be used in the CV during the final fitting.
+    `cv_splits_hp` : ``int``
+        The number of folds that will be used in the CV.
+    `use_weight` : ``bool``
+        Whether the sample weights are used or not.
+    `num_of_threads` : ``int``
+        Number of threads to be used in the training.
+    `min_time_weight` : ``float``
+        The minimum value assigned to the weight based on timestamp
+        (only used if `use_weight=True`)
+    `time_weights_fn` : ``callable``
+        A callable to create the weights based on timestamp.
+    `samples_weights_fn` : ``callable``
+        A callable to create the weights based on horizon overlapping and return values.
+    `log_dir` : ``str``
+        The path to the main directory to save all assets.
+    `metrics` : ``dict``
+        The metrics to be reported during the optimization process. The first metric
+        is used to guide the selection of the best set of hyper-parameters.
+        Each key of the dictionary must be the name of the metric, and the value
+        must be a ``tuple`` with two elements, a ``callabel`` used to apply the metric
+        and a ``bool`` to indicate whether the sample weights will be used or not
+        to assess the metric.
+
+    `preload` : ``dict``
+        The time series that will be also load (see ``RefinedData``)
+    `verbose` : ``int``
+        It is either 0 or 1. It 1, some log information will be shown in the terminal.
+        Regardless the verbose value, these information is always accessed in log files.
+    `seed` : ``int``
+        The seed to initiate the numpy ``RandomState``.
+
+    """
     def __init__(
         self,
         symbol,
@@ -545,10 +720,9 @@ class EnvironmentOptimizer(BagingModelOptimizer):
         samples_weights_fn=sample_weights,
         log_dir="logs",
         metrics={
-            "Precision": (precision_score, False),
-            "F1": (f1_score, False),
-            "BAcc": (balanced_accuracy_score, False),
-            # "AUC": (auc, False),
+            "Precision": (precision_score, True),
+            "F1": (f1_score, True),
+            "BAcc": (balanced_accuracy_score, True),
         },
         preload={"time": [5, 10, 15, 30, 60, "day"]},
         verbose=0,
@@ -612,6 +786,7 @@ class EnvironmentOptimizer(BagingModelOptimizer):
     def __set_env(
         self, kwargs_features, kwargs_primary, kwargs_labels, approach=1
     ):
+        """ Set the finance environment"""
         steps = ["[Labels]"]
         for feature_name in kwargs_features.keys():
             steps.append("[" + feature_name + "]")
@@ -728,11 +903,15 @@ class EnvironmentOptimizer(BagingModelOptimizer):
     def train(
         self,
         kwargs_model=None,
-        kwargs_scaler=None,
         kwargs_features=None,
         kwargs_primary=None,
         kwargs_labels=None,
+        kwargs_scaler=None,
+        s_features=None,
+        s_primary=None,
+        s_labels=None,
     ):
+        """ Train the model for a pre-defined configuration"""
         if kwargs_features is None and self._best_kwargs_features is None:
             raise ValueError(
                 "At least one of the values, kwargs_features or"
@@ -742,6 +921,7 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             kwargs_features is None and self._best_kwargs_features is not None
         ):
             kwargs_features = self._best_kwargs_features.copy()
+            s_features = self._best_s_features
         if kwargs_primary is None and self._best_kwargs_primary is None:
             raise ValueError(
                 "At least one of the values, kwargs_primary or"
@@ -749,6 +929,7 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             )
         elif kwargs_primary is None and self._best_kwargs_primary is not None:
             kwargs_primary = self._best_kwargs_primary.copy()
+            s_primary = self._best_s_primary
         if kwargs_labels is None and self._best_kwargs_labels is None:
             raise ValueError(
                 "At least one of the values, kwargs_labels or"
@@ -756,18 +937,28 @@ class EnvironmentOptimizer(BagingModelOptimizer):
             )
         elif kwargs_labels is None and self._best_kwargs_labels is not None:
             kwargs_labels = self._best_kwargs_labels.copy()
+            s_labels = self._best_s_labels
 
         horizon, closed, data, labels = self.__set_env(
             kwargs_features, kwargs_primary, kwargs_labels
         )
         model, scaler, cv_predictions, metrics = self.cv_fit(
-            data, labels, closed, horizon
+            data,
+            labels,
+            closed,
+            horizon,
+            kwargs_model,
+            kwargs_scaler,
+            s_features,
+            s_primary,
+            s_labels,
         )
         return model, scaler, cv_predictions
 
     def env_optimize(
         self, hp_model, hp_features, hp_primary, hp_labels, hp_scaler=None
     ):
+        """ Apply the grid search to determine the sub-optimal parameters for features, the primary and the labels generator"""
         if hp_scaler is None:
             hp_scaler = {}
         grid_features = ParameterGrid(hp_features)
@@ -824,6 +1015,9 @@ class EnvironmentOptimizer(BagingModelOptimizer):
                         best_kwargs_features = kwargs_features
                         best_kwargs_model = self._best_kwargs_model
                         best_kwargs_scaler = self._best_kwargs_scaler
+                        best_s_labels = s_labels
+                        best_s_primary = s_primary
+                        best_s_features = s_features
                     self._best_kwargs_model = None
                     self._best_kwargs_scaler = None
                     hp_bar.set_postfix(**{out_metric[0]: out_metric[1]})
@@ -834,6 +1028,9 @@ class EnvironmentOptimizer(BagingModelOptimizer):
         self._best_kwargs_labels = best_kwargs_labels
         self._best_kwargs_primary = best_kwargs_primary
         self._best_kwargs_features = best_kwargs_features
+        self._best_s_labels = best_s_labels
+        self._best_s_primary = best_s_primary
+        self._best_s_features = best_s_features
         model, scaler, cv_predictions = self.train()
         if self._verbose > 0:
             print(
