@@ -245,18 +245,14 @@ class RefinedData(RawData):
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
         bar_method = self.__getattribute__(target.split(":")[0] + "_bars")
-        if append:
-            df_slice = bar_method(step=step)
-        else:
-            df_slice = bar_method(start, stop, step)
-        vol_den = df_slice["Volume"] / df_slice["TickVol"]
+        df = bar_method(step=step)
+        vol_den = df.Volume / df.TickVol
         clean_data = vol_den.replace([-np.inf, np.inf], np.nan).copy()
         clean_data.dropna(inplace=True)
         clean_data.name = "VolumeDensity"
         if append:
             self.__cached_features[str_code] = clean_data.astype(int)
-            return clean_data[start:stop].astype(int)
-        return clean_data.astype(int)
+        return clean_data[start:stop].astype(int)
 
     def get_sma(
         self,
@@ -304,16 +300,12 @@ class RefinedData(RawData):
             return self.__cached_features[str_code].copy().loc[start:stop]
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
-        if append:
-            target_series = field_method(step=step, bar_type=bar_type)
-        else:
-            target_series = field_method(start, stop, step, bar_type)
+        target_series = field_method(step=step, bar_type=bar_type)
         moving_avg = target_series.rolling(window).mean()
         moving_avg.name = "MovingAverage"
         if append:
             self.__cached_features[str_code] = moving_avg.dropna()
-            return moving_avg[start:stop].dropna()
-        return moving_avg.dropna()
+        return moving_avg[start:stop].dropna()
 
     def get_dev(
         self,
@@ -361,16 +353,12 @@ class RefinedData(RawData):
             return self.__cached_features[str_code].copy().loc[start:stop]
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
-        if append:
-            target_series = field_method(step=step, bar_type=bar_type)
-        else:
-            target_series = field_method(start, stop, step, bar_type)
+        target_series = field_method(step=step, bar_type=bar_type)
         moving_std = target_series.rolling(window).std()
         moving_std.name = "StandardDeviation"
         if append:
             self.__cached_features[str_code] = moving_std.dropna()
-            return moving_std.loc[start:stop].dropna()
-        return moving_std.dropna()
+        return moving_std.loc[start:stop].dropna()
 
     def get_returns(
         self,
@@ -418,18 +406,14 @@ class RefinedData(RawData):
             return self.__cached_features[str_code].copy().loc[start:stop]
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
-        if append:
-            target_series = field_method(step=step, bar_type=bar_type)
-        else:
-            target_series = field_method(start, stop, step, bar_type)
+        target_series = field_method(step=step, bar_type=bar_type)
         return_series = (
             target_series - target_series.shift(window)
         ) / target_series.shift(window)
         return_series.name = "ReturnSeries"
         if append:
             self.__cached_features[str_code] = return_series.dropna()
-            return return_series.loc[start:stop].dropna()
-        return return_series.dropna()
+        return return_series.loc[start:stop].dropna()
 
     def get_rsi(
         self,
@@ -476,10 +460,7 @@ class RefinedData(RawData):
             return self.__cached_features[str_code].copy().loc[start:stop]
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
-        if append:
-            target_series = field_method(step=step, bar_type=bar_type)
-        else:
-            target_series = field_method(start, stop, step, bar_type)
+        target_series = field_method(step=step, bar_type=bar_type)
         return_series = target_series - target_series.shift(periods=1)
         gain_or_zero = return_series.apply(lambda x: 0 if x < 0 else x)
         loss_or_zero = return_series.apply(lambda x: 0 if x > 0 else -x)
@@ -491,8 +472,7 @@ class RefinedData(RawData):
         rsi_series.name = "RelativeStrengthIndex"
         if append:
             self.__cached_features[str_code] = rsi_series.dropna()
-            return rsi_series.loc[start:stop].dropna()
-        return rsi_series.dropna()
+        return rsi_series.loc[start:stop].dropna()
 
     def get_autocorr_period(
         self,
@@ -609,7 +589,7 @@ class RefinedData(RawData):
             except Exception:
                 autocorr[i] = np.nan
         autocorr_df = pd.DataFrame(
-            [stops, autocorr], columns=["FinalDate", "Autocorr"], index=starts
+            {"FinalDate": stops, "Autocorr": autocorr}, index=starts
         )
         autocorr_df.index.name = "InitialDate"
         return autocorr_df
@@ -670,10 +650,7 @@ class RefinedData(RawData):
             return self.__cached_features[str_code].copy().loc[start:stop]
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
-        if append:
-            target_series = field_method(step=step, bar_type=bar_type)
-        else:
-            target_series = field_method(start, stop, step, bar_type)
+        target_series = field_method(step=step, bar_type=bar_type)
         target_vals = target_series.values
         if target_vals.size < window:
             raise ValueError(
@@ -697,8 +674,7 @@ class RefinedData(RawData):
         mov_autocorr_ser.name = "Autocorrelation"
         if append:
             self.__cached_features[str_code] = mov_autocorr_ser
-            return mov_autocorr_ser.loc[start:stop]
-        return mov_autocorr_ser
+        return mov_autocorr_ser.loc[start:stop]
 
     def __frac_diff_weights(self, d, tolerance, max_weights=1e8):
         """
@@ -790,10 +766,7 @@ class RefinedData(RawData):
             return self.__cached_features[str_code].loc[start:stop]
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
-        if append:
-            target_series = field_method(step=step, bar_type=bar_type)
-        else:
-            target_series = field_method(start, stop, step, bar_type)
+        target_series = field_method(step=step, bar_type=bar_type)
         w = self.__frac_diff_weights(d, weights_tol)
         fracdiff_series = target_series.rolling(window=w.size).apply(
             lambda x: self.__apply_weights(w, x), raw=True
@@ -801,8 +774,7 @@ class RefinedData(RawData):
         fracdiff_series.name = "FracDiff"
         if append:
             self.__cached_features[str_code] = fracdiff_series.dropna()
-            return fracdiff_series.loc[start:stop].dropna()
-        return fracdiff_series.dropna()
+        return fracdiff_series.loc[start:stop].dropna()
 
     def get_vola_freq(
         self,
@@ -859,10 +831,7 @@ class RefinedData(RawData):
             return self.__cached_features[str_code].loc[start:stop]
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
-        if append:
-            target_series = field_method(step=step, bar_type=bar_type)
-        else:
-            target_series = field_method(start, stop, step, bar_type)
+        target_series = field_method(step=step, bar_type=bar_type)
         if isinstance(step, str):
             step = 1
         vol_series = target_series.rolling(window).apply(
@@ -870,8 +839,7 @@ class RefinedData(RawData):
         )
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
-            return vol_series.loc[start:stop].dropna()
-        return vol_series.dropna()
+        return vol_series.loc[start:stop].dropna()
 
     def get_vola_gain(
         self,
@@ -920,19 +888,13 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].loc[start:stop]
-        bar_type, field_name = target.split(":")
-        if append:
-            kwargs = {"step": step, "bar_type": bar_type}
-            max_price = self.get_high(**kwargs).rolling(window).max()
-            min_price = self.get_low(**kwargs).rolling(window).min()
-        else:
-            args = (start, stop, step, bar_type)
-            max_price = self.get_high(*args).rolling(window).max()
-            min_price = self.get_low(*args).rolling(window).min()
-        ma = self.get_sma(window, start, stop, step, bar_type + ":close")
+        bar_type = target.split(":")[0]
+        df = self.__getattribute__(bar_type + "_bars")(step=step)
+        max_price = df.High.rolling(window).max()
+        min_price = df.Low.rolling(window).min()
+        ma = self.get_sma(window, step=step, target=bar_type + ":close")
         vol_series = (max_price - min_price) / ma
         vol_series.name = "GainVolatility"
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
-            return vol_series.loc[start:stop].dropna()
-        return vol_series.dropna()
+        return vol_series.loc[start:stop].dropna()

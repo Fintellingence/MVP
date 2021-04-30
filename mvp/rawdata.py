@@ -89,9 +89,7 @@ class RawData:
     """
     Class to read databases and manipulate dataframes for
     a stock market company. Provide methods to reset data
-    in different types of candlesticks than time based on
-    stock deal rate such as volume and money exchanged in
-    stock market
+    in different types of candlesticks besides time
 
     Also provide methods to access basic candlestick data
     such as open, high, low and close values
@@ -106,18 +104,29 @@ class RawData:
         If integer take it as index from 1-minute dataframe series
     `step` : ``int``
         Value of accumulated quantity to form new bars
-        For example, in `time_bars` is how many minutes
-        and in `tick_bars` is how many deals
+        For example, in `time_bars` is the time interval
+        in minutes and in `tick_bars` is how many trades
+        Especially for `time_bars`, "day" can be used
 
-    Instance Variables
-    ------------------
+    Warnings
+    ---
+    Mind that if integer is given for `start` / `stop` the
+    time index considered is taken from 1-minute dataframe
+    For non-time bars, suitable steps must be chosen since
+    if a very small value is given the uncertainty becomes
+    appreciable due to the 1-minute bars fluctuations, and
+    the result will be very similar of those with few minute
+    bars, such as 15-minute or 60-minute
+
+    Some important attributes
+    ---
     `df` : ``pandas.DataFrame``
         Fundamental dataframe containing the 1-minute stock prices
         open-high-low-close-volume values.
-    `symbol` : ``string``
+    `symbol` : ``str``
         company symbol code in stock market
     `available_dates` : list[``pandas.Timestamp``]
-        dates that stock market was openned (exclude holidays and weekend)
+        dates that stock market was openned (exclude holidays and weekends)
     `available_time_steps` : list[1, 5, 10, 15, 30 ,60, "day"]
         values accepted to change the sample interval from 1-minute
 
@@ -133,18 +142,18 @@ class RawData:
         `symbol` : ``str``
             symbol code of the company to load data
         `db_path` : ``str``
-            full path to 1-minute sample database file
+            full path to 1-minute database
         `preload` : ``dict``
             {
-                "time": list[``int`` , "day"]   (new time interval of bars)
-                "tick": list[``int``]       (bars in amount of deals occurred)
-                "volume": list[``int``]     (bars in amount of volume)
-                "money": list[``int``]      (bars in amount of money)
+                "time": ``int`` or "day"    (new time interval of bars)
+                "tick": ``int``             (bars in amount of trades)
+                "volume": ``int``           (bars in amount of volume)
+                "money": ``int``            (bars in amount of money)
             }
-            A single integer value works as well instead of list of integers
-            For daily bars use the string "day" in "time" key. Specifically
+            For the dict values list of the types above are also accepted
+            For daily bars use the string "day" in "time" key. Especially
             in time intervals, the set of accepted values are 1, 5, 10, 15,
-            30, 60 and as mentioned "day".
+            30, 60 and "day".
 
         """
         self.symbol = symbol
@@ -164,7 +173,7 @@ class RawData:
         self.__cached_dataframes["time_1"] = self.df
         for bar_type, params in preload.items():
             if not hasattr(self, bar_type + "_bars"):
-                print("bar {} requested not available".format(bar_type))
+                print("\n{} requested not available".format(bar_type))
                 continue
             if not isinstance(params, list):
                 params = [params]
@@ -172,7 +181,7 @@ class RawData:
                 self.__cache_insert_dataframe(bar_type, param)
 
     def __get_data_from_db(self, db_path):
-        """ Query in database the self.symbol """
+        """ Query in database `self.symbol` and set dataframe """
         conn = sql3.connect(db_path)
         df = pd.read_sql("SELECT * FROM {}".format(self.symbol), conn)
         conn.close()
@@ -191,9 +200,17 @@ class RawData:
 
     def __cache_insert_dataframe(self, bar_type, step):
         """ Insert dataframe in inner memory cache dictionary """
-        if isinstance(step, float):
+        try:
             step = int(step)
+        except Exception:
+            pass
+        if step is None:
+            step = 1
+        if bar_type != "time" and step == 1:
+            t_init, t_end = self.df.index[0], self.df.index[-1]
+            step = self.__appropriate_step(t_init, t_end, bar_type)
         key_format = "{}_{}".format(bar_type, step)
+        print("inserting", key_format)
         if key_format in self.__cached_dataframes.keys():
             return
         if bar_type == "time":
@@ -276,7 +293,7 @@ class RawData:
         minute1_df_recovery = self.df.copy()
         del self.__cached_dataframes
         del self.df
-        self.df = minute1_df_recovery.copy()
+        self.df = minute1_df_recovery
         self.__cached_dataframes = {}
         self.__cached_dataframes["time_1"] = self.df
 
@@ -299,9 +316,9 @@ class RawData:
         """
         if start is None and stop is None:
             return self.df.index[0], self.df.index[-1]
-        if start == None:
+        if start is None:
             start = self.df.index[0]
-        if stop == None:
+        if stop is None:
             stop = self.df.index[-1]
         if not isinstance(start, int) and not isinstance(start, pd.Timestamp):
             raise ValueError("{} is not a valid starting point".format(start))
@@ -316,60 +333,66 @@ class RawData:
         return start, stop
 
     def __appropriate_step(self, start, stop, bar_type):
-        """ Compute a suitable step for `bar_type` not being time """
+        """ Return a suitable step for `bar_type` not being time """
         daily_df = self.daily_bars(start, stop)
         if bar_type == "tick":
-            return daily_df.TickVol.mean()
+            float_step = daily_df.TickVol.mean() / 2
         elif bar_type == "volume":
-            return daily_df.Volume.mean()
+            float_step = daily_df.Volume.mean() / 2
         else:
-            return (daily_df.Volume * daily_df.Close).mean()
+            float_step = (daily_df.Volume * daily_df.Close).mean() / 2
+        return int(float_step)
 
     def get_close(self, start=None, stop=None, step=1, bar_type="time"):
+        """ Get close price time series """
         bar_method = self.__getattribute__(bar_type + "_bars")
         if bar_type != "time" and step == 1:
             step = self.__appropriate_step(start, stop, bar_type)
         return bar_method(start, stop, step).Close
 
     def get_open(self, start=None, stop=None, step=1, bar_type="time"):
+        """ Get open price time series """
         bar_method = self.__getattribute__(bar_type + "_bars")
         if bar_type != "time" and step == 1:
             step = self.__appropriate_step(start, stop, bar_type)
         return bar_method(start, stop, step).Open
 
     def get_high(self, start=None, stop=None, step=1, bar_type="time"):
+        """ Get high price time series """
         bar_method = self.__getattribute__(bar_type + "_bars")
         if bar_type != "time" and step == 1:
             step = self.__appropriate_step(start, stop, bar_type)
         return bar_method(start, stop, step).High
 
     def get_low(self, start=None, stop=None, step=1, bar_type="time"):
+        """ Get low price time series """
         bar_method = self.__getattribute__(bar_type + "_bars")
         if bar_type != "time" and step == 1:
             step = self.__appropriate_step(start, stop, bar_type)
         return bar_method(start, stop, step).Low
 
     def get_volume(self, start=None, stop=None, step=1, bar_type="time"):
+        """ Get volume time series """
         bar_method = self.__getattribute__(bar_type + "_bars")
         if bar_type != "time" and step == 1:
             step = self.__appropriate_step(start, stop, bar_type)
         return bar_method(start, stop, step).Volume
 
-    def tick_bars(self, start=None, stop=None, step=10000):
+    def tick_bars(self, start=None, stop=None, step=None):
         """
-        Convert 1-minute time spaced dataframe to
-        (approximately) `step` ticks spaced
+        Set dataframe bars for every `step`-deals/ticks traded in stock market
 
         Parameter
         ---
         `start` : ``pandas.Timestamp`` or ``int``
-            first index to use
+            Initial time instant or index of 1-minute dataframe
         `stop` : ``pandas.Timestamp`` or ``int``
-            last index to use
+            Final time instant or index of 1-minute dataframe
         `step` : ``int``
             number of ticks/deals to form a new bar (dataframe row)
             Hint : To use some reasonable value compute the mean of
             `TickVol` column in daily intervals
+            By default use half of day-average
 
         Return
         ---
@@ -380,15 +403,19 @@ class RawData:
         ---
         Avoid using typically small values for `step` according to the symbol
         since it induces small time intervals in minutes for which the
-        `time_bars` interval method is preferable, because tries
-        to load data from databases without wasting computational effort.
-        Moreover, for small `step` values its variation among the bars become
-        large due to 1-minute bar fluctuations.
+        `time_bars` interval method is preferable, because tries to load data
+        from databases without wasting computational effort. Moreover, for
+        small `step` values its variation among the bars become large due to
+        1-minute bar fluctuations.
 
         """
         start, stop = self.assert_window(start, stop)
-        if not isinstance(step, int):
+        try:
             step = int(step)
+        except Exception:
+            pass
+        if step is None or step == 1:
+            step = self.__appropriate_step(start, stop, "tick")
         cache_key = "tick_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
@@ -399,21 +426,21 @@ class RawData:
         nbars = indexing_cusum(nlines, ticks_parser, strides, step)
         return self.__reassemble_df(df_window, strides[:nbars])
 
-    def volume_bars(self, start=None, stop=None, step=1e7):
+    def volume_bars(self, start=None, stop=None, step=None):
         """
-        Convert 1-minute time spaced dataframe to
-        (approximately) `step` volume spaced
+        Set dataframe bars for every `step`-volume traded in stock market
 
         Parameter
         ---
         `start` : ``pandas.Timestamp`` or ``int``
-            first index to use
+            Initial time instant or index of 1-minute dataframe
         `stop` : ``pandas.Timestamp`` or ``int``
-            last index to use
+            Final time instant or index of 1-minute dataframe
         `step` : ``int``
             volume required to form a new bar (dataframe row)
             Hint : To use some reasonable value compute the mean of
             `Volume` column in daily intervals
+            By default use half of day-average
 
         Return
         ---
@@ -424,15 +451,19 @@ class RawData:
         ---
         Avoid using typically small values for `step` according to the symbol
         since it induces small time intervals in minutes for which the
-        `time_bars` interval method is preferable, because tries
-        to load data from databases without wasting computational effort.
-        Moreover, for small `step` values its variation among the bars become
-        large due to 1-minute bar fluctuations.
+        `time_bars` interval method is preferable, because tries to load data
+        from databases without wasting computational effort. Moreover, for
+        small `step` values its variation among the bars become large due to
+        1-minute bar fluctuations.
 
         """
         start, stop = self.assert_window(start, stop)
-        if not isinstance(step, int):
+        try:
             step = int(step)
+        except Exception:
+            pass
+        if step is None or step == 1:
+            step = self.__appropriate_step(start, stop, "volume")
         cache_key = "volume_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
@@ -443,21 +474,21 @@ class RawData:
         nbars = indexing_cusum(nlines, vol_parser, strides, step)
         return self.__reassemble_df(df_window, strides[:nbars])
 
-    def money_bars(self, start=None, stop=None, step=1e8):
+    def money_bars(self, start=None, stop=None, step=None):
         """
-        Convert 1-minute time spaced dataframe to
-        (approximately) `step` money spaced
+        Set dataframe bars for every `step`-money traded in stock market
 
         Parameter
         ---
         `start` : ``pandas.Timestamp`` or ``int``
-            first index to use
+            Initial time instant or index of 1-minute dataframe
         `stop` : ``pandas.Timestamp`` or ``int``
-            last index to use
+            Final time instant or index of 1-minute dataframe
         `step` : ``float``
             money volume required to form a new bar (dataframe row)
             Hint : To use some reasonable value compute the mean of
             close price multiplied by the volume in daily intervals
+            By default use half of day-average
 
         Return
         ---
@@ -468,15 +499,19 @@ class RawData:
         ---
         Avoid using typically small values for `step` according to the symbol
         since it induces small time intervals in minutes for which the
-        `time_bars` interval method is preferable, because tries
-        to load data from databases without wasting computational effort.
-        Moreover, for small `step` values its variation among the bars become
-        large due to 1-minute bar fluctuations.
+        `time_bars` interval method is preferable, because tries to load data
+        from databases without wasting computational effort. Moreover, for
+        small `step` values its variation among the bars become large due to
+        1-minute bar fluctuations.
 
         """
         start, stop = self.assert_window(start, stop)
-        if not isinstance(step, int):
+        try:
             step = int(step)
+        except Exception:
+            pass
+        if step is None or step == 1:
+            step = self.__appropriate_step(start, stop, "money")
         cache_key = "money_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
@@ -496,9 +531,14 @@ class RawData:
         Parameter
         ---------
         `start` : ``pandas.Timestamp`` or ``int``
-            first index to use
-        `end` : ``pandas.Timestamp`` or ``int``
-            last index to use
+            Initial time instant or index of 1-minute dataframe
+        `stop` : ``pandas.Timestamp`` or ``int``
+            Final time instant or index of 1-minute dataframe
+
+        Return
+        ------
+        ``pandas.DataFrame``
+            open-high-low-close in daily bars
 
         """
         start, stop = self.assert_window(start, stop)
@@ -518,22 +558,21 @@ class RawData:
 
     def time_bars(self, start=None, stop=None, step=1):
         """
-        Return a dataframe resizing the sample time interval
-        IGNORING the market opening and closing periods.
+        Set time interval elapsed in open-high-low-close bars
 
         Parameters
         ----------
-        `start` : ``datetime.datetime``
-            Initial time instant (pandas.Timestamp).
-        `stop` : ``datetime.datetime``
-            Final time instant (pandas.Timestamp).
-        `step` : ``int``
-            In minutes. Available values are [1,5,10,15,30,60] (default 60)
+        `start` : ``pandas.Timestamp`` or ``int``
+            Initial time instant or index of 1-minute dataframe
+        `stop` : ``pandas.Timestamp`` or ``int``
+            Final time instant or index of 1-minute dataframe
+        `step` : ``int`` or "day"
+            In minutes if integer
 
         Return
         ------
         ``pandas.DataFrame``
-            new dataframe with bars sampled in the `step` interval given
+            dataframe with open-high-low-close bars in `step`-minutes
 
         WARNING
         -------
@@ -551,8 +590,6 @@ class RawData:
         cache_key = "time_{}".format(step)
         if cache_key in self.__cached_dataframes.keys():
             return self.__cached_dataframes[cache_key].loc[start:stop].copy()
-        if step == "day":
-            return self.daily_bars(start, stop)
         try:
             df_from_db = self.__get_data_from_db(
                 self.__format_new_interval_db_name(step)
@@ -560,6 +597,8 @@ class RawData:
             return df_from_db.loc[start:stop]
         except Exception:
             pass
+        if step == "day":
+            return self.daily_bars(start, stop)
         work_df = self.df.loc[start:stop]
         nlines = work_df.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
