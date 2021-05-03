@@ -263,6 +263,7 @@ class BaggingModelOptimizer:
                     " `time_weight_fn` or `sample_weights_fn`, have to be defined"
                 )
         self._verbose = verbose
+        self._seed = seed
         self._random_state = np.random.RandomState(seed)
 
     def __is_better(self, last, best):
@@ -731,6 +732,23 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         run_dir = os.path.join(
             log_dir, author, "run-" + dt.now().strftime("%Y%m%d-%H%M%S")
         )
+        self._author = author
+        self._symbol = symbol
+        self._db_path = db_path
+        self._labels_fn = labels_fn
+        self._primary_model_fn = primary_model_fn
+        self._refined_data = RefinedData(symbol, db_path, preload=preload)
+        self._file_log = create_log_file("environment", log_dir=run_dir)
+        self._best_kwargs_labels = None
+        self._best_kwargs_primary = None
+        self._best_kwargs_features = None
+        # TODO: Ensure that all functions to get features in refined data have the format "get_<NAME>"
+        self._feature_acrons = {
+            "MA": "get_simple_MA",
+            "DEV": "get_deviation",
+            "RSI": "get_RSI",
+            "FRACDIFF": "frac_diff",
+        }
         super(EnvironmentOptimizer, self).__init__(
             model_fn,
             run_dir,
@@ -745,41 +763,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             metrics,
             verbose,
             seed,
-        )
-        self._labels_fn = labels_fn
-        self._primary_model_fn = primary_model_fn
-        self._cv_splits_hp = cv_splits_hp
-        self._refined_data = RefinedData(symbol, db_path, preload=preload)
-        self._file_log = create_log_file("environment", log_dir=self._run_dir)
-        self._best_kwargs_labels = None
-        self._best_kwargs_primary = None
-        self._best_kwargs_features = None
-        # TODO: Ensure that all functions to get features in refined data have the format "get_<NAME>"
-        self._feature_acrons = {
-            "MA": "get_simple_MA",
-            "DEV": "get_deviation",
-            "RSI": "get_RSI",
-            "FRACDIFF": "frac_diff",
-        }
-        save_params(
-            run_dir,
-            metrics,
-            scaler_pipeline,
-            seed=seed,
-            author=author,
-            symbol=symbol,
-            db_path=db_path,
-            use_weight=use_weight,
-            min_time_weight=min_time_weight,
-            cv_splits_fit=cv_splits_fit,
-            cv_splits_hp=cv_splits_hp,
-            num_of_threads=num_of_threads,
-            preload=preload,
-            model_fn=model_fn.__name__,
-            primary_model_fn=primary_model_fn.__name__,
-            labels_fn=labels_fn.__name__,
-            time_weights_fn=time_weights_fn.__name__,
-            samples_weights_fn=samples_weights_fn.__name__,
         )
 
     # TODO: Implement case 2
@@ -959,6 +942,31 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         self, hp_model, hp_features, hp_primary, hp_labels, hp_scaler=None
     ):
         """ Apply the grid search to determine the sub-optimal parameters for features, the primary and the labels generator"""
+        save_params(
+            self._run_dir,
+            self._metrics,
+            self._scaler_pipeline,
+            seed=self._seed,
+            author=self._author,
+            symbol=self._symbol,
+            db_path=self._db_path,
+            use_weight=self._use_weight ,
+            min_time_weight=self._min_time_weight,
+            cv_splits_fit=self._cv_splits_fit,
+            cv_splits_hp=self._cv_splits_hp,
+            num_of_threads=self._num_of_threads ,
+            model_fn=self._model_fn.__name__,
+            primary_model_fn=self._primary_model_fn.__name__,
+            labels_fn=self._labels_fn.__name__,
+            time_weights_fn=self._time_weights_fn.__name__,
+            samples_weights_fn=self._samples_weights_fn.__name__,
+            hp_model=hp_model,
+            hp_features=hp_features,
+            hp_primary=hp_primary,
+            hp_labels=hp_labels,
+            hp_scaler=hp_scaler,
+        )
+
         if hp_scaler is None:
             hp_scaler = {}
         grid_features = ParameterGrid(hp_features)
