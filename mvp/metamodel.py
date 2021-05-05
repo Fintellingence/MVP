@@ -1,5 +1,6 @@
 import os
-import json
+import inspect
+import shutil
 import logging
 import logging.handlers
 from joblib import dump
@@ -100,29 +101,6 @@ def draw_roc_curve(path_dir, cv_expected, cv_true_probs, interpolation_size=100)
     ax.set_ylabel("TPR $\left(\\frac{TP}{TP + FN}\\right)$")
     ax.legend(loc="lower right")
     plt.savefig(os.path.join(path_dir, "roc.png"))
-
-
-def save_params(
-    run_dir,
-    metrics,
-    scaler,
-    **kwargs,
-):
-    """ Save parameters into `run_dir` in a json file."""
-    s_metrics = {}
-    for name, (_, weight) in metrics.items():
-        s_metrics[name] = weight
-
-    if scaler is not None:
-        s_scaler = {}
-        for (name, fn) in scaler.__dict__["steps"]:
-            s_scaler[name] = str(fn)
-    else:
-        s_scaler = None
-    kwargs["scaler"] = s_scaler
-    kwargs["metrics"] = s_metrics
-    with open(os.path.join(run_dir, "params.json"), "w") as f:
-        json.dump(kwargs, f, indent=4)
 
 
 # TODO: Consider the use of HParams objects insted of dicts
@@ -233,8 +211,8 @@ class BaggingModelOptimizer:
         time_weights_fn=time_weights,
         samples_weights_fn=sample_weights,
         metrics={
-            "Precision": (precision_score, True),
             "F1": (f1_score, True),
+            "Precision": (precision_score, True),
             "BAcc": (balanced_accuracy_score, True),
         },
         verbose=0,
@@ -721,8 +699,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         samples_weights_fn=sample_weights,
         log_dir="logs",
         metrics={
-            "Precision": (precision_score, True),
             "F1": (f1_score, True),
+            "Precision": (precision_score, True),
             "BAcc": (balanced_accuracy_score, True),
         },
         preload={"time": [5, 10, 15, 30, 60, "day"]},
@@ -732,6 +710,11 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         run_dir = os.path.join(
             log_dir, author, "run-" + dt.now().strftime("%Y%m%d-%H%M%S")
         )
+        os.makedirs(run_dir, exist_ok=True)
+        frame = inspect.stack()[1]
+        module = inspect.getmodule(frame[0])
+        filename = module.__file__
+        shutil.copyfile(os.path.abspath(filename), os.path.join(run_dir, filename))
         self._author = author
         self._symbol = symbol
         self._db_path = db_path
@@ -942,31 +925,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         self, hp_model, hp_features, hp_primary, hp_labels, hp_scaler=None
     ):
         """ Apply the grid search to determine the sub-optimal parameters for features, the primary and the labels generator"""
-        save_params(
-            self._run_dir,
-            self._metrics,
-            self._scaler_pipeline,
-            seed=self._seed,
-            author=self._author,
-            symbol=self._symbol,
-            db_path=self._db_path,
-            use_weight=self._use_weight ,
-            min_time_weight=self._min_time_weight,
-            cv_splits_fit=self._cv_splits_fit,
-            cv_splits_hp=self._cv_splits_hp,
-            num_of_threads=self._num_of_threads ,
-            model_fn=self._model_fn.__name__,
-            primary_model_fn=self._primary_model_fn.__name__,
-            labels_fn=self._labels_fn.__name__,
-            time_weights_fn=self._time_weights_fn.__name__,
-            samples_weights_fn=self._samples_weights_fn.__name__,
-            hp_model=hp_model,
-            hp_features=hp_features,
-            hp_primary=hp_primary,
-            hp_labels=hp_labels,
-            hp_scaler=hp_scaler,
-        )
-
         if hp_scaler is None:
             hp_scaler = {}
         grid_features = ParameterGrid(hp_features)
