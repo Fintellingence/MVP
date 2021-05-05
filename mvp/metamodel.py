@@ -133,7 +133,6 @@ def save_hp_performance(
     avg_metrics,
     hist_data,
     metric_names,
-    name,
     step,
     s_features=None,
     s_primary=None,
@@ -145,11 +144,14 @@ def save_hp_performance(
         hparams.update(kwargs_model)
         hparams.update(kwargs_scaler)
         if s_features is not None:
-            hparams["features"] = s_features
+            # hparams["features"] = s_features
+            hparams.update(s_features)
         if s_primary is not None:
-            hparams["primary"] = s_primary
+            # hparams["primary"] = s_primary
+            hparams.update(s_primary)
         if s_labels is not None:
-            hparams["labels"] = s_labels
+            # hparams["labels"] = s_labels
+            hparams.update(s_labels)
         hp.hparams(hparams)
         for name, value in avg_metrics.items():
             summary.scalar(name, value, step=step)
@@ -238,6 +240,7 @@ class BaggingModelOptimizer:
         verbose=0,
         seed=12345,
     ):
+        self._hp_steps = 0
         self._metrics = metrics
         self._run_dir = run_dir
         self._use_weight = use_weight
@@ -483,13 +486,12 @@ class BaggingModelOptimizer:
             )
         )
         save_hp_performance(
-            base_dir,
+            os.path.join(base_dir, "best_hp_set"),
             kwargs_model,
             kwargs_scaler,
             cv_metric_values,
             cv_hist_values.T,
             metric_names,
-            "best_hp_set",
             0,
             s_features,
             s_primary,
@@ -560,7 +562,6 @@ class BaggingModelOptimizer:
             colour="red",
         )
 
-        hp_step = 0
         metric_names = list(self._metrics.keys())
         best_metric_value = np.zeros(len(self._metrics))
         pekfold = PEKFold(n_splits=self._cv_splits_hp)
@@ -610,19 +611,18 @@ class BaggingModelOptimizer:
                     )
                 )
                 save_hp_performance(
-                    base_dir,
+                    os.path.join(base_dir, "hp_set-" + str(self._hp_steps)),
                     kwargs_model,
                     kwargs_scaler,
                     cv_metric_values,
                     cv_hist_values.T,
                     metric_names,
-                    "hp_set-" + str(hp_step),
-                    hp_step,
+                    self._hp_steps,
                     s_features,
                     s_primary,
                     s_labels,
                 )
-                hp_step += 1
+                self._hp_steps += 1
                 hp_bar.update()
         hp_bar.close()
         summary_outcomes = (
@@ -855,7 +855,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             if f_name not in new_kwargs:
                 summary[name] = ""
                 new_kwargs[f_name] = {}
-            summary[name] += param[0] + ":" + str(v) + ","
+            summary[name] += str(v) + ","
             new_kwargs[f_name][param] = v
         str_summary = ""
         for name, s in summary.items():
@@ -866,12 +866,12 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         str_summary = ""
         new_kwargs = {}
         strategy = kwargs_primary.pop("strategy")
-        str_summary += "s" + ":" + strategy + ","
+        str_summary += strategy + ","
         new_kwargs["strategy"] = strategy
         new_kwargs["features"] = {}
         for k, v in kwargs_primary.items():
             new_kwargs["features"][k] = v
-            str_summary += k[0] + ":" + str(v) + ","
+            str_summary += str(v) + ","
         return new_kwargs, str_summary[0:-1]
 
     # TODO: Maybe a better solution be not to use the dictionary in Labels initialization
@@ -880,7 +880,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         new_kwargs = {"operation_parameters": {}}
         for k, v in kwargs_labels.items():
             new_kwargs["operation_parameters"][k] = v
-            str_summary += k[0] + ":" + str(v) + ","
+            str_summary += str(v) + ","
         return new_kwargs, str_summary[0:-1]
 
     def train(
@@ -990,17 +990,17 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             desc="Mapping the Features",
             colour="green",
         )
-        for kwargs_features in grid_features:
-            kwargs_features, s_features = self.__parser_features(
-                kwargs_features
+        for s_features in grid_features:
+            kwargs_features, _ = self.__parser_features(
+                s_features
             )
-            for kwargs_primary in grid_primary:
-                kwargs_primary, s_primary = self.__parser_primary(
-                    kwargs_primary
+            for s_primary in grid_primary:
+                kwargs_primary, _ = self.__parser_primary(
+                    s_primary
                 )
-                for kwargs_labels in grid_labels:
-                    kwargs_labels, s_labels = self.__parser_labels(
-                        kwargs_labels
+                for s_labels in grid_labels:
+                    kwargs_labels, _ = self.__parser_labels(
+                        s_labels
                     )
                     horizon, closed, data, labels = self.__set_env(
                         kwargs_features, kwargs_primary, kwargs_labels
@@ -1028,6 +1028,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                         best_s_features = s_features
                     self._best_kwargs_model = None
                     self._best_kwargs_scaler = None
+                    self._hp_steps += 1
                     hp_bar.set_postfix(**{out_metric[0]: out_metric[1]})
                     hp_bar.update()
         hp_bar.close()
