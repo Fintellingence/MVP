@@ -72,9 +72,7 @@ def indexing_new_days(n, days, new_days_ind):
 
 
 def get_db_symbols(db_path):
-    """
-    Get all symbols from database file located in `db_path`.
-    """
+    """ Get all symbols from database file located in `db_path`. """
     conn = sql3.connect(db_path)
     cursor = conn.cursor()
     table_names = cursor.execute(
@@ -83,6 +81,54 @@ def get_db_symbols(db_path):
     db_symbols = [name[0] for name in table_names]
     conn.close()
     return db_symbols
+
+
+def assert_bar_type(bar_type_name):
+    """
+    If `bar_type_name` is not valid raise ``AttributeError``
+    Get all available bar types in function `available_bars`
+    """
+    if not hasattr(RawData, bar_type_name + "_bars"):
+        raise AttributeError("Invalid bar type '{}'".format(bar_type_name))
+
+
+def assert_data_field(data_field_name):
+    """
+    If `data_field_name` is not valid raise ``AttributeError``
+    Get valid data fields in function `available_data_fields`
+    """
+    if not hasattr(RawData, "get_" + data_field_name):
+        raise AttributeError("Invalid data field '{}'".format(data_field_name))
+
+
+def available_bars():
+    """
+    Return list of bar names accessible from ``RawData`` class
+    These names corresponding to ``RawData`` methods without a
+    "_bars" suffix. These methods describe ways to pack stocks
+    trade prices in a certain intervals
+    """
+    methods_list = list(RawData.__dict__.keys())
+    return [
+        method_name.split("_")[0]
+        for method_name in methods_list
+        if method_name.split("_")[1] == "bars"
+    ]
+
+
+def available_data_fields():
+    """
+    Return list of stock market data types accessible from ``RawData``
+    class. These names corresponding to ``RawData`` methods without a
+    "get_" prefix. These methods describe which data fields are present
+    in bars/candlesticks packed data
+    """
+    methods_list = list(RawData.__dict__.keys())
+    return [
+        method_name.split("_")[1]
+        for method_name in methods_list
+        if method_name.split("_")[0] == "get"
+    ]
 
 
 class RawData:
@@ -104,9 +150,8 @@ class RawData:
         If integer take it as index from 1-minute dataframe series
     `step` : ``int``
         Value of accumulated quantity to form new bars
-        For example, in `time_bars` is the time interval
-        in minutes and in `tick_bars` is how many trades
-        Especially for `time_bars`, "day" can be used
+        In `time_bars` is the time interval in minutes
+        and in `tick_bars` is how many trades occurred
 
     Warnings
     ---
@@ -173,7 +218,7 @@ class RawData:
         self.__cached_dataframes["time_1"] = self.df
         for bar_type, params in preload.items():
             if not hasattr(self, bar_type + "_bars"):
-                print("\n{} requested not available".format(bar_type))
+                print("\nBar '{}' requested not available".format(bar_type))
                 continue
             if not isinstance(params, list):
                 params = [params]
@@ -210,7 +255,6 @@ class RawData:
             t_init, t_end = self.df.index[0], self.df.index[-1]
             step = self.__appropriate_step(t_init, t_end, bar_type)
         key_format = "{}_{}".format(bar_type, step)
-        print("inserting", key_format)
         if key_format in self.__cached_dataframes.keys():
             return
         if bar_type == "time":

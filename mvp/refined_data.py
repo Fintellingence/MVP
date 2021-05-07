@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 from numba import float64, int32, njit, prange
 
-import numba_stats
-from mvp.rawdata import RawData
+from mvp import numba_stats
+from mvp.utils import get_refined_iterable
+from mvp.rawdata import RawData, assert_bar_type, assert_data_field
 
 
 @njit(int32(float64, float64, float64[:], int32, int32))
@@ -72,6 +73,45 @@ def mean_quadratic_freq(data, time_spacing=1):
     return sqrt((freq * freq * np.abs(fft_weights)).sum() / weights_norm)
 
 
+def assert_target(target):
+    """
+    Raise error if either `target` has invalid format or could
+    not found the corresponding methods in `RawData` class
+    """
+    if len(target.split(":")) != 2:
+        raise ValueError("Found invalid target '{}'".format(target))
+    assert_bar_type(target.split(":")[0])
+    assert_data_field(target.split(":")[1])
+
+
+def assert_feature(feat_name):
+    """
+    Raise error if could not found feature `feat_name` method in
+    ``RefinedData`` class. Use `available_features` if needed
+    """
+    method_name = "get_" + feat_name
+    methods_set = set(RefinedData.__dict__.keys())
+    if method_name not in methods_set:
+        raise AttributeError(
+            "Feature '{}' do not have '{}' method in RefinedData".format(
+                feat_name, method_name
+            )
+        )
+
+
+def available_features():
+    """
+    Return list of feature names available to use. Corresponds
+    to all ``RefinedData`` methods starting with "get_"
+    """
+    methods_list = list(RefinedData.__dict__.keys())
+    return [
+        method_name.split("_")[1]
+        for method_name in methods_list
+        if method_name.split("_")[0] == "get"
+    ]
+
+
 class RefinedData(RawData):
     """
     Integrate to the raw data with open-high-low-close values
@@ -84,10 +124,10 @@ class RefinedData(RawData):
 
     `start` : ``pandas.Timestamp`` or ``int``
         The initial date/time instant to consider in computation
-        or index of dataframe. Preferably ``pandas.Timestamp``
+        or index of 1-minute dataframe. Preferably ``pandas.Timestamp``
     `stop` : ``pandas.Timestamp`` or ``int``
-        The final date/time instante to consider in computation
-        or index of dataframe. Preferably ``pandas.Timestamp``
+        The final date/time instant to consider in computation
+        or index of 1-minute dataframe. Preferably ``pandas.Timestamp``
     `step` : ``int`` (especially string "day")
         Dataframe bar's spacing value according to `target`. The
         values can change drastically depending on `target`, see
@@ -100,8 +140,8 @@ class RefinedData(RawData):
 
     Consider the following example: if `target = "money:close"` and
     `step = 10000000` the feature requested will be computed over
-    close prices from candlesticks built after 10 million have been
-    negotiated in the stock market.
+    close prices from candlesticks built every time 10 million have
+    been negotiated in the stock market.
 
     Another usage of `target` and `step` parameter is the basic way
     the candlesticks are used. If `target = "time:close"` and
@@ -120,10 +160,8 @@ class RefinedData(RawData):
         self,
         symbol,
         db_path,
-        preload={"time": [60, "day"]},
+        preload={"time": [60, "day"], "money": None},
         requested_features={},
-        step=1,
-        target="time:close",
     ):
         """
         Initialize the class reading data from database. If only `symbol`
@@ -140,56 +178,90 @@ class RefinedData(RawData):
         `preload` : ``dict`` {`bar_type` : `step`}
             dictionary to inform dataframes to set in cache memory
             Available `bar_type` are given below while `step` must
-            be ``int`` or ``list`` of integeres. In case `bar_type`
-            is "time", `step` also admit the string "day"
+            be ``int`` or ``list`` of integers. In case `bar_type`
+            is "time", `step` also admit the string "day" and the
+            integer values allowed are 1, 5, 10, 15, 30, 60
             Available bar types:
                 "time"
                 "tick"
                 "volume"
                 "money"
-        `requested_features` : ``dict`` {`feature_name` : `parameter`}
-            Dictionary codifying some features to compute in initialization
-            Available values of `feature_name`:`parameter` pairs
-                "sma" : ``int``
-                "dev" : ``int``
-                "rsi" : ``int``
-                "returns" : ``int``
-                "vol_den" : ()
-                "fracdiff" : ``int``
-                "autocorr_mov" : (``int``, ``int``)
-                "vola_freq" : ``int``
-                "vola_gain" : ``int``
-            Where `parameter` also accepts list of types listed above
-        `step` : ``int`` or "day"
-            dataframe bar's spacing value according to `target`
-        `target` : ``str``
-            string in the form "bar_type:field_name". The first part
-            `bar_type` refers to which quantity `step` refers to, as
-            ["time", "tick", "volume", "money"]. The second part,
-            `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]
+            Prefix of all attributes that end with `_bars` are allowed
+        `requested_features` : ``dict {str, str}``
+            Inform which features must be set in cache for all symbols
+            for further fast access avoiding extra computations
+            KEYS:
+                The keys must be formated according to "bar_type:data_field"
+                where `bar_type` inform how data bars are formed and
+                `data_field` the bar value to use. Some examples are
+                    "time:close"  - use close price in time-spaced bars
+                    "time:volume" - use volume traded in time-spaced bars
+                    "tick:high"   - use high price in tick-spaced bars
+                    "money:close" - use close price in money-spaced bars
+                This disctionary keys is also referred to as "target"
+                since it indicate over which dataframe the features
+                described in the values will be computed.
+                The available names for `bar_type` are the same of
+                the keys of `preload` parameter and are the methods
+                of `RawData` that has as suffix `_bars`(also method
+                of `RefinedData` as it inherit `RawData`)
+                The available names for `data_field` are suffixes of
+                any `RawData` method that starts with `get_`. Careful
+                to do not confuse with the `RefinedData` methods that
+                begins with `get_` which refers to features instead
+            VALUES:
+                The values of this dictionaty must follow the convention
+                "MET1_T1:V11,V12,...:MET2_T2:V21,V22,...:METM_TM:VM1,..."
+                where MET is a `RefinedData` method suffix for all the
+                ones that begins with `get_`. Therefore, available values
+                to use can be consulted in `RefinedData` class methods
+                Some (default) examples
+                    "sma" = Moving Average (``int``)
+                    "dev" = Standart Deviation (``int``)
+                    "rsi" = Relative Strenght Index (RSI) indicator (``int``)
+                    "fracdiff": Fractional differentiation (``float``)
+                with the following data types of `Vij` in parentheses
+                Note the underscore after METj which can be one of the
+                following: 1, 5, 10, 15, 30, 60 and DAY indicating the
+                time step to be used in bars size, in case the target
+                provided in dict key is "time:*"
+                In case other target is set, such as "money:*" any int
+                is accepted, which is used as how much must be sum up
+                to form bars. BE CAREFUL WITH SMALL VALUES.
+                The values `Vij` must be of the type of the first
+                argument(s)(required) of the feature method, that
+                is one of those `RefinedData` methods with `get_`
+                as prefix. Especifically for methods that require
+                more than one argument, the syntax changes
+                Example given dictionary key "time:*" with value:
+                    "sma_60:100,1000:dev_DAY:10,20:autocorrmov_DAY:(20,5)"
+                The moving average for 60-minute bars with windows of 100,
+                1000, the moving standard deviation for daily bars with 10
+                and 20 days, and finally the moving autocorrelation with
+                daily bars for 20-days moving window and 5-days of shift
+                will be set in cache
+                Note that for `autocorrmov` the values are passed as tuple
+                and are exactly used as `get_autocorrmov(*Vij, append=True)`
+                For this reason, in this specific case, instead of using
+                comma to separate the values(that are actually tuples), the
+                user must use forward slashes '/'
+                For instance: (20,5)/(200/20)
+                WARNING:
+                In this string no successive colon(:) is allowed as well as
+                : at the end or beginning. Colons must aways be surrounded
+                by keys and values
 
         """
         RawData.__init__(self, symbol, db_path, preload)
         self.__cached_features = {}
-        extra_args = {"step": step, "target": target, "append": True}
-        for feature, params in requested_features.items():
-            feature = feature.lower()
-            method_str = "get_" + feature
-            if not hasattr(self, method_str):
-                print("Method {} not found in RefinedData".format(method_str))
-                continue
-            method = self.__getattribute__(method_str)
-            if not isinstance(params, list):
-                params = [params]
-            for param in params:
+        for target, inp_str in requested_features.items():
+            assert_target(target)
+            method_args_iter = get_refined_iterable(inp_str, target)
+            for method_name, args, kwargs in method_args_iter:
                 try:
-                    if isinstance(param, tuple):
-                        method(*param, **extra_args)
-                    else:
-                        method(param, **extra_args)
-                except Exception as err:
-                    print("\nError in {}\n\n".format(method_str), err)
+                    self.__getattribute__(method_name)(*args, **kwargs)
+                except AttributeError:
+                    pass
 
     def __code_formatter(self, name, step, extra_par, target):
         """ Format string to use as key for cache dictionary """
@@ -211,7 +283,7 @@ class RefinedData(RawData):
         del self.__cached_features
         self.__cached_features = {}
 
-    def get_vol_den(
+    def get_volden(
         self, start=None, stop=None, step=1, target="time:close", append=False
     ):
         """
@@ -240,12 +312,13 @@ class RefinedData(RawData):
         ``pandas.Series``
 
         """
-        str_code = self.__code_formatter("MA", step, 1, target)
+        assert_target(target)
+        bar_type = target.split(":")[0]
+        str_code = self.__code_formatter("VOLDEN", step, 1, bar_type)
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
-        bar_method = self.__getattribute__(target.split(":")[0] + "_bars")
-        df = bar_method(step=step)
+        df = self.__getattribute__(bar_type + "_bars")(step=step)
         vol_den = df.Volume / df.TickVol
         clean_data = vol_den.replace([-np.inf, np.inf], np.nan).copy()
         clean_data.dropna(inplace=True)
@@ -294,6 +367,7 @@ class RefinedData(RawData):
             simple moving average
 
         """
+        assert_target(target)
         str_code = self.__code_formatter("MA", step, window, target)
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
@@ -347,6 +421,7 @@ class RefinedData(RawData):
             moving standard deviation
 
         """
+        assert_target(target)
         str_code = self.__code_formatter("DEV", step, window, target)
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
@@ -400,6 +475,7 @@ class RefinedData(RawData):
             normalized returns
 
         """
+        assert_target(target)
         str_code = self.__code_formatter("RET", step, window, target)
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
@@ -454,6 +530,7 @@ class RefinedData(RawData):
         ``pandas.Series``
 
         """
+        assert_target(target)
         str_code = self.__code_formatter("RSI", step, window, target)
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
@@ -474,7 +551,7 @@ class RefinedData(RawData):
             self.__cached_features[str_code] = rsi_series.dropna()
         return rsi_series.loc[start:stop].dropna()
 
-    def get_autocorr_period(
+    def get_autocorrperiod(
         self,
         shift,
         start=None,
@@ -517,6 +594,7 @@ class RefinedData(RawData):
         ``float``
 
         """
+        assert_target(target)
         start, stop = self.assert_window(start, stop)
         extra_code = "{}_{}_{}".format(shift, start, stop)
         str_code = self.__code_formatter("AUTOCORR", step, extra_code, target)
@@ -537,7 +615,7 @@ class RefinedData(RawData):
             self.__cached_features[str_code] = autocorr
         return autocorr
 
-    def get_autocorr_many(
+    def get_autocorrmany(
         self,
         shift,
         starts,
@@ -594,7 +672,7 @@ class RefinedData(RawData):
         autocorr_df.index.name = "InitialDate"
         return autocorr_df
 
-    def get_autocorr_mov(
+    def get_autocorrmov(
         self,
         window,
         shift,
@@ -636,6 +714,7 @@ class RefinedData(RawData):
         ``pandas.Series``
 
         """
+        assert_target(target)
         if shift >= window:
             raise ValueError(
                 "The shift between two data sets {} must be smaller "
@@ -760,7 +839,9 @@ class RefinedData(RawData):
         ``pandas.Timeseries``
 
         """
-        str_code = self.__code_formatter("FRAC_DIFF", step, d, target)
+        assert_target(target)
+        dcode = "{:.2f}".format(d)
+        str_code = self.__code_formatter("FRAC_DIFF", step, dcode, target)
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].loc[start:stop]
@@ -776,7 +857,7 @@ class RefinedData(RawData):
             self.__cached_features[str_code] = fracdiff_series.dropna()
         return fracdiff_series.loc[start:stop].dropna()
 
-    def get_vola_freq(
+    def get_volafreq(
         self,
         window,
         start=None,
@@ -825,6 +906,7 @@ class RefinedData(RawData):
         High demanding for large datasets (more than 10^4 data points)
 
         """
+        assert_target(target)
         str_code = self.__code_formatter("VOLA_FREQ", step, window, target)
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
@@ -841,7 +923,7 @@ class RefinedData(RawData):
             self.__cached_features[str_code] = vol_series.dropna()
         return vol_series.loc[start:stop].dropna()
 
-    def get_vola_gain(
+    def get_volagain(
         self,
         window,
         start=None,
@@ -884,11 +966,12 @@ class RefinedData(RawData):
             Maximum profit/loss divided by moving average series
 
         """
-        str_code = self.__code_formatter("VOLA_GAIN", step, window, target)
+        assert_target(target)
+        bar_type = target.split(":")[0]
+        str_code = self.__code_formatter("VOLA_GAIN", step, window, bar_type)
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].loc[start:stop]
-        bar_type = target.split(":")[0]
         df = self.__getattribute__(bar_type + "_bars")(step=step)
         max_price = df.High.rolling(window).max()
         min_price = df.Low.rolling(window).min()
