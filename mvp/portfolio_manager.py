@@ -6,7 +6,7 @@ import bisect
 from functools import total_ordering
 from mvp import numba_stats
 from mvp.refined_data import RefinedData, assert_target, assert_feature
-from mvp.utils import validate_data_string, get_refined_iterable
+from mvp.utils import validate_features_string, get_features_iterable
 
 
 class RefinedSet:
@@ -56,7 +56,7 @@ class RefinedSet:
         self.cache_common_features = {}
         for target, data_string in cache_common_features.items():
             assert_target(target)
-            self.cache_common_features[target] = validate_data_string(
+            self.cache_common_features[target] = validate_features_string(
                 data_string, target.split(":")[0]
             )
         self.refined_obj = {}
@@ -125,7 +125,7 @@ class RefinedSet:
             else:
                 new_str = data_string
             try:
-                valid_new_string = validate_data_string(new_str, bar_type)
+                valid_new_string = validate_features_string(new_str, bar_type)
                 self.cache_common_features[target] = valid_new_string
             except ValueError as err:
                 print("Target '{}' raised the error:".format(target), err)
@@ -151,7 +151,7 @@ class RefinedSet:
         for target, data_string in new_cache_features.items():
             bar_type = target.split(":")[0]
             try:
-                self.cache_common_features[target] = validate_data_string(
+                self.cache_common_features[target] = validate_features_string(
                     data_string, bar_type
                 )
             except ValueError as err:
@@ -205,7 +205,7 @@ class RefinedSet:
         Compute again all common features currently in `self.input_dict`
         """
         for target, inp_str in self.cache_common_features.items():
-            method_args_iter = get_refined_iterable(inp_str, target)
+            method_args_iter = get_features_iterable(inp_str, target)
             for method_name, args, kwargs in method_args_iter:
                 for ref_obj in self.refined_obj.values():
                     ref_obj.__getattribute__(method_name)(*args, **kwargs)

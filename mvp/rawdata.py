@@ -1,79 +1,50 @@
+""" Raw data processing from databases
+
+This module provides tools to to extract data from databases and set
+in suitable data structure to provide a systematic workflow for data
+analysis. The database must have a specific format that must provide
+data-tables with the following columns:
+    DateTime : YYYY-MM-DD HH:MM:SS
+    Open : float value
+    High : float value
+    Low : float value
+    Close : float Value
+    TickVol : integer value
+    Volume : integer value
+These value must correspond to packaged data bar in 1-minute of stock
+market trades. The column names provided above are case sensitive and
+`DateTime` must be specifically given as text entry in that format
+
+Main class in this module:
+
+``RawData``
+    Provide attributes to access data in ``pandas.DataFrame`` format.
+    The `DateTime` database column is set as index and the others are
+    kept as dataframe columns in `RawData.df` attribute. The 1-minute
+    data are consider as the most fundamental, from which all methods
+    act on to transform in other formats.
+    Despite it is usual to organize stock market data in linear spaced
+    time intervals, from 1-minute packed data, it is possible to build
+    other type of packed data using different thresholds to form bars.
+    Instead of packaging data in minute of market trades occurred this
+    class provide ways to pack trades in amount of deals/ticks, volume
+    of shares exchanged or even money. For these features see methods
+    that has the suffix "_bars"
+
+"""
+
 import os
-import sqlite3 as sql3
+import sqlite3
 
 import numpy as np
 import pandas as pd
-from numba import float64, int32, njit, prange
 
-
-@njit(int32(int32, float64[:], int32[:], float64))
-def indexing_cusum(n, values, accum_ind, threshold):
-    """
-    Mark all new indexes before which the accumulated
-    sum of `values` exceeded `threshold`. Applied to
-    mark indexes of new candles in a dataframe.
-
-    Parameters
-    ----------
-    `n` : ``int``
-        size of `values` array
-    `values` : ``numpy.array(numpy.float64)``
-        values to compute accumulated sum
-    `accum_ind` : ``numpy.array(int32)``
-        store indexes strides in which cusum exceeds the threshold. Size `n`
-    `threshold` : ``float``
-        When cusum exceed this value restart the cusum to 0 and mark the index
-
-    Return
-    ------
-    ``int``
-        number of indexes marked (number of elements in `accum_ind`)
-
-    """
-    cusum = 0.0
-    accum_ind[0] = 0
-    j = 1
-    for i in prange(n):
-        cusum = cusum + values[i]
-        if cusum >= threshold:
-            accum_ind[j] = i + 1
-            j = j + 1
-            cusum = 0.0
-    return j
-
-
-@njit(int32(int32, int32[:], int32[:]))
-def indexing_new_days(n, days, new_days_ind):
-    """
-    Mark all indexes in which a new day begins
-
-    Parameters
-    ----------
-    `n` : ``int``
-        size of `days` array
-    `days` : ``numpy.array(numpy.int32)``
-        days correponding to datetime dataframe index. Have `n` elements
-    `new_days_ind` : ``numpy.array(numpy.int32)``
-        store indexes in which a new day begins. Must have size of `n`
-
-    Return
-    ------
-    ``int``
-        number of days transition found
-
-    """
-    new_days_ind[0] = 0
-    j = 1
-    for i in prange(n - 1):
-        if days[i + 1] != days[i]:
-            new_days_ind[j] = i + 1
-            j = j + 1
-    return j
+from mvp.utils import indexing_cusum, indexing_new_days
 
 
 def get_db_symbols(db_path):
-    """ Get all symbols from database file located in `db_path`. """
-    conn = sql3.connect(db_path)
+    """ Get list of symbols available in database located at `db_path` """
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     table_names = cursor.execute(
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
@@ -135,7 +106,7 @@ class RawData:
     """
     Class to read databases and manipulate dataframes for
     a stock market company. Provide methods to reset data
-    in different types of candlesticks besides time
+    in different types of bars/candlesticks besides time
 
     Also provide methods to access basic candlestick data
     such as open, high, low and close values
@@ -144,17 +115,17 @@ class RawData:
 
     `start` : ``pandas.Timestamp``(preferable) or ``int``(acceptable)
         Initial date/time to start the data time series
-        If integer take it as index from 1-minute dataframe series
+        If integer use it as index from 1-minute dataframe series
     `stop` :  ``pandas.Timestamp``(preferable) or ``int``(acceptable)
         Final date/time to stop the data time series
-        If integer take it as index from 1-minute dataframe series
+        If integer use it as index from 1-minute dataframe series
     `step` : ``int``
-        Value of accumulated quantity to form new bars
+        Value required to accumulate in bars packaging
         In `time_bars` is the time interval in minutes
         and in `tick_bars` is how many trades occurred
 
     Warnings
-    ---
+    --------
     Mind that if integer is given for `start` / `stop` the
     time index considered is taken from 1-minute dataframe
     For non-time bars, suitable steps must be chosen since
@@ -163,8 +134,8 @@ class RawData:
     the result will be very similar of those with few minute
     bars, such as 15-minute or 60-minute
 
-    Some important attributes
-    ---
+    Attributes
+    ----------
     `df` : ``pandas.DataFrame``
         Fundamental dataframe containing the 1-minute stock prices
         open-high-low-close-volume values.
@@ -189,14 +160,18 @@ class RawData:
         `db_path` : ``str``
             full path to 1-minute database
         `preload` : ``dict``
+            Initialize dataframes packaging data in different intervals
+            of 1-minute bars, not necessarily linearly time spaced. The
+            interval is understood as a series of trades in stock market
+            that produce some threshold in accumulated value. Examples:
             {
                 "time": ``int`` or "day"    (new time interval of bars)
                 "tick": ``int``             (bars in amount of trades)
                 "volume": ``int``           (bars in amount of volume)
                 "money": ``int``            (bars in amount of money)
             }
-            For the dict values list of the types above are also accepted
-            For daily bars use the string "day" in "time" key. Especially
+            For the dict values, list of the types above are also accepted
+            For daily bars, use the string "day" in "time" key. Especially
             in time intervals, the set of accepted values are 1, 5, 10, 15,
             30, 60 and "day".
 
@@ -227,7 +202,7 @@ class RawData:
 
     def __get_data_from_db(self, db_path):
         """ Query in database `self.symbol` and set dataframe """
-        conn = sql3.connect(db_path)
+        conn = sqlite3.connect(db_path)
         df = pd.read_sql("SELECT * FROM {}".format(self.symbol), conn)
         conn.close()
         df.index = pd.to_datetime(df["DateTime"])
@@ -235,6 +210,7 @@ class RawData:
         return df
 
     def __format_new_interval_db_name(self, time_step):
+        """ Format name of database according to time interval convention """
         base_dir = os.path.dirname(self.db_path)
         db_filename = "minute{}_database_{}.db".format(
             time_step, self.db_version
@@ -322,8 +298,8 @@ class RawData:
         return new_df.astype({"TickVol": "int32", "Volume": "int32"})
 
     def cache_dataframes(self):
-        """ Return dict with all cache dataframes """
-        return self.__cached_dataframes
+        """ Return list of dataframes-names set in cache frame """
+        return list(self.__cached_dataframes.keys())
 
     def cache_dataframes_size(self):
         """ Return memory required for cache in bytes """
@@ -441,16 +417,14 @@ class RawData:
         Return
         ---
         ``pandas.DataFrame``
-            Dataframe sampled in ticks/deals
+            Dataframe sampled in ticks/deals intervals
 
         Warning
         ---
         Avoid using typically small values for `step` according to the symbol
-        since it induces small time intervals in minutes for which the
-        `time_bars` interval method is preferable, because tries to load data
-        from databases without wasting computational effort. Moreover, for
-        small `step` values its variation among the bars become large due to
-        1-minute bar fluctuations.
+        since it induces small time intervals increasing fluctuations. These
+        fluctuations are due to number of trades variations in 1-minute bars
+        that is the fundamental data used for any other bar type
 
         """
         start, stop = self.assert_window(start, stop)
@@ -494,11 +468,9 @@ class RawData:
         Warning
         ---
         Avoid using typically small values for `step` according to the symbol
-        since it induces small time intervals in minutes for which the
-        `time_bars` interval method is preferable, because tries to load data
-        from databases without wasting computational effort. Moreover, for
-        small `step` values its variation among the bars become large due to
-        1-minute bar fluctuations.
+        since it induces small time intervals increasing fluctuations. These
+        fluctuations are due to number of trades variations in 1-minute bars
+        that is the fundamental data used for any other bar type
 
         """
         start, stop = self.assert_window(start, stop)
@@ -542,11 +514,9 @@ class RawData:
         Warning
         ---
         Avoid using typically small values for `step` according to the symbol
-        since it induces small time intervals in minutes for which the
-        `time_bars` interval method is preferable, because tries to load data
-        from databases without wasting computational effort. Moreover, for
-        small `step` values its variation among the bars become large due to
-        1-minute bar fluctuations.
+        since it induces small time intervals increasing fluctuations. These
+        fluctuations are due to number of trades variations in 1-minute bars
+        that is the fundamental data used for any other bar type
 
         """
         start, stop = self.assert_window(start, stop)
@@ -621,9 +591,9 @@ class RawData:
         WARNING
         -------
         In case step is 5, 10, 15, 30, 60 this function is highly
-        demanding to compute in case the respective databases are
-        not provided. For the entire 1-minute dataframe of about
-        10^4 data bars, it may take up to few minutes.
+        demanding to compute if the respective databases are not
+        provided, since use the 1-minute dataframes to group new
+        bars. For 5 years long series it may take up to minutes
 
         """
         start, stop = self.assert_window(start, stop)

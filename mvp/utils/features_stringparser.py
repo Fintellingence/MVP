@@ -1,22 +1,22 @@
-""" Refined data input string analyzer
+""" Refined data input string parser
 
 In this module, some functions are provided to analyze an arbitrary
 string and check if it is suitable to use as input for `RefinedData`
 class constructor to automatic set in cache memory useful features
-that will be recurrently requested.
+that will save computational effort
 
 This module provide the following functions to analyze strings
 
-`get_refined_iterable(input_string -> str, target -> str) -> iter`
+`get_features_iterable(input_string -> str, target -> str) -> iter`
     Return a 3-fold(zip) iterable processing the packed values
     given in `input_string`. The 3-fold parameters are
-    1. ``RefinedData`` valid method for some feature
-    2. ``tuple`` with arguments to pass as `*args`
+    1. ``RefinedData`` method corresponding to some feature
+    2. ``tuple`` with required arguments to pass as `*args`
     3. ``dict`` with keyword-arguments to pass as `**kwargs`
 
-`validate_data_string(input_string -> str, bar_type -> str) -> str`
+`validate_features_string(input_string -> str, bar_type -> str) -> str`
     Return `input_string` corrected removing repetitions
-    Raise a `ValueError` if `input_string` cannot be accepted
+    Raise a `ValueError` if `input_string` is ill-formatted
 
 `extract_intervals_list(input_string -> str) -> list`
     Return list with all intervals within `input_string`
@@ -26,7 +26,7 @@ This module provide the following functions to analyze strings
 """
 
 
-def get_refined_iterable(input_string, target="time:close"):
+def get_features_iterable(input_string, target="time:close"):
     """
     Generate iterable with 3 fields: method_name, args, kwargs
     to be used when calling `RefinedData` methods as
@@ -35,9 +35,17 @@ def get_refined_iterable(input_string, target="time:close"):
     Parameters
     ----------
     `input_string` : ``str``
-        Formatted string to extract parameters and features
+        Formatted string according to the convention:
+        "KEY1_T1:V11,V12,...:KEY2_T2:V21,V22,...:...:KEYM_TM:VM1,..."
+        where KEYj must be a ``RefinedData`` method suffix starting
+        with "get_", Tj the data bar interval according to `bar_type`
+        and Vji represent a list of the first positional argument to
+        compute the feature. In case the method requires multiple
+        positional arguments Vij must be replaced by a tuple format
+        to unpack as *(Vij) and must be separate by forward slash '/'
+        instead of comma
     `target` : ``str``
-        data target over which the feature will be computed
+        data target over which the feature will be computed included in kwargs
 
     Return
     ------
@@ -49,7 +57,7 @@ def get_refined_iterable(input_string, target="time:close"):
     """
     target = target.lower()
     bar_type = target.split(":")[0]
-    input_string = validate_data_string(input_string.lower(), bar_type)
+    input_string = validate_features_string(input_string.lower(), bar_type)
     attr_name_list = []
     kwargs_list = []
     args_list = []
@@ -85,7 +93,7 @@ def get_refined_iterable(input_string, target="time:close"):
     return zip(attr_name_list, args_list, kwargs_list)
 
 
-def validate_data_string(input_string, bar_type="time"):
+def validate_features_string(input_string, bar_type="time"):
     """
     validate the `input_string` with set of parameters for features
 
@@ -94,6 +102,13 @@ def validate_data_string(input_string, bar_type="time"):
     `input_string` : ``str``
         string to be checked if is according to expected convention:
         "KEY1_T1:V11,V12,...:KEY2_T2:V21,V22,...:...:KEYM_TM:VM1,..."
+        where KEYj must be a ``RefinedData`` method suffix starting
+        with "get_", Tj the data bar interval according to `bar_type`
+        and Vji represent a list of the first positional argument to
+        compute the feature. In case the method requires multiple
+        positional arguments Vij must be replaced by a tuple format
+        to unpack as *(Vij) and must be separate by forward slash '/'
+        instead of comma
     `bar_type` : ``str``
         Type of bar the input string refers to according to the ones
         available in `RawData` class. Valid values are attributes in
@@ -147,6 +162,13 @@ def extract_intervals_list(input_string, check_string=False, bar_type="time"):
     `input_string` : ``str``
         string to retrieve intervals in the convention:
         "KEY1_T1:V11,V12,...:KEY2_T2:V21,V22,...:...:KEYM_TM:VM1,..."
+        where KEYj must be a ``RefinedData`` method suffix starting
+        with "get_", Tj the data bar interval according to `bar_type`
+        and Vji represent a list of the first positional argument to
+        compute the feature. In case the method requires multiple
+        positional arguments Vij must be replaced by a tuple format
+        to unpack as *(Vij) and must be separate by forward slash '/'
+        instead of comma
     `check_string` : ``bool``
         whether to also check if the string is formatted as required
         WARNING: if true it possibly modifies the `input_string` due
@@ -157,12 +179,12 @@ def extract_intervals_list(input_string, check_string=False, bar_type="time"):
     Return
     ------
     ``list``
-        Return list with all intervals found in `input_string` according
-        to the format expected separating key parameters for features
+        Return list with all intervals found in `input_string`
+        `[T1, T2, ..., TM]`
 
     """
     if check_string:
-        input_string = validate_data_string(input_string, bar_type)
+        input_string = validate_features_string(input_string, bar_type)
     intervals = []
     if not input_string:
         return intervals

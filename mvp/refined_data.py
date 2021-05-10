@@ -2,52 +2,10 @@ from math import sqrt
 
 import numpy as np
 import pandas as pd
-from numba import float64, int32, njit, prange
 
 from mvp import numba_stats
-from mvp.utils import get_refined_iterable
+from mvp.utils import get_features_iterable, binomial_series_converge
 from mvp.rawdata import RawData, assert_bar_type, assert_data_field
-
-
-@njit(int32(float64, float64, float64[:], int32, int32))
-def numba_weights(d, tolerance, w_array, w_size, last_index):
-    """
-    Compiled function to compute weights of frac_diff method efficiently
-    This function must be called until a positive number is returned,
-    which indicate that convergence was achieve according to `tolerance`
-
-    Parameters
-    ----------
-    `d` : ``float``
-        order of fractional differentiation. Usually between 0 and 1
-    `tolerance` : ``float``
-        minimum value for weights
-    `w_array` : ``numpy.array``
-        values of all weights computed so far
-    `w_size` : ``int``
-        current size of `w_array`
-    `last_index` : ``int``
-        index of last weight set in `w_array` and from which must continue
-
-    Modified
-    --------
-    `w_array`
-        with new weights starting from `last_index`
-
-    Return
-    ------
-    ``int``
-        If positive, convergence was achieved and the value is the number
-        of weights computed. If negative, weights are above the `tolerance`
-        provided, the weights array must be resized adding empty entries,
-        and this function must be called again from the last weight set
-
-    """
-    for k in prange(last_index + 1, w_size):
-        w_array[k] = -(w_array[k - 1] / k) * (d - k + 1)
-        if abs(w_array[k]) < tolerance:
-            return k + 1
-    return -1
 
 
 def mean_quadratic_freq(data, time_spacing=1):
@@ -256,7 +214,7 @@ class RefinedData(RawData):
         self.__cached_features = {}
         for target, inp_str in requested_features.items():
             assert_target(target)
-            method_args_iter = get_refined_iterable(inp_str, target)
+            method_args_iter = get_features_iterable(inp_str, target)
             for method_name, args, kwargs in method_args_iter:
                 try:
                     self.__getattribute__(method_name)(*args, **kwargs)
@@ -755,18 +713,20 @@ class RefinedData(RawData):
             self.__cached_features[str_code] = mov_autocorr_ser
         return mov_autocorr_ser.loc[start:stop]
 
-    def __frac_diff_weights(self, d, tolerance, max_weights=1e8):
+    def __fracdiff_weights(self, d, max_weights=100, tol=None):
         """
-        Compute weights of frac_diff binomial-expansion formula
+        Compute weights of fractional differentiation binomial series
 
         Parameters
         ----------
         `d` : ``float``
             order of fractional differentiation. Usually between 0 and 1
-        `tolerance` : ``float``
-            minumum acceptable value for weights to compute in series
         `max_weights` : ``int``
-            max number of weights (to avoid excessive memory consumption)
+            max number of weights to limit data/memory consumption
+        `tol` : ``float``
+            minumum acceptable value for weights to automatic series cutoff
+            In convergence process if exceed `max_weights` print a warning,
+            but return the array without errors
 
         Return
         ------
@@ -774,26 +734,28 @@ class RefinedData(RawData):
             wegiths/coefficients of binomial series expansion
 
         """
-        w_array = np.empty(100)
-        w_array[0] = 1.0
+        if tol is None:
+            w = np.ones(max_weights)
+            binomial_series_converge(d, tol, w, w.size, 0)
+            return w
+        step = 1 + max_weights // 10
+        w = np.empty(step)
+        w[0] = 1.0
         flag = -1
-        last_i = 0
+        last = 0
         while flag < 0:
-            flag = numba_weights(d, tolerance, w_array, w_array.size, last_i)
-            if w_array.size > max_weights:
+            flag = binomial_series_converge(d, tol, w, w.size, last)
+            if w.size > max_weights:
                 print(
-                    "WARNING : could not achieved required weights "
-                    "accuracy in frac_diff. Last weight = {}".format(
-                        w_array[-1]
-                    )
+                    "[!] Binomial series stiff cutoff by "
+                    "max_weights {}".format(max_weights)
                 )
-                return w_array
-            if flag < 0:
-                last_i = w_array.size - 1
-                w_array = np.concatenate([w_array, np.empty(10 * last_i)])
-        return w_array[:flag]
+                return w[:max_weights]
+            last = w.size - 1
+            w = np.concatenate([w, np.empty(step)])
+        return w[:flag]
 
-    def __apply_weights(self, weights, x_vector):
+    def __apply_fracdiff_weights(self, weights, x_vector):
         return np.dot(weights[::-1], x_vector)
 
     def get_fracdiff(
@@ -804,11 +766,11 @@ class RefinedData(RawData):
         step=1,
         target="time:close",
         append=False,
-        weights_tol=1e-5,
+        weights_tol=1e-3,
     ):
         """
         Compute fractional differentiation of a series with the binomial
-        expansion formula for an arbitrary derivative order.
+        expansion formula for an arbitrary derivative order
 
         Parameters
         ----------
@@ -833,6 +795,7 @@ class RefinedData(RawData):
             any further computation is avoided by a memory access
         `weights_tol` : ``float``
             minimum value for a weight in the binomial series expansion
+            for convergence criterion. Limited by `self.__max_data_loss`
 
         Return
         ------
@@ -848,9 +811,9 @@ class RefinedData(RawData):
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
         target_series = field_method(step=step, bar_type=bar_type)
-        w = self.__frac_diff_weights(d, weights_tol)
+        w = self.__fracdiff_weights(d, target_series.size // 3, weights_tol)
         fracdiff_series = target_series.rolling(window=w.size).apply(
-            lambda x: self.__apply_weights(w, x), raw=True
+            lambda x: self.__apply_fracdiff_weights(w, x), raw=True
         )
         fracdiff_series.name = "FracDiff"
         if append:
