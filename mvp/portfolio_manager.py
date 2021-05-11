@@ -1,10 +1,10 @@
 import os
+import bisect
 import numpy as np
 import pandas as pd
-import bisect
 
 from functools import total_ordering
-from mvp import numba_stats
+from mvp.utils import numba_stats
 from mvp.refined_data import RefinedData, assert_target, assert_feature
 from mvp.utils import validate_features_string, get_features_iterable
 

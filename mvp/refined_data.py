@@ -3,7 +3,7 @@ from math import sqrt
 import numpy as np
 import pandas as pd
 
-from mvp import numba_stats
+from mvp.utils import numba_stats
 from mvp.utils import get_features_iterable, binomial_series_converge
 from mvp.rawdata import RawData, assert_bar_type, assert_data_field
 
