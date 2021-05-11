@@ -1,34 +1,28 @@
-from math import sqrt
+""" Module to analyzed refined data with basic statistical properties
 
+This module provide a workflow to extract directly from database some
+basic statistical properties from raw stock prices and volume. Before
+using it, have a look in `mvp.rawdata` documentation
+
+Class
+-----
+``RefinedData``
+    class that inherit ``RawData`` from mvp.rawdata to provide basic
+    tools and statistical features to feed models though its methods
+    It is designed to fill requirements of strategies as pointed in:
+
+    https://hudsonthames.org/does-meta-labeling-add-to-signal-efficacy-triple-barrier-method/
+
+    where some basic features as moving average and standard deviation
+    are required not only using the default time-interval candlesticks
+    but also over other targets, as volume and money bars.
+
+"""
 import numpy as np
 import pandas as pd
 
-from mvp.utils import numba_stats
-from mvp.utils import get_features_iterable, binomial_series_converge
+from mvp import utils
 from mvp.rawdata import RawData, assert_bar_type, assert_data_field
-
-
-def mean_quadratic_freq(data, time_spacing=1):
-    """
-    Use `data` Fourier transform to compute mean quadratic freq
-
-    Parameters
-    ----------
-    `data` : ``numpy.array``
-        data series in time basis
-    `time_spacing` : ``float``
-        sample time spacing among data points
-
-    Return
-    ------
-    ``float``
-
-    """
-    displace_data = data - data.mean()
-    fft_weights = np.fft.fft(displace_data)
-    freq = np.fft.fftfreq(displace_data.size, time_spacing)
-    weights_norm = np.abs(fft_weights).sum()
-    return sqrt((freq * freq * np.abs(fft_weights)).sum() / weights_norm)
 
 
 def assert_target(target):
@@ -99,13 +93,17 @@ class RefinedData(RawData):
     Consider the following example: if `target = "money:close"` and
     `step = 10000000` the feature requested will be computed over
     close prices from candlesticks built every time 10 million have
-    been negotiated in the stock market.
+    been negotiated in the stock market
 
-    Another usage of `target` and `step` parameter is the basic way
-    the candlesticks are used. If `target = "time:close"` and
-    `step = 15` means the feature requested will be computed over
-    close prices from candlesticks built after every 15 minuters of
-    negotiation in the stock market
+    `target` and `step` can also be used in the basic way, with
+    time in minutes. If `target = "time:close"` and `step = 15`
+    means the feature requested will be computed over close prices
+    from candlesticks built after every 15 minuters of negotiation
+
+    Some care is needed when dealing with non-time spaced target as
+    an appropriate step will depend on the typical volume is traded
+    for each specific company. For instance, the `step` values must
+    have values according to company valuation
 
     Inherit
     -------
@@ -124,13 +122,13 @@ class RefinedData(RawData):
         """
         Initialize the class reading data from database. If only `symbol`
         and `db_path` are given simply initialize `RawData`. Some common
-        features may be computed in initialization which are NECESSARILY
-        set in cache memory to avoid computing effort in next calls
+        bar types as well as features that will be exhaustively demanded
+        can be previously loaded in this constructor
 
         Parameters
         ----------
         `symbol` : ``str``
-            company symbol code listed in stock market
+            company symbol listed in stock market(available in database)
         `db_path` : ``str``
             full path to 1-minute database file
         `preload` : ``dict`` {`bar_type` : `step`}
@@ -144,10 +142,9 @@ class RefinedData(RawData):
                 "tick"
                 "volume"
                 "money"
-            Prefix of all attributes that end with `_bars` are allowed
+            Prefix of all ``RawData`` methods that end with `_bars`
         `requested_features` : ``dict {str, str}``
-            Inform which features must be set in cache for all symbols
-            for further fast access avoiding extra computations
+            Inform which features must be set in cache
             KEYS:
                 The keys must be formated according to "bar_type:data_field"
                 where `bar_type` inform how data bars are formed and
@@ -156,9 +153,8 @@ class RefinedData(RawData):
                     "time:volume" - use volume traded in time-spaced bars
                     "tick:high"   - use high price in tick-spaced bars
                     "money:close" - use close price in money-spaced bars
-                This disctionary keys is also referred to as "target"
-                since it indicate over which dataframe the features
-                described in the values will be computed.
+                This disctionary keys is also referred to as `target`
+                parameters in this class methods to compute features
                 The available names for `bar_type` are the same of
                 the keys of `preload` parameter and are the methods
                 of `RawData` that has as suffix `_bars`(also method
@@ -168,6 +164,7 @@ class RefinedData(RawData):
                 to do not confuse with the `RefinedData` methods that
                 begins with `get_` which refers to features instead
             VALUES:
+                String codifying all infomration to pass in methods call
                 The values of this dictionaty must follow the convention
                 "MET1_T1:V11,V12,...:MET2_T2:V21,V22,...:METM_TM:VM1,..."
                 where MET is a `RefinedData` method suffix for all the
@@ -184,8 +181,8 @@ class RefinedData(RawData):
                 time step to be used in bars size, in case the target
                 provided in dict key is "time:*"
                 In case other target is set, such as "money:*" any int
-                is accepted, which is used as how much must be sum up
-                to form bars. BE CAREFUL WITH SMALL VALUES.
+                is accepted, which is used to pack data in bars using
+                cumulative sum of the referred target
                 The values `Vij` must be of the type of the first
                 argument(s)(required) of the feature method, that
                 is one of those `RefinedData` methods with `get_`
@@ -203,18 +200,19 @@ class RefinedData(RawData):
                 For this reason, in this specific case, instead of using
                 comma to separate the values(that are actually tuples), the
                 user must use forward slashes '/'
-                For instance: (20,5)/(200/20)
+                For instance: (20,5)/(200,20)
                 WARNING:
                 In this string no successive colon(:) is allowed as well as
                 : at the end or beginning. Colons must aways be surrounded
-                by keys and values
+                by keys and values, and this format will be checked before
+                using for computations
 
         """
         RawData.__init__(self, symbol, db_path, preload)
         self.__cached_features = {}
         for target, inp_str in requested_features.items():
             assert_target(target)
-            method_args_iter = get_features_iterable(inp_str, target)
+            method_args_iter = utils.get_features_iterable(inp_str, target)
             for method_name, args, kwargs in method_args_iter:
                 try:
                     self.__getattribute__(method_name)(*args, **kwargs)
@@ -262,7 +260,6 @@ class RefinedData(RawData):
             `field_name`, is not applicable in this feature
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
             any further computation is avoided by a memory access
 
         Return
@@ -316,13 +313,11 @@ class RefinedData(RawData):
             class `RefinedData` documentation for more info
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
+            Any further computation is avoided by a memory access
 
         Return
         ------
         ``pandas.Series``
-            simple moving average
 
         """
         assert_target(target)
@@ -370,13 +365,11 @@ class RefinedData(RawData):
             class `RefinedData` documentation for more info
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
+            Any further computation is avoided by a memory access
 
         Return
         ------
         ``pandas.Series``
-            moving standard deviation
 
         """
         assert_target(target)
@@ -424,13 +417,11 @@ class RefinedData(RawData):
             class `RefinedData` documentation for more info
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
+            Any further computation is avoided by a memory access
 
         Return
         ------
         ``pandas.Series``
-            normalized returns
 
         """
         assert_target(target)
@@ -480,8 +471,7 @@ class RefinedData(RawData):
             class `RefinedData` documentation for more info
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
+            Any further computation is avoided by a memory access
 
         Return
         ------
@@ -523,7 +513,7 @@ class RefinedData(RawData):
         According to pandas the autocorrelation is computed as follows:
         Given a set {y1, y2, ... , yN} divide it in {y1, y2, ..., yN-s}
         and {ys, ys+1, ..., yN}, compute the average for each set, then
-        compute the covariance between the two sets.
+        compute the correlation between the two sets.
 
         Parameters
         ----------
@@ -544,8 +534,7 @@ class RefinedData(RawData):
             class `RefinedData` documentation for more info
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
+            Any further computation is avoided by a memory access
 
         Return
         ------
@@ -605,8 +594,7 @@ class RefinedData(RawData):
             class `RefinedData` documentation for more info
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
+            Any further computation is avoided by a memory access
 
         Return
         ------
@@ -642,6 +630,7 @@ class RefinedData(RawData):
     ):
         """
         Compute auto-correlation in a moving `window`
+        See also `self.get_autocorrperiod`
 
         Parameters
         ----------
@@ -664,8 +653,7 @@ class RefinedData(RawData):
             class `RefinedData` documentation for more info
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
+            Any further computation is avoided by a memory access
 
         Return
         ------
@@ -701,7 +689,7 @@ class RefinedData(RawData):
         lag_series = target_vals[: pts - shift]
         adv_series = target_vals[shift:]
         mov_autocorr = np.zeros(pts - shift)
-        numba_stats.moving_correlation(
+        utils.numba_stats.moving_correlation(
             corr_window, lag_series, adv_series, mov_autocorr
         )
         core_data = mov_autocorr[corr_window - 1 :]
@@ -712,48 +700,6 @@ class RefinedData(RawData):
         if append:
             self.__cached_features[str_code] = mov_autocorr_ser
         return mov_autocorr_ser.loc[start:stop]
-
-    def __fracdiff_weights(self, d, max_weights=100, tol=None):
-        """
-        Compute weights of fractional differentiation binomial series
-
-        Parameters
-        ----------
-        `d` : ``float``
-            order of fractional differentiation. Usually between 0 and 1
-        `max_weights` : ``int``
-            max number of weights to limit data/memory consumption
-        `tol` : ``float``
-            minumum acceptable value for weights to automatic series cutoff
-            In convergence process if exceed `max_weights` print a warning,
-            but return the array without errors
-
-        Return
-        ------
-        ``numpy.array``
-            wegiths/coefficients of binomial series expansion
-
-        """
-        if tol is None:
-            w = np.ones(max_weights)
-            binomial_series_converge(d, tol, w, w.size, 0)
-            return w
-        step = 1 + max_weights // 10
-        w = np.empty(step)
-        w[0] = 1.0
-        flag = -1
-        last = 0
-        while flag < 0:
-            flag = binomial_series_converge(d, tol, w, w.size, last)
-            if w.size > max_weights:
-                print(
-                    "[!] Binomial series stiff cutoff by "
-                    "max_weights {}".format(max_weights)
-                )
-                return w[:max_weights]
-            last = w.size - 1
-            w = np.concatenate([w, np.empty(step)])
-        return w[:flag]
 
     def __apply_fracdiff_weights(self, weights, x_vector):
         return np.dot(weights[::-1], x_vector)
@@ -795,7 +741,8 @@ class RefinedData(RawData):
             any further computation is avoided by a memory access
         `weights_tol` : ``float``
             minimum value for a weight in the binomial series expansion
-            for convergence criterion. Limited by `self.__max_data_loss`
+            for convergence criterion. Limited to use a 1/3 of data pts
+            or the target series
 
         Return
         ------
@@ -811,7 +758,7 @@ class RefinedData(RawData):
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
         target_series = field_method(step=step, bar_type=bar_type)
-        w = self.__fracdiff_weights(d, target_series.size // 3, weights_tol)
+        w = utils.fracdiff_weights(d, target_series.size // 3, weights_tol)
         fracdiff_series = target_series.rolling(window=w.size).apply(
             lambda x: self.__apply_fracdiff_weights(w, x), raw=True
         )
@@ -856,13 +803,11 @@ class RefinedData(RawData):
             class `RefinedData` documentation for more info
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
+            Any further computation is avoided by a memory access
 
         Return
         ------
         `` pandas.Series ``
-            Each Timestamp index contains the mean quadratic frequency.
 
         Warning
         -------
@@ -880,7 +825,7 @@ class RefinedData(RawData):
         if isinstance(step, str):
             step = 1
         vol_series = target_series.rolling(window).apply(
-            lambda x: mean_quadratic_freq(x, step)
+            lambda x: utils.mean_quadratic_freq(x, step)
         )
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
@@ -920,8 +865,7 @@ class RefinedData(RawData):
             class `RefinedData` documentation for more info
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
+            Any further computation is avoided by a memory access
 
         Return
         ------

@@ -1,11 +1,18 @@
+""" Portfolio module
+
+This module provide statistical features of a set of companies
+and implement basic tools to obtain portfolio performance
+
+"""
+
 import os
 import bisect
 import numpy as np
 import pandas as pd
 
 from functools import total_ordering
-from mvp.utils import numba_stats
 from mvp.refined_data import RefinedData, assert_target, assert_feature
+from mvp.utils import numba_stats
 from mvp.utils import validate_features_string, get_features_iterable
 
 
@@ -24,29 +31,94 @@ class RefinedSet:
     Main attribute
     --------------
     `refined_obj` : ``dict {str : RefinedData}``
-        set of refined data objects acessed using the symbol as key
+        set of refined data objects accessible using the symbol as key
 
     """
 
     def __init__(
         self,
         db_path,
-        preload={"time": [1, "day"]},
-        cache_common_features={"time:close": "sma_1:120:sma_DAY:10,20"},
+        preload={},
+        cache_common_features={},
     ):
         """
         Parameters
         ----------
         `db_path` : ``str``
             full path to 1-minute database file
+        `preload` : ``dict {str : int}``
+            Inform dataframes to be set in cache for fast access
+            Available keys are methods of `RawData` class which
+            end with the suffix "_bars" and the value is `step`
+            argument required in these methods. Some examples
+            {
+                "time" : ``int`` or "day"
+                "tick" : ``int``
+                "volume" : ``int``
+                "money" : ``int``
+            }
+            The value field also support ``list`` of these types
         `cache_common_features` : ``dict {str : str}``
             dictionary to preload set of common features for all symbols
             introduced in this `RefinedSet` through `RefinedData` object
-            See `RefinedData` documentation for more info
-        `preload` : ``dict {str : int}``
-            Inform dataframes which to be set in cache for fast access
-            Should be in accord with `cache_common_features` keys. See
-            `RawData` documentation for more info
+            KEYS:
+                The keys must be formated as `"bar_type:data_field"`
+                where `bar_type` inform how data bars are formed and
+                `data_field` the bar value to use. Some examples are
+                    "time:close"  - use close price in time-spaced bars
+                    "time:volume" - use volume traded in time-spaced bars
+                    "tick:high"   - use high price in tick-spaced bars
+                    "money:close" - use close price in money-spaced bars
+                This disctionary keys is also referred to as `target`
+                which is an argument of `RefinedData` methods.
+                The available names for `bar_type` are the same of
+                the keys of `preload` parameter and are the methods
+                of `RawData` that has as suffix `_bars`
+                The available names for `data_field` are suffixes of
+                any `RawData` method that starts with `get_`
+            VALUES:
+                String codifying all infomration to pass in methods call
+                The values of this dictionaty must follow the convention
+                "MET1_T1:V11,V12,...:MET2_T2:V21,V22,...:METM_TM:VM1,..."
+                where MET is a `RefinedData` method suffix for all the
+                ones that begins with `get_`. Therefore, available values
+                to use can be consulted in `RefinedData` class methods
+                Some (default) examples
+                    "sma" = Moving Average (``int``)
+                    "dev" = Standart Deviation (``int``)
+                    "rsi" = Relative Strenght Index (RSI) indicator (``int``)
+                    "fracdiff": Fractional differentiation (``float``)
+                with the following data types of `Vij` in parentheses
+                Note the underscore after METj which can be one of the
+                following: 1, 5, 10, 15, 30, 60 and DAY indicating the
+                time step to be used in bars size, in case the target
+                provided in dict key is "time:*"
+                In case other target is set, such as "money:*" any int
+                is accepted, which is used to pack data in bars using
+                cumulative sum of the referred target
+                The values `Vij` must be of the type of the first
+                argument(s)(required) of the feature method, that
+                is one of those `RefinedData` methods with `get_`
+                as prefix. Especifically for methods that require
+                more than one argument, the syntax changes
+                Example given dictionary key "time:*" with value:
+                    "sma_60:100,1000:dev_DAY:10,20:autocorrmov_DAY:(20,5)"
+                The moving average for 60-minute bars with windows of 100,
+                1000, the moving standard deviation for daily bars with 10
+                and 20 days, and finally the moving autocorrelation with
+                daily bars for 20-days moving window and 5-days of shift
+                will be set in cache
+                Note that for `autocorrmov` the values are passed as tuple
+                and are exactly used as `get_autocorrmov(*Vij, append=True)`
+                For this reason, in this specific case, instead of using
+                comma to separate the values(that are actually tuples), the
+                user must use forward slashes '/'
+                For instance: (20,5)/(200,20)
+                WARNING:
+                In this string no successive colon(:) is allowed as well as
+                : at the end or beginning. Colons must aways be surrounded
+                by keys and values, and this format will be checked before
+                using for computations
 
         """
         if not os.path.isfile(db_path):
@@ -63,6 +135,7 @@ class RefinedSet:
         self.symbol_period = {}
 
     def __clean_features_cache(self):
+        """ For each refined object in this set clean the cache """
         for ref_obj in self.refined_obj.values():
             ref_obj.cache_clean()
 
@@ -103,14 +176,14 @@ class RefinedSet:
 
     def add_common_features(self, new_cache_features):
         """
-        Append `new_input_string` in features common to all symbols
+        Append `new_cache_features` to set in cache for all symbols
 
         Parameters
         ----------
         `new_cache_features` : ``dict {str : str} ``
             Features to automatically set in cache in every `RefinedData`
             For more info on how to format dict keys and values see this
-            class or `RefinedData` documentation
+            class or `RefinedData` constructor documentation
 
         """
         if not isinstance(new_cache_features, dict):
@@ -141,7 +214,7 @@ class RefinedSet:
         `new_cache_features` : ``dict {str : str} ``
             Features to automatically set in cache in every `RefinedData`
             For more info on how to format dict keys and values see this
-            class or `RefinedData` documentation
+            class or `RefinedData` constructor documentation
 
         """
         if not isinstance(new_cache_features, dict):
@@ -202,7 +275,7 @@ class RefinedSet:
 
     def refresh_all_features(self):
         """
-        Compute again all common features currently in `self.input_dict`
+        Compute again all common features in `self.cache_common_features`
         """
         for target, inp_str in self.cache_common_features.items():
             method_args_iter = get_features_iterable(inp_str, target)
@@ -219,12 +292,11 @@ class RefinedSet:
     ):
         """
         Return time series of a specific feature for all symbols in the set
-        Only features that yield ``pandas.Timeseries`` are allowed. The set
-        of features supported are methods of `RefinedData`
+        The set of features supported are methods of `RefinedData`
 
         Parameters
         ----------
-        `meth_name` : ``str``
+        `attr_name` : ``str``
             `RefinedData` method or method suffix without the get prefix
         `attr_args` : ``int`` or ``tuple``
             The first one or few argumets required in method
@@ -401,12 +473,12 @@ class StockDeal:
         `flag` : ``int``
             either +1 for buy position and -1 for sell position
         `fixed_tax` : ``float``
-            contant value in currency to execute an order in the stock market
+            constant value in currency to execute an order in the stock market
         `relative_tax` : ``float``
-            fraction of the total order value
+            fraction of the total order value charged
         `daily_tax` : ``float`` (default 0)
             fraction of share price charged to hold position per day
-            Usually only applicable to maintain short position
+            Usually only applicable to maintain short/sell position
 
         """
         self.symbol = symbol
@@ -448,10 +520,7 @@ class StockDeal:
             raise ValueError("All taxes must be positive")
 
     def __valid_input_date(self, date):
-        """
-        Confirm `date` is ahead of `self.deal_date`
-        and is instance of ``pandas.Timestamp``
-        """
+        """ Confirm `date` is ahead of `self.deal_date` """
         if not isinstance(date, pd.Timestamp):
             return False
         return date >= self.deal_date
@@ -504,10 +573,7 @@ class StockDeal:
         return total_cost * days_elapsed * self.daily_tax
 
     def time_rolling_tax(self, date_array, quantity=None):
-        """
-        Compute the rolling cost of the operation
-        for time index of a price series in `date_array`
-        """
+        """ Compute the rolling cost of the operation from time array """
         if quantity is None:
             quantity = self.quantity
         if not self.__valid_input_quantity(quantity):
@@ -619,7 +685,7 @@ class StockDeal:
     def partial_close(self, unit_price, cls_quant, date=None):
         """
         Return partial result due to reduction in position
-        The object internal quantity is changed reducing it by `cls_quant`
+        `self.quantity` is reducing it by `cls_quant`
 
         Parameters
         ---
@@ -653,7 +719,7 @@ class PortfolioRecord:
     """
     Class to record a set of deals. Basically it holds as attribute a
     list of `StockDeal` objects ordered by date they ocurred. As date
-    object all methods use to the `pandas.Timestamp`
+    object all methods use `pandas.Timestamp`
 
     """
 
@@ -840,16 +906,15 @@ class Portfolio(PortfolioRecord, RefinedSet):
     Portfolio Class
     ---
     This class provide methods to dynamically simulate a portfolio
-    with some real aspects, including some taxes and the possibility
-    of set sell orders without suficient shares in the portfolio
-    (known as short position with also a rent tax)
+    with some real aspects, including taxes and the possibility of
+    set sell orders without suficient shares in the portfolio
 
     This class also aims to provide a simple interface to analyze
     results from multiple shares and compute the results (profit/
     loss) at any input date-time. In this way its design is two-fold
     aimed, first to use alongside orders requested from other models
     and track the results of these orders, and second to serve as
-    input in some trainning technique
+    input in a trainning model
 
     Inherit
     ---
@@ -865,8 +930,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
         db_path,
         fixed_tax=0,
         relative_tax=0,
+        preload={},
         common_features="",
-        preload={"time": [5, 10, 15, 30, 60, "day"]},
     ):
         """
         Define a portfolio subject to some operational taxes
@@ -874,18 +939,17 @@ class Portfolio(PortfolioRecord, RefinedSet):
 
         Parameters
         ---
+        `db_path` : ``str``
+            full path (with filename) to database file
         `fixed_tax` : ``float``
             fixed tax charged independent of the volume
         `relative_tax` : ``float``
             relative fraction of the operation price charged in an order
             Usually very small (tipically < 0.001)
-        `db_path` : ``str``
-            full path to (with filename) to database file
-        `commom_features` : ``str``
-            A valid string with statistical features to be loaded
-            within the shares. See `RefinedSet` for more info
-        `preload` : ``dict`` {str : list}
-            dataframe with candle sticks to be loaded in memory
+        `preload` : ``dict {str : list}``
+            dictionary needed in `RefinedSet` constructor
+        `commom_features` : ``dict { str : str }``
+            dictionaty needed in `RefinedSet` constructor
 
         """
         ref_set_args = (db_path, common_features, preload)
@@ -1136,7 +1200,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 pos[deal.symbol] = deal.flag * deal.quantity
         finished_pos_symbols = []
         for symbol, quant in pos.items():
-            if abs(quant) < 1:
+            if quant == 0:
                 finished_pos_symbols.append(symbol)
         for symbol in finished_pos_symbols:
             pos.pop(symbol)
@@ -1345,7 +1409,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 next_deal_date = stop_date
             time_index = (
                 self.refined_obj[deal.symbol]
-                .change_sample_interval(step=time_step)
+                .time_bars(step=time_step)
                 .loc[last_deal_date:next_deal_date]
                 .index
             )
@@ -1355,7 +1419,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 position_flag = deals_stack[symbol][0].flag
                 price_series = (
                     self.refined_obj[symbol]
-                    .change_sample_interval(step=time_step)
+                    .time_bars(step=time_step)
                     .Close.loc[last_deal_date:next_deal_date]
                 )
                 if price_series.empty:

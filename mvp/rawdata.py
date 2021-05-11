@@ -39,7 +39,7 @@ import sqlite3
 import numpy as np
 import pandas as pd
 
-from mvp.utils import indexing_cusum, indexing_new_days
+from mvp import utils
 
 
 def get_db_symbols(db_path):
@@ -441,7 +441,7 @@ class RawData:
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
         ticks_parser = df_window["TickVol"].astype(float).to_numpy()
-        nbars = indexing_cusum(nlines, ticks_parser, strides, step)
+        nbars = utils.indexing_cusum(nlines, ticks_parser, strides, step)
         return self.__reassemble_df(df_window, strides[:nbars])
 
     def volume_bars(self, start=None, stop=None, step=None):
@@ -487,7 +487,7 @@ class RawData:
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
         vol_parser = df_window["Volume"].astype(float).to_numpy()
-        nbars = indexing_cusum(nlines, vol_parser, strides, step)
+        nbars = utils.indexing_cusum(nlines, vol_parser, strides, step)
         return self.__reassemble_df(df_window, strides[:nbars])
 
     def money_bars(self, start=None, stop=None, step=None):
@@ -535,7 +535,7 @@ class RawData:
         money_parser = (
             df_window["Volume"] * (df_window["Close"] + df_window["Open"]) / 2
         ).to_numpy()
-        nbars = indexing_cusum(nlines, money_parser, strides, step)
+        nbars = utils.indexing_cusum(nlines, money_parser, strides, step)
         return self.__reassemble_df(df_window, strides[:nbars])
 
     def daily_bars(self, start=None, stop=None):
@@ -563,7 +563,7 @@ class RawData:
         nlines = df_window.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
         days_parser = df_window.index.day.to_numpy().astype(np.int32)
-        nbars = indexing_new_days(nlines, days_parser, strides)
+        nbars = utils.indexing_new_days(nlines, days_parser, strides)
         daily_df = self.__reassemble_df(df_window, strides[:nbars])
         date_index = pd.to_datetime(daily_df.index.date)
         daily_df.index = date_index
@@ -617,7 +617,7 @@ class RawData:
         nlines = work_df.shape[0]
         strides = np.empty(nlines + 1, dtype=np.int32)
         days_parser = work_df.index.day.to_numpy().astype(np.int32)
-        ndays = indexing_new_days(nlines, days_parser, strides)
+        ndays = utils.indexing_new_days(nlines, days_parser, strides)
         day_strides = strides[:ndays]
         bar_list = []
         for i in range(ndays - 1):
