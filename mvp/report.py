@@ -1,9 +1,14 @@
 import pandas as pd
 import mvp
 
-def trade_book(primary_model, operation_parameters):
+def trade_book(primary_model, operation_parameters,event_filter = None):
     close_data = primary_model.feature_data['Close']
-    label_data = mvp.labels.Labels(primary_model.events, close_data, operation_parameters).label_data
+    if event_filter is not None:
+        filtered_dates = event_filter[event_filter>0].index
+        filtered_events = primary_model.events.loc[filtered_dates]
+        label_data = mvp.labels.Labels(filtered_events, close_data, operation_parameters).label_data
+    else:    
+        label_data = mvp.labels.Labels(primary_model.events, close_data, operation_parameters).label_data
     entries = label_data.index
     exits = label_data['PositionEnd']
     entry_df = close_data.loc[entries].reset_index().rename(columns = {'Close':'EntryPrice','DateTime':'EntryDate'})
@@ -37,8 +42,8 @@ def worst_trade(book):
 def time_range(primary_model):
     return primary_model.index[0], primary_model.index[-1]
 
-def report(primary_model, operation_parameters):
-    book = trade_book(primary_model, operation_parameters)
+def report(primary_model, operation_parameters, event_filter = None):
+    book = trade_book(primary_model, operation_parameters, event_filter)
     operation_frequency = primary_model.time_step
     print('++++++++++++++++++++')
     print('Asset: '+primary_model.symbol)

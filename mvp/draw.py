@@ -306,7 +306,7 @@ def plot_classical_filter(model, labels, linewidth=1.0, point_size = 15):
     return None
 
 
-def plot_model(model, operation_parameters, linewidth=0.8, point_size = 15):
+def plot_model(model, operation_parameters,event_filter=None , linewidth=0.8, point_size = 15):
     """
     Displays the target (usually Close) time-series along with the indicators
     used by the primary models to generate triggers, also highlights Buy/Sell
@@ -325,13 +325,21 @@ def plot_model(model, operation_parameters, linewidth=0.8, point_size = 15):
              - MarginMode (margin_mode)
             These values should be provided like the following:
                 {'SL': 0.01, 'TP': 0.01, 'IH': 1000,'margin_mode':'percent'}}
-        `linewidth`: ```float`
+        `event_filter`" ``pandas.DataFrame``
+            DataFrame containing the output of a Metamodel which is used to
+            filter the trade suggestions of primary model
+        `linewidth`: ``float``
             specifies linewidth parameter for line plots (series/indicators)
         `point_size`: ``float``
             specifies point size parameter for scatter plots (events)
     """
     close_data = model.feature_data['Close']
-    label_data = mvp.labels.Labels(model.events, close_data, operation_parameters).label_data
+    if event_filter is not None:
+        filtered_dates = event_filter[event_filter>0].index
+        filtered_events = model.events.loc[filtered_dates]
+        label_data = mvp.labels.Labels(filtered_events, close_data, operation_parameters).label_data
+    else:
+        label_data = mvp.labels.Labels(model.events, close_data, operation_parameters).label_data
     if model.strategy == "bollinger-bands":
         plot_bollinger(model, label_data, linewidth, point_size)
     if model.strategy == "crossing-MA":
