@@ -47,7 +47,7 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}):
     fast_ma = refined_obj.get_sma(fast_window, **kwargs)
     diff = (fast_ma - slow_ma).dropna()
     cross_time = diff.index[diff[1:] * diff.shift(1) < 0]
-    return pd.Series(np.sign(diff[cross_time].values), index=cross_time)
+    return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
 
 
 def trending_inversion(refined_obj, threshold, window=1, kwargs={}):
@@ -82,7 +82,7 @@ def trending_inversion(refined_obj, threshold, window=1, kwargs={}):
     events_ind = np.empty(n, dtype=np.int32)
     nevents = utils.sign_mark_cusum(n, returns, events_ind, threshold)
     events_time = diff[events_ind[:nevents]].index
-    return pd.Series(np.sign(diff[events_time].values), index=events_time)
+    return pd.Series(np.sign(diff[events_time].values), events_time, np.int32)
 
 
 def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}):
@@ -134,8 +134,75 @@ def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}):
     buy_time = lower_diff[lower_diff.shift(1) * lower_diff < 0][
         lower_diff < 0
     ].index
-    buy_series = pd.Series(np.ones(buy_time.size, np.int32), index=buy_time)
-    sell_series = pd.Series(
-        -np.ones(sell_time.size, np.int32), index=sell_time
-    )
+    buy_series = pd.Series(np.ones(buy_time.size, np.int32), buy_time)
+    sell_series = pd.Series(-np.ones(sell_time.size, np.int32), sell_time)
     return buy_series.append(sell_series, verify_integrity=True).sort_index()
+
+
+def overlap_strategies(
+    refined_obj,
+    time_gap,
+    agree_threshold,
+    strategies_list,
+    args_list,
+    kwargs_list,
+):
+    """
+    Wihtin events from a main primary strategy, consider a time interval
+    for other events from different strategies to happen. In case other
+    strategies provides events in the respective interval, consider all
+    recomendations to evaluate an overlap region and define new events
+
+    Parameters
+    ----------
+    `refined_obj` : ``mvp.Refineddata``
+        object with simple statistical features
+    `time_gap` : ``pandas.Timedelta``
+        tolered time to match events from all strategies
+    `agree_threshold` : ``float`` in (0, 1]
+        Minimum required for average of advices that match the same period
+    `strategies_list` : ``list[mvp.primary functions]``
+        list with functions available from primary module
+    `args_list` : `list[tuple]``
+        list of tuples to use as positional arguments
+    `kwargs_list` : ``list[dict]``
+        list of dictionaries to use as optional arguments
+
+    Return
+    ------
+    ``pandas.Series``
+
+    """
+    if agree_threshold < 0 or agree_threshold > 1:
+        raise ValueError(
+            "Threshold of agreement among event must lies in (0, 1]"
+            " interval. {} was given".format(agree_threshold)
+        )
+    events_list = [
+        fun(refined_obj, *args_list[i], **kwargs_list[i])
+        for i, fun in enumerate(strategies_list)
+    ]
+    if len(events_list) == 1:
+        return events_list[0]
+    market_freq = pd.Timedelta(minutes=1)
+    master_events = events_list.pop(0)
+    for t, master_advice in zip(master_events.index, master_events.values):
+        t_end = t + time_gap
+        t_range = pd.period_range(t, t_end, freq=market_freq).to_timestamp()
+        intersection_indexes = [
+            t_range.intersection(event.index) for event in events_list
+        ]
+        if all([index_set.empty for index_set in intersection_indexes]):
+            master_events[t] = np.NaN
+            continue
+        combined_advices = 0
+        total_advices = 0
+        for index_set, events in zip(intersection_indexes, events_list):
+            combined_advices += events[index_set].sum()
+            total_advices += events[index_set].size
+        overall_advice = combined_advices / total_advices
+        if master_advice * overall_advice < agree_threshold:
+            master_events[t] = np.NaN
+    intersect_events = master_events.dropna()
+    intersect_events.index = intersect_events.index + time_gap
+    return intersect_events.astype(np.int32)
