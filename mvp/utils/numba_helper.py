@@ -1,11 +1,47 @@
 from numba import float64, int32, njit, prange
 
 
+@njit(int32(int32, float64[:], float64[:], float64))
+def cusum(n, inp_arr, cusum_arr, threshold):
+    """
+    Compute the commulative sum
+
+    Paramters
+    ---------
+    `n` : ``int``
+        size of `inp_arr` and `cusum_arr`
+    `inp_arr` : ``numpy.array[numpy.float64]``
+        array with input values of size `n`
+    `cusum_arr` : ``numpy.array[numpy.float64]``
+        empty array initially of size `n`
+    `threshold` : ``float``
+        value to mark the last index cusum was above it
+
+    Modified
+    --------
+    `cusum_arr` : ``numpy.array[numpy.float64]``
+        cusum_arr[i] = inp_arr[: i + 1].sum()
+
+    Return
+    ------
+    ``int``
+        Last index that `cusum_arr` was above `threshold`
+    """
+    cusum_arr[0] = inp_arr[0]
+    threshold_ind = -1
+    for i in prange(1, n):
+        if cusum_arr[i - 1] >= threshold:
+            threshold_ind = i - 1
+        cusum_arr[i] = inp_arr[i] + cusum_arr[i - 1]
+    return threshold_ind
+
+
 @njit(int32(int32, float64[:], int32[:], float64))
 def indexing_cusum(n, values, accum_ind, threshold):
     """
     Mark all indexes between which the sum of `values` exceed `threshold`
-    Applied to slice arrays using cumulative sum of values
+    Applied to slice arrays using cumulative sum of values. See also the
+    function `sign_mark_cusum` in this module
 
     Parameters
     ----------
@@ -16,8 +52,8 @@ def indexing_cusum(n, values, accum_ind, threshold):
     `threshold` : ``float``
         Value to reset cusum sweeping the `values` array and save index
 
-    Output
-    ------
+    Modified
+    --------
     `accum_ind` : ``numpy.array(int32)``
         store indexes strides between which cusum exceeds the threshold
         Must have size `n` but only use all if all `values` are greater
@@ -39,6 +75,63 @@ def indexing_cusum(n, values, accum_ind, threshold):
             j = j + 1
             cusum = 0.0
     return j
+
+
+@njit(int32(int32, float64[:], int32[:], float64))
+def sign_mark_cusum(n, inp_arr, accum_ind, threshold):
+    """
+    Slice data in positive and negative (trending) parts and
+    for each slice perform cumulative sum and mark the index
+    which the cusum exceed threshold in modulus. See also the
+    function `indexing_cusum` in this module
+
+    Parameters
+    ----------
+    `n` : ``int``
+        size of `inp_arr` and `accum_ind`
+    `inp_arr` : ``numpy.array[numpy.float64]``
+        input array with alternating positive/negative data points
+    `accum_ind` : ``numpy.array[numpy.int32]``
+        initial empty array of size `n`
+    `threshold` : ``float``
+        threshold to mark index in a trend (positive or negative)
+
+    Modified
+    --------
+    `accum_ind` : ``numpy.array[numpy.int32]``
+        After execution hold index of original array which a sequence
+        (trend) of positive or negative cusum exceeded the `threshold`
+
+    Return
+    ------
+        total number of `accum_ind`
+
+    """
+    k = 0
+    i = 0
+    trend_cusum = 0
+    while i < n - 1:
+        while i < n - 1 and inp_arr[i + 1] >= 0:
+            if trend_cusum < threshold:
+                trend_cusum += inp_arr[i]
+                mark_ind = i
+            i = i + 1
+        if trend_cusum >= threshold:
+            accum_ind[k] = mark_ind
+            k = k + 1
+        i = i + 1
+        trend_cusum = 0
+        while i < n - 1 and inp_arr[i + 1] <= 0:
+            if trend_cusum < threshold:
+                trend_cusum -= inp_arr[i]
+                mark_ind = i
+            i = i + 1
+        if trend_cusum >= threshold:
+            accum_ind[k] = mark_ind
+            k = k + 1
+        i = i + 1
+        trend_cusum = 0
+    return k
 
 
 @njit(int32(int32, int32[:], int32[:]))
