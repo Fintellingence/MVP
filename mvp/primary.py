@@ -4,7 +4,8 @@ In this module, based on basic statistical features provided by
 refined data, simple strategies are build. These strategies are
 based on combining features to generate events with some advice
 about what should be done. The advices are binary info, as such
-are represented here by +1 for buy and -1 for sell
+are represented here by +1 for buy and -1 for sell, also known
+as `side` of the suggested operation
 
 All functions in this module implement a primary strategy hence
 always consume a ``RefinedData`` obj and return a pandas series
@@ -38,7 +39,7 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}):
     Return
     ------
     ``pandas.Series``
-        time series with +1 (buy advice) and -1(sell advice)
+        time series with +1 (buy side) and -1(sell side)
 
     """
     slow_window = min(window1, window2)
@@ -50,7 +51,7 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}):
     return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
 
 
-def trending_inversion(refined_obj, threshold, window=1, kwargs={}):
+def trend(refined_obj, threshold, window=1, kwargs={}):
     """
     Consider the return series over (generally) very short moving average
     to slice in sequences of positive and negative values. For each slice
@@ -72,7 +73,7 @@ def trending_inversion(refined_obj, threshold, window=1, kwargs={}):
     Return
     ------
     ``pandas.Series``
-        time series with +1 (buy advice) and -1(sell advice)
+        time series with +1 (buy side) and -1(sell side)
 
     """
     sma = refined_obj.get_sma(window, **kwargs)
@@ -83,6 +84,44 @@ def trending_inversion(refined_obj, threshold, window=1, kwargs={}):
     nevents = utils.sign_mark_cusum(n, returns, events_ind, threshold)
     events_time = diff[events_ind[:nevents]].index
     return pd.Series(np.sign(diff[events_time].values), events_time, np.int32)
+
+
+def cummulative_returns(refined_obj, threshold, window=1, kwargs={}):
+    """
+    Consider the return series over (generally) very short moving average
+    to perform cummulative sum and mark as events when its absolute value
+    exceed a threshold, then reset and start again.
+    This is different from `trend` model which requires the cumsum in the
+    period to have exclusive positive or negative returns, variations are
+    not allowed as in this case
+
+    Paramters
+    ---------
+    `refined_obj` : ``mvp.RefinedData``
+        object with simple statistical features
+    `threshold` : ``float``
+        tolerance to define a new trend if cummulative returns exceed it
+    `window` : ``int``
+        size of the moving average window. May be use to smooth data
+    `kwargs` : ``dict``
+        optional arguments of moving average
+
+    Return
+    ------
+    ``pandas.Series``
+        time series with +1 (buy side) and -1(sell side)
+
+    """
+    sma = refined_obj.get_sma(window, **kwargs)
+    returns = (sma / sma.shift(1) - 1).dropna()
+    n = returns.size
+    events_ind = np.empty(n, np.int32)
+    events_sign = np.empty(n, np.int32)
+    nevents = utils.indexing_cusum_abs(
+        n, returns.values, events_ind, events_sign, threshold
+    )
+    events_time = returns[events_ind[1:nevents]].index
+    return pd.Series(events_sign[1:nevents], events_time, np.int32)
 
 
 def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}):
@@ -106,7 +145,7 @@ def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}):
     Return
     ------
     ``pandas.Series``
-        time series with +1 (buy advice) and -1(sell advice)
+        time series with +1 (buy side) and -1(sell side)
 
     """
     try:
@@ -160,7 +199,7 @@ def overlap_strategies(
     `time_gap` : ``pandas.Timedelta``
         tolered time to match events from all strategies
     `agree_threshold` : ``float`` in (0, 1]
-        Minimum required for average of advices that match the same period
+        Minimum required for average of sides that match the same period
     `strategies_list` : ``list[mvp.primary functions]``
         list with functions available from primary module
     `args_list` : `list[tuple]``

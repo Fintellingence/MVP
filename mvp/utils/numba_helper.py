@@ -26,6 +26,7 @@ def cusum(n, inp_arr, cusum_arr, threshold):
     ------
     ``int``
         Last index that `cusum_arr` was above `threshold`
+
     """
     cusum_arr[0] = inp_arr[0]
     threshold_ind = -1
@@ -72,6 +73,45 @@ def indexing_cusum(n, values, accum_ind, threshold):
         cusum = cusum + values[i]
         if cusum >= threshold:
             accum_ind[j] = i + 1
+            j = j + 1
+            cusum = 0.0
+    return j
+
+
+@njit(int32(int32, float64[:], int32[:], int32[:], float64))
+def indexing_cusum_abs(n, values, accum_ind, accum_sign, threshold):
+    """
+    Very similar to `indexing_cusum`, though use the absolute value of
+    the commulative sum sweeping over the array. Thus, between indexes
+    marked in `accum_ind` the absolute value of cummulative sum exceed
+    the `threshold`
+
+    Modified
+    --------
+    `accum_ind`
+        strides of indexes between every pair the abs(cusum) > `threshold`
+    `accum_sign`
+        store +1 or -1 according to the cusum result for the stride of values
+        between `accum_ind[j]` and `accum_ind[j + 1]`
+
+    Return
+    ------
+    ``int``
+        size of `accum_ind` array to be used
+
+    """
+    cusum = 0.0
+    accum_ind[0] = 0  # stride start convention
+    accum_sign[0] = 0  # should not be used
+    j = 1
+    for i in prange(n):
+        cusum = cusum + values[i]
+        if abs(cusum) >= threshold:
+            accum_ind[j] = i + 1
+            if cusum < 0:
+                accum_sign[j] = -1
+            else:
+                accum_sign[j] = 1
             j = j + 1
             cusum = 0.0
     return j
