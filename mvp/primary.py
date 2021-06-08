@@ -19,7 +19,7 @@ import numpy as np
 from mvp import utils
 
 
-def crossing_ma(refined_obj, window1, window2, kwargs={}):
+def crossing_ma(refined_obj, window1, window2, kwargs={}, draw=False):
     """
     Use fast and slow moving averages crossing as event definition
     The primary strategy (advice) depends on cross relation
@@ -48,7 +48,11 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}):
     fast_ma = refined_obj.get_sma(fast_window, **kwargs)
     diff = (fast_ma - slow_ma).dropna()
     cross_time = diff.index[diff[1:] * diff.shift(1) < 0]
-    return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
+    if draw:
+        return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32), slow_ma, fast_ma
+    else:
+        return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
+
 
 
 def trend(refined_obj, threshold, window=1, kwargs={}):
@@ -124,7 +128,7 @@ def cummulative_returns(refined_obj, threshold, window=1, kwargs={}):
     return pd.Series(events_sign[1:nevents], events_time, np.int32)
 
 
-def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}):
+def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}, draw=False):
     """
     Use two bands of standard deviation around the moving average which
     launch an event every time the prices touch one of the bands
@@ -175,8 +179,10 @@ def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}):
     ].index
     buy_series = pd.Series(np.ones(buy_time.size, np.int32), buy_time)
     sell_series = pd.Series(-np.ones(sell_time.size, np.int32), sell_time)
-    return buy_series.append(sell_series, verify_integrity=True).sort_index()
-
+    if draw:
+        return buy_series.append(sell_series, verify_integrity=True).sort_index(), upper, lower
+    else:
+        return buy_series.append(sell_series, verify_integrity=True).sort_index()
 
 def overlap_strategies(
     refined_obj,

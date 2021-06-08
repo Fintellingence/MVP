@@ -306,7 +306,7 @@ def plot_classical_filter(model, labels, linewidth=1.0, point_size = 15):
     return None
 
 
-def plot_model(model, operation_parameters, linewidth=0.8, point_size = 15):
+def plot_model(strategy, events, label_data, close_data, linewidth=0.8, point_size = 15):
     """
     Displays the target (usually Close) time-series along with the indicators
     used by the primary models to generate triggers, also highlights Buy/Sell
@@ -330,11 +330,9 @@ def plot_model(model, operation_parameters, linewidth=0.8, point_size = 15):
         `point_size`: ``float``
             specifies point size parameter for scatter plots (events)
     """
-    close_data = model.feature_data['Close']
-    label_data = mvp.labels.Labels(model.events, close_data, operation_parameters).label_data
-    if model.strategy == "bollinger-bands":
-        plot_bollinger(model, label_data, linewidth, point_size)
-    if model.strategy == "crossing-MA":
-        plot_crossing_MA(model, label_data, linewidth, point_size)
-    if model.strategy == "classical-filter":
-        plot_classical_filter(model, label_data, linewidth, point_size)
+    if strategy == "bollinger-bands":
+        plot_bollinger(events, label_data, close_data, linewidth, point_size)
+    if strategy == "crossing-MA":
+        plot_crossing_MA(events, label_data, close_data, linewidth, point_size)
+    if strategy == "classical-filter":
+        plot_classical_filter(events, label_data, close_data, linewidth, point_size)

@@ -1,5 +1,4 @@
 import pandas as pd
-import mvp
 
 def trade_book(close_data, events, label_data):
     entries = label_data.index
@@ -35,17 +34,3 @@ def worst_trade(book):
 def time_range(primary_model):
     return primary_model.index[0], primary_model.index[-1]
 
-def report(primary_model, operation_parameters):
-    book = trade_book(primary_model, operation_parameters)
-    operation_frequency = primary_model.time_step
-    print('++++++++++++++++++++')
-    print('Asset: '+primary_model.symbol)
-    print('Average Holding Time: '+str(avg_holding_time(book)))
-    print('Operation time step: '+str(operation_frequency))
-    print('Best trade: ')
-    print(best_trade(book))
-    print('Worst trade:')
-    print(worst_trade(book))
-    print('Order Book:')
-    print(book)
-    return 0
