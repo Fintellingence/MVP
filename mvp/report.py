@@ -1,9 +1,7 @@
 import pandas as pd
 import mvp
 
-def trade_book(primary_model, operation_parameters):
-    close_data = primary_model.feature_data['Close']
-    label_data = mvp.labels.Labels(primary_model.events, close_data, operation_parameters).label_data
+def trade_book(close_data, events, label_data):
     entries = label_data.index
     exits = label_data['PositionEnd']
     entry_df = close_data.loc[entries].reset_index().rename(columns = {'Close':'EntryPrice','DateTime':'EntryDate'})
