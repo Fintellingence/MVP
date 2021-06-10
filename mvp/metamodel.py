@@ -784,7 +784,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         labels = label_data.Label.copy()
         labels.replace(-1, 0, inplace=True)
 
-        # TODO: Discuss other solutions, instead of drop events
         stats = []
         event_index = horizon.index
         for get_stat_name, kwargs in kwargs_features.items():
@@ -797,7 +796,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             if feature_index[0] <= event_index[0]:
                 feature = feature.loc[event_index]
             else:
-                mask = (event_index >= feature_index[0]).values
+                mask = event_index >= feature_index[0]
                 horizon = horizon.loc[mask]
                 sides = sides.loc[mask]
                 labels = labels.loc[mask]
