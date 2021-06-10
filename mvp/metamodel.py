@@ -11,19 +11,13 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 import tensorflow.summary as summary
 from tensorboard.plugins.hparams import api as hp
 from sklearn.model_selection import ParameterGrid
 
-from sklearn.metrics import (
-    f1_score,
-    balanced_accuracy_score,
-    precision_score,
-    auc,
-    roc_curve,
-)
+from sklearn.metrics import f1_score, balanced_accuracy_score, precision_score
 
+from mvp.draw import draw_roc_curve
 from mvp.refined_data import RefinedData
 from mvp.selection import (
     count_occurrences,
@@ -33,74 +27,6 @@ from mvp.selection import (
     raw_horizon,
     PEKFold,
 )
-
-
-# TODO: Put into draw module
-def draw_roc_curve(path_dir, cv_expected, cv_true_probs, interpolation_size=100):
-    """ Draw ROC curve based on a set of binary probabilities. """
-    fig = plt.figure(dpi=300)
-    ax = fig.subplots(1, 1, sharey=False)
-    aucs = []
-    tprs = []
-    fprs = np.linspace(0, 1, interpolation_size)
-    for i, (expected, true_probs) in enumerate(
-        zip(cv_expected, cv_true_probs)
-    ):
-        # TODO: How determine the best threshold
-        fpr, tpr, thresholds = roc_curve(expected, true_probs)
-        tprs.append(np.interp(fprs, fpr, tpr))
-        tprs[-1][0] = 0.0
-        roc_auc = auc(fpr, tpr)
-        aucs.append(roc_auc)
-        ax.plot(
-            fpr,
-            tpr,
-            lw=1,
-            alpha=0.3,
-            label="ROC fold {} (AUC = {:.2f})".format(i, roc_auc),
-        )
-
-    ax.plot(
-        [0, 1],
-        [0, 1],
-        linestyle="--",
-        lw=2,
-        color="r",
-        label="Random Classifier",
-        alpha=0.8,
-    )
-
-    mean_tpr = np.mean(tprs, axis=0)
-    mean_tpr[-1] = 1.0
-    mean_auc = auc(fprs, mean_tpr)
-    std_auc = np.std(aucs)
-    ax.plot(
-        fprs,
-        mean_tpr,
-        color="b",
-        label=r"Mean ROC (AUC = {:.2f} $\pm$ {:.2f})".format(mean_auc, std_auc),
-        lw=2,
-        alpha=0.8,
-    )
-
-    std_tpr = np.std(tprs, axis=0)
-    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-    plt.fill_between(
-        fprs,
-        tprs_lower,
-        tprs_upper,
-        color="grey",
-        alpha=0.2,
-        label=r"$\pm$ 1 $\sigma$",
-    )
-
-    ax.set_xlim([-0.05, 1.05])
-    ax.set_ylim([-0.05, 1.05])
-    ax.set_xlabel("FPR $\left(\\frac{FP}{FP + TN}\\right)$")
-    ax.set_ylabel("TPR $\left(\\frac{TP}{TP + FN}\\right)$")
-    ax.legend(loc="lower right")
-    plt.savefig(os.path.join(path_dir, "roc.png"))
 
 
 # TODO: Consider the use of HParams objects insted of dicts
