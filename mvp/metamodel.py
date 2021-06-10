@@ -407,7 +407,7 @@ class BaggingModelOptimizer:
         if kwargs_model is None and self._best_kwargs_model is None:
             raise ValueError(
                 "At least one of the values, kwargs_model or"
-                " _best_kwargs_model, have to be setted"
+                " _best_kwargs_model, have to be set"
             )
         elif kwargs_model is None and self._best_kwargs_model is not None:
             kwargs_model = self._best_kwargs_model.copy()
@@ -816,7 +816,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             )
         )
         self._file_log.info(
-            "The environment was setted with {} prices and {} events"
+            "The environment was set with {} prices and {} events"
             " such that {} are labeled as 1 and {} as -1".format(
                 closed.shape[0],
                 horizon.shape[0],
@@ -880,7 +880,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         if kwargs_features is None and self._best_kwargs_features is None:
             raise ValueError(
                 "At least one of the values, kwargs_features or"
-                " _best_kwargs_features, have to be setted"
+                " _best_kwargs_features, have to be set"
             )
         elif (
             kwargs_features is None and self._best_kwargs_features is not None
@@ -890,7 +890,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         if kwargs_primary is None and self._best_kwargs_primary is None:
             raise ValueError(
                 "At least one of the values, kwargs_primary or"
-                " _best_kwargs_primary, have to be setted"
+                " _best_kwargs_primary, have to be set"
             )
         elif kwargs_primary is None and self._best_kwargs_primary is not None:
             kwargs_primary = self._best_kwargs_primary.copy()
@@ -898,7 +898,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         if kwargs_labels is None and self._best_kwargs_labels is None:
             raise ValueError(
                 "At least one of the values, kwargs_labels or"
-                " _best_kwargs_labels, have to be setted"
+                " _best_kwargs_labels, have to be set"
             )
         elif kwargs_labels is None and self._best_kwargs_labels is not None:
             kwargs_labels = self._best_kwargs_labels.copy()
