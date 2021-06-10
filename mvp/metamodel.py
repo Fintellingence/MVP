@@ -211,8 +211,8 @@ class BaggingModelOptimizer:
         time_weights_fn=time_weights,
         samples_weights_fn=sample_weights,
         metrics={
-            "F1": (f1_score, True),
             "Precision": (precision_score, True),
+            "F1": (f1_score, True),
             "BAcc": (balanced_accuracy_score, True),
         },
         verbose=0,
@@ -699,8 +699,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         samples_weights_fn=sample_weights,
         log_dir="logs",
         metrics={
-            "F1": (f1_score, True),
             "Precision": (precision_score, True),
+            "F1": (f1_score, True),
             "BAcc": (balanced_accuracy_score, True),
         },
         preload={"time": [5, 10, 15, 30, 60, "day"]},
