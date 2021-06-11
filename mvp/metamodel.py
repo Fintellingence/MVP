@@ -306,7 +306,6 @@ class BaggingModelOptimizer:
             chunck_size=chunk_size,
         )
         tw = time_weights(avg_uni, p=self._min_time_weight)
-        # TODO: Possible error during the weight computation when the first event happens in the first timestamp
         sw = sample_weights(
             occurrences,
             horizon,
