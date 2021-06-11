@@ -159,7 +159,7 @@ class BaggingModelOptimizer:
         )
         self._best_kwargs_model = None
         self._best_kwargs_scaler = {}
-        self._file_log = create_log_file("metamodel", log_dir=self._run_dir)
+        self._meta_file_log = create_log_file("metamodel", log_dir=self._run_dir)
         if self._use_weight:
             if (self._time_weights_fn is None) and (
                 self._samples_weights_fn is None
@@ -415,7 +415,7 @@ class BaggingModelOptimizer:
                 kwargs_scaler,
             )
         )
-        self._file_log.info(summary_outcomes)
+        self._meta_file_log.info(summary_outcomes)
         model, scaler = self.__fit(
             data,
             labels,
@@ -543,7 +543,7 @@ class BaggingModelOptimizer:
                 self._best_kwargs_scaler,
             )
         )
-        self._file_log.info(summary_outcomes)
+        self._meta_file_log.info(summary_outcomes)
         if self._verbose > 0:
             print("\n" + summary_outcomes + "\n")
         return ("Avg_" + metric_names[0], best_metric_value[0])
@@ -644,7 +644,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         self._labels_fn = labels_fn
         self._primary_model_fn = primary_model_fn
         self._refined_data = RefinedData(symbol, db_path, preload=preload)
-        self._file_log = create_log_file("environment", log_dir=run_dir)
+        self._env_file_log = create_log_file("environment", log_dir=run_dir)
         self._best_kwargs_labels = None
         self._best_kwargs_primary = None
         self._best_kwargs_features = None
@@ -723,7 +723,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                 horizon = horizon.loc[mask]
                 sides = sides.loc[mask]
                 labels = labels.loc[mask]
-                self._file_log.warning(
+                self._env_file_log.warning(
                     "{} events were droped due to {} with {}"
                     " starts before the first event".format(
                         (~mask).sum(), get_stat_name, kwargs
@@ -733,12 +733,12 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         stats.append(sides.values)
         data = np.stack(stats, axis=1)
 
-        self._file_log.info(
+        self._env_file_log.info(
             "{} of {} events with label ZERO were droped".format(
                 (~zero_mask).sum(), zero_mask.shape[0]
             )
         )
-        self._file_log.info(
+        self._env_file_log.info(
             "The environment was set with {} prices and {} events"
             " such that {} are labeled as 1 and {} as -1".format(
                 closed.shape[0],
