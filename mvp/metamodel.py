@@ -29,7 +29,6 @@ from mvp.selection import (
 )
 
 
-# TODO: Consider the use of HParams objects insted of dicts
 def save_hp_performance(
     base_dir,
     kwargs_model,
@@ -130,7 +129,7 @@ class BaggingModelOptimizer:
         run_dir,
         scaler_pipeline=None,
         cv_splits_fit=10,
-        cv_splits_hp=3,
+        cv_splits_hp=5,
         use_weight=True,
         num_of_threads=None,
         min_time_weight=0.25,
@@ -246,7 +245,6 @@ class BaggingModelOptimizer:
             sample_weight=train_weight,
             horizon=train_horizon,
         )
-        # TODO: Discuss the way that the prediction is assessed
         predicted_proba = model.predict_proba(x_test)
         predicted = model.predict(x_test)
         for name, (metric_fn, use_weight) in self._metrics.items():
@@ -615,7 +613,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         labels_fn,
         author,
         cv_splits_fit=10,
-        cv_splits_hp=3,
+        cv_splits_hp=5,
         use_weight=True,
         num_of_threads=None,
         scaler_pipeline=None,
