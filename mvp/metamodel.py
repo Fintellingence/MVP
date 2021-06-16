@@ -18,7 +18,6 @@ from sklearn.model_selection import ParameterGrid
 from sklearn.metrics import f1_score, balanced_accuracy_score, precision_score
 
 from mvp.draw import draw_roc_curve
-from mvp.refined_data import RefinedData
 from mvp.selection import (
     count_occurrences,
     avg_uniqueness,
@@ -136,9 +135,9 @@ class BaggingModelOptimizer:
         time_weights_fn=time_weights,
         samples_weights_fn=sample_weights,
         metrics={
-            "Precision": (precision_score, True),
-            "F1": (f1_score, True),
-            "BAcc": (balanced_accuracy_score, True),
+            "Precision": precision_score,
+            "F1": f1_score,
+            "BAcc": balanced_accuracy_score,
         },
         verbose=0,
         seed=12345,
@@ -551,10 +550,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
 
     Parameters
     ----------
-    `symbol` : ``str``
-        The symbol that will be used to collected the data.
-    `db_path` : ``str``
-        The path to the database.
+    `refined_data` : ``RefinedData``
+        A instance of ``RefinedData``.
     `model_fn` : ``callable``
         A callable object that instantiates a baging model.
     `primary_model_fn` : ``callable``
@@ -589,9 +586,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         must be a ``tuple`` with two elements, a ``callabel`` used to apply the metric
         and a ``bool`` to indicate whether the sample weights will be used or not
         to assess the metric.
-
-    `preload` : ``dict``
-        The time series that will be also load (see ``RefinedData``)
     `verbose` : ``int``
         It is either 0 or 1. It 1, some log information will be shown in the terminal.
         Regardless the verbose value, these information is always accessed in log files.
@@ -601,8 +595,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
     """
     def __init__(
         self,
-        symbol,
-        db_path,
+        refined_data,
         model_fn,
         primary_model_fn,
         labels_fn,
@@ -617,11 +610,10 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         samples_weights_fn=sample_weights,
         log_dir="logs",
         metrics={
-            "Precision": (precision_score, True),
-            "F1": (f1_score, True),
-            "BAcc": (balanced_accuracy_score, True),
+            "Precision": precision_score,
+            "F1": f1_score,
+            "BAcc": balanced_accuracy_score,
         },
-        preload={"time": [5, 10, 15, 30, 60, "day"]},
         verbose=0,
         seed=12345,
     ):
@@ -634,11 +626,9 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         filename = module.__file__
         shutil.copyfile(os.path.abspath(filename), os.path.join(run_dir, filename))
         self._author = author
-        self._symbol = symbol
-        self._db_path = db_path
         self._labels_fn = labels_fn
         self._primary_model_fn = primary_model_fn
-        self._refined_data = RefinedData(symbol, db_path, preload=preload)
+        self._refined_data = refined_data
         self._env_file_log = create_log_file("environment", log_dir=run_dir)
         self._best_kwargs_labels = None
         self._best_kwargs_primary = None
