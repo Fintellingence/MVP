@@ -836,7 +836,16 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
     def env_optimize(
         self, hp_model, hp_features, hp_primary, hp_labels, hp_scaler=None
     ):
-        """ Apply the grid search to determine the sub-optimal parameters for features, the primary and the labels generator"""
+        """
+        Apply the grid search to determine the optimal parameters for features,
+        the primary and the labels generator.
+
+        If the use of same features with different parameters is desired, add a suffix
+        to the desired feature key, e.g.,
+            ```
+            dict(MA__window__A=[100], MA__window__A=[10000])
+            ```
+        """
         if hp_scaler is None:
             hp_scaler = {}
         grid_features = ParameterGrid(hp_features)
