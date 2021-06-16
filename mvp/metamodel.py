@@ -185,7 +185,6 @@ class BaggingModelOptimizer:
         kwargs_model,
         closed,
         train_horizon,
-        test_horizon=None,
     ):
         """ Initiate the model and the scaler based on the kwargs, the weights are also initiated"""
         if kwargs_scaler is None:
@@ -196,20 +195,15 @@ class BaggingModelOptimizer:
             scaler = None
         if self._use_weight:
             train_weight = self.get_weight(closed, train_horizon)
-            if test_horizon is not None:
-                test_weight = self.get_weight(closed, test_horizon)
-            else:
-                test_weight = None
         else:
             train_weight = None
-            test_weight = None
         model = self._model_fn(
             n_jobs=self._num_of_threads,
             n_bootstrap_jobs=self._num_of_threads,
             random_state=self._random_state,
             **kwargs_model,
         )
-        return model, scaler, train_weight, test_weight
+        return model, scaler, train_weight
 
     def __partial_fit_eval(
         self,
@@ -220,16 +214,16 @@ class BaggingModelOptimizer:
         horizon,
         np_horizon,
         closed,
+        test_weight,
         kwargs_model,
         kwargs_scaler=None,
     ):
         """ Fit and evaluate the model based on partial configuration"""
-        model, scaler, train_weight, test_weight = self.__set_model(
+        model, scaler, train_weight = self.__set_model(
             kwargs_scaler,
             kwargs_model,
             closed,
             horizon[train_idx],
-            horizon[test_idx],
         )
         outcomes = {}
         x_train, x_test = data[train_idx], data[test_idx]
@@ -247,13 +241,10 @@ class BaggingModelOptimizer:
         )
         predicted_proba = model.predict_proba(x_test)
         predicted = model.predict(x_test)
-        for name, (metric_fn, use_weight) in self._metrics.items():
-            if use_weight:
-                outcomes[name] = metric_fn(
-                    y_test, predicted, sample_weight=test_weight
-                )
-            else:
-                outcomes[name] = metric_fn(y_test, predicted)
+        for name, metric_fn in self._metrics.items():
+            outcomes[name] = metric_fn(
+                y_test, predicted, sample_weight=test_weight
+            )
         return outcomes, predicted, horizon.index[test_idx], predicted_proba
 
     def __fit(
@@ -320,6 +311,7 @@ class BaggingModelOptimizer:
         labels,
         closed,
         horizon,
+        weights,
         kwargs_model=None,
         kwargs_scaler=None,
         s_features=None,
@@ -366,6 +358,7 @@ class BaggingModelOptimizer:
                 horizon,
                 np_horizon,
                 closed,
+                weights[test_idx],
                 kwargs_model,
                 kwargs_scaler,
             )
@@ -436,6 +429,7 @@ class BaggingModelOptimizer:
         labels,
         horizon,
         closed,
+        weights,
         hp_model,
         hp_scaler=None,
         s_features=None,
@@ -490,6 +484,7 @@ class BaggingModelOptimizer:
                         horizon,
                         np_horizon,
                         closed,
+                        weights[test_idx],
                         kwargs_model,
                         kwargs_scaler,
                     )
@@ -676,7 +671,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         self, kwargs_features, kwargs_primary, kwargs_labels, approach=1
     ):
         """ Set the finance environment"""
-        steps = ["[Labels]"]
+        steps = ["[Labels]", "[Weights for Test]"]
         for feature_name in kwargs_features.keys():
             steps.append("[" + feature_name + "]")
         bar = tqdm(
@@ -687,7 +682,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         )
         steps = iter(steps)
 
-        # TODO: Implement a way to process different parameter (volume, frac diff) and a better way to access the raw data
         closed = self._refined_data.df.Close
         primary_model = self._primary_model_fn(
             self._refined_data, **kwargs_primary
@@ -706,6 +700,11 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         sides = label_data.Side.copy()
         labels = label_data.Label.copy()
         labels.replace(-1, 0, inplace=True)
+
+        bar.update()
+        bar.set_description("Setting Environment {}".format(next(steps)))
+
+        weights = self.get_weight(self, closed, horizon)
 
         stats = []
         event_index = horizon.index
@@ -748,7 +747,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             )
         )
         bar.close()
-        return horizon, closed, data, labels.values
+        return horizon, closed, data, labels.values, weights
 
     def __parser_features(self, kwargs_features):
         summary = {}
@@ -827,7 +826,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             kwargs_labels = self._best_kwargs_labels.copy()
             s_labels = self._best_s_labels
 
-        horizon, closed, data, labels = self.__set_env(
+        horizon, closed, data, labels, weights = self.__set_env(
             kwargs_features, kwargs_primary, kwargs_labels
         )
         model, scaler, cv_predictions, metrics = self.cv_fit(
@@ -835,6 +834,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             labels,
             closed,
             horizon,
+            weights,
             kwargs_model,
             kwargs_scaler,
             s_features,
@@ -882,7 +882,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                     kwargs_labels, _ = self.__parser_labels(
                         s_labels
                     )
-                    horizon, closed, data, labels = self.__set_env(
+                    horizon, closed, data, labels, weights = self.__set_env(
                         kwargs_features, kwargs_primary, kwargs_labels
                     )
                     out_metric = self.hp_meta_optimize(
@@ -890,6 +890,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                         labels,
                         horizon,
                         closed,
+                        weights,
                         hp_model,
                         hp_scaler,
                         s_features,
