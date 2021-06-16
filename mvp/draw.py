@@ -210,11 +210,21 @@ def plot_bollinger(model, labels, linewidth=1.0, point_size= 15):
     return None
 
 
-def plot_crossing_MA(model, labels, linewidth=1.0, point_size = 15):
-    MA_name1 = "MA_" + str(model.features["MA"][0])
-    MA_name2 = "MA_" + str(model.features["MA"][1])
-    plot_data = model.feature_data.copy()
-    plot_data = pd.concat([plot_data, labels], axis=1).copy()
+def plot_crossing_ma(refined_obj, primary_data, op_params, kwargs = {}, linewidth=1.0, point_size = 15):
+    primary_data.values()
+    slow_window = max(primary_data.values())
+    fast_window = min(primary_data.values())
+    slow_ma = refined_obj.get_sma(slow_window, **kwargs)
+    fast_ma = refined_obj.get_sma(fast_window, **kwargs)
+    MA_fast = "MA_" + str(fast_window)
+    MA_slow = "MA_" + str(slow_window)
+    events = mvp.primary.crossing_ma(refined_obj, **primary_data, kwargs = kwargs)
+    close_data = refined_obj.get_close(**kwargs)
+    if 'step' in kwargs.keys():
+        labels = mvp.labels.event_label_series(events, refined_obj.time_bars(step=kwargs['step']) ,**op_params)
+    else:
+        labels = mvp.labels.event_label_series(events, refined_obj.df ,**op_params)
+    plot_data = pd.concat([close_data.to_frame(), labels, fast_ma.to_frame(name=MA_fast), slow_ma.to_frame(name=MA_slow)], axis=1).copy()
     buy_profit = plot_data[
         (plot_data["Side"] == 1) & (plot_data["Label"] == 1)
     ][["Close"]]
@@ -250,12 +260,12 @@ def plot_crossing_MA(model, labels, linewidth=1.0, point_size = 15):
             sell_neutral.index, sell_neutral["Close"], c="navy", marker="o", s=point_size
         )
         ax.plot(plot_data.index,plot_data.Close, c='black',linewidth = linewidth*0.8)
-        ax.plot(plot_data.index,plot_data[MA_name1].values,c='tab:blue',alpha=0.7,label= MA_name1)
-        ax.plot(plot_data.index,plot_data[MA_name2].values,c='tab:cyan',alpha=0.7,label = MA_name2)
+        ax.plot(plot_data.index,plot_data[MA_fast].values,c='tab:blue',alpha=0.7,label= MA_fast)
+        ax.plot(plot_data.index,plot_data[MA_slow].values,c='tab:cyan',alpha=0.7,label = MA_slow)
         ax.set_xlabel('DateTime')
         ax.set_ylabel('Price')
         ax.legend()
-        plt.title('Crossing-MA ('+model.symbol+')')
+        plt.title('Crossing-MA ('+refined_obj.symbol+')')
         plt.show()
     return None
 
@@ -306,7 +316,7 @@ def plot_classical_filter(model, labels, linewidth=1.0, point_size = 15):
     return None
 
 
-def plot_model(strategy, events, label_data, close_data, linewidth=0.8, point_size = 15):
+def plot_model(refined_obj, primary_params, op_params, kwargs, linewidth=0.8, point_size = 15):
     """
     Displays the target (usually Close) time-series along with the indicators
     used by the primary models to generate triggers, also highlights Buy/Sell
