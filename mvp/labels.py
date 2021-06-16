@@ -1,8 +1,8 @@
 """ Result labeling of primary strategies
 
-This is a complement module to mvp.primary which consume information
+This is a complement module to mvp.primary which consumes information
 from trade triggers to label the result of the operation considering
-thresholds to constrain the profit, loss and maximum period
+thresholds to constrain the profit, loss and maximum investing time. 
 
 Functions
 ---------
@@ -120,7 +120,7 @@ def event_label(side, minute1_data, sl, tp, ih, ih_type="bars"):
         A chunk of dataframe from `RefinedData.df` or `RawData.df`
         attribute which must start at specific datetime the `side`
         trigger occurred, that is, `minute1_data.index[0]` must be
-        the trigger instant
+        the trigger instant p
     `sl` : ``float``
         stop loss of the positioning in percent value (4 means 4%)
     `tp` : ``float``
