@@ -111,23 +111,25 @@ def plot_time_candles(raw_data, start, stop, time_step=1):
     ax[0].tick_params(axis="both", which="major", direction="in")
     plt.show()
 
-def plot_symbol(refined_data, time_step = 1):
+
+def plot_symbol(refined_data, time_step=1):
     """
     Basic Auxiliar function to plot symbols via refined_data.RefinedData()
     objects.
     """
-    data = refined_data.change_sample_interval(step = time_step)
+    data = refined_data.change_sample_interval(step=time_step)
     fig, ax = plt.subplots()
-    with sns.axes_style('darkgrid'):
-        ax.plot(data.index,data.Close,label='Close Price')
-        ax.set_xlabel('DateTime')
-        ax.set_ylabel('Close Price')
-    with sns.axes_style('dark'):
+    with sns.axes_style("darkgrid"):
+        ax.plot(data.index, data.Close, label="Close Price")
+        ax.set_xlabel("DateTime")
+        ax.set_ylabel("Close Price")
+    with sns.axes_style("dark"):
         ax2 = ax.twinx()
-        ax2.plot(data.index,data.Volume,c='r',alpha = 0.35,label = 'Volume')
-        ax2.set_ylabel('Volume')
+        ax2.plot(data.index, data.Volume, c="r", alpha=0.35, label="Volume")
+        ax2.set_ylabel("Volume")
     plt.title(refined_data.symbol)
     plt.show()
+
 
 def plot_two_series(series_a, series_b):
     fig, ax1 = plt.subplots()
@@ -147,17 +149,24 @@ def plot_two_series(series_a, series_b):
     plt.show()
     return None
 
+
 def plot_equity(book, linewidth=0.8):
-    with sns.axes_style('darkgrid'):
+    with sns.axes_style("darkgrid"):
         fig, ax = plt.subplots()
-        ax.plot(book.index, book['EquityCurve'].values,c = 'royalblue', linewidth = linewidth )
-        ax.set_xlabel('Trades')
-        ax.set_ylabel('Equity %')
-        plt.title('Equity curve')
+        ax.plot(
+            book.index,
+            book["EquityCurve"].values,
+            c="royalblue",
+            linewidth=linewidth,
+        )
+        ax.set_xlabel("Trades")
+        ax.set_ylabel("Equity %")
+        plt.title("Equity curve")
         plt.show()
     pass
 
-def plot_bollinger(model, labels, linewidth=1.0, point_size= 15):
+
+def plot_bollinger(model, labels, linewidth=1.0, point_size=15):
     MA_name = "MA_" + str(model.features["MA"])
     DEV_name = "DEV_" + str(model.features["DEV"])
     K_value = model.features["K_value"]
@@ -172,7 +181,7 @@ def plot_bollinger(model, labels, linewidth=1.0, point_size= 15):
         (plot_data["Side"] == 1) & (plot_data["Label"] == -1)
     ][["Close"]]
     buy_neutral = plot_data[
-            (plot_data["Side"] == 1) & (plot_data["Label"] == 0)
+        (plot_data["Side"] == 1) & (plot_data["Label"] == 0)
     ][["Close"]]
     sell_profit = plot_data[
         (plot_data["Side"] == -1) & (plot_data["Label"] == 1)
@@ -183,36 +192,205 @@ def plot_bollinger(model, labels, linewidth=1.0, point_size= 15):
     sell_neutral = plot_data[
         (plot_data["Side"] == -1) & (plot_data["Label"] == 0)
     ][["Close"]]
-    with sns.axes_style('darkgrid'):
+    with sns.axes_style("darkgrid"):
         fig, ax = plt.subplots()
         ax.scatter(
-            buy_profit.index, buy_profit.Close, c="limegreen", marker="o", s= point_size
+            buy_profit.index,
+            buy_profit.Close,
+            c="limegreen",
+            marker="o",
+            s=point_size,
         )
-        ax.scatter(buy_loss.index, buy_loss["Close"], c="orangered", marker="o", s=point_size)
         ax.scatter(
-            buy_neutral.index, buy_neutral["Close"], c="navy", marker="o", s= point_size
+            buy_loss.index,
+            buy_loss["Close"],
+            c="orangered",
+            marker="o",
+            s=point_size,
         )
         ax.scatter(
-            sell_profit.index, sell_profit["Close"], c="limegreen", marker="o", s=point_size
+            buy_neutral.index,
+            buy_neutral["Close"],
+            c="navy",
+            marker="o",
+            s=point_size,
         )
-        ax.scatter(sell_loss.index, sell_loss["Close"], c="orangered", marker="o", s=point_size)
         ax.scatter(
-            sell_neutral.index, sell_neutral["Close"], c="navy", marker="o", s=point_size
+            sell_profit.index,
+            sell_profit["Close"],
+            c="limegreen",
+            marker="o",
+            s=point_size,
         )
-        ax.plot(plot_data.index,plot_data.Close, c='black',linewidth = linewidth*0.8)
-        ax.plot(plot_data.index,plot_data['UpBand'].values,c='tab:blue',alpha=0.7,label= 'UpBand: '+MA_name+'+'+str(K_value)+'$\sigma$')
-        ax.plot(plot_data.index,plot_data['DownBand'].values,c='tab:cyan',alpha=0.7,label = 'DownBand: '+MA_name+'-'+str(K_value)+'$\sigma$')
-        ax.set_xlabel('DateTime')
-        ax.set_ylabel('Price')
+        ax.scatter(
+            sell_loss.index,
+            sell_loss["Close"],
+            c="orangered",
+            marker="o",
+            s=point_size,
+        )
+        ax.scatter(
+            sell_neutral.index,
+            sell_neutral["Close"],
+            c="navy",
+            marker="o",
+            s=point_size,
+        )
+        ax.plot(
+            plot_data.index,
+            plot_data.Close,
+            c="black",
+            linewidth=linewidth * 0.8,
+        )
+        ax.plot(
+            plot_data.index,
+            plot_data["UpBand"].values,
+            c="tab:blue",
+            alpha=0.7,
+            label="UpBand: " + MA_name + "+" + str(K_value) + "$\sigma$",
+        )
+        ax.plot(
+            plot_data.index,
+            plot_data["DownBand"].values,
+            c="tab:cyan",
+            alpha=0.7,
+            label="DownBand: " + MA_name + "-" + str(K_value) + "$\sigma$",
+        )
+        ax.set_xlabel("DateTime")
+        ax.set_ylabel("Price")
         ax.legend()
-        plt.title('Bollinger Bands ('+model.symbol+')')
+        plt.title("Bollinger Bands (" + model.symbol + ")")
         plt.show()
     return None
 
 
-def plot_crossing_MA(model, labels, linewidth=1.0, point_size = 15):
-    MA_name1 = "MA_" + str(model.features["MA"][0])
-    MA_name2 = "MA_" + str(model.features["MA"][1])
+def plot_crossing_ma(
+    refined_obj,
+    primary_data,
+    op_params,
+    kwargs={},
+    linewidth=1.0,
+    point_size=15,
+):
+    primary_data.values()
+    slow_window = max(primary_data.values())
+    fast_window = min(primary_data.values())
+    slow_ma = refined_obj.get_sma(slow_window, **kwargs)
+    fast_ma = refined_obj.get_sma(fast_window, **kwargs)
+    MA_fast = "MA_" + str(fast_window)
+    MA_slow = "MA_" + str(slow_window)
+    events = mvp.primary.crossing_ma(
+        refined_obj, **primary_data, kwargs=kwargs
+    )
+    close_data = refined_obj.get_close(**kwargs)
+    if "step" in kwargs.keys():
+        labels = mvp.labels.event_label_series(
+            events, refined_obj.time_bars(step=kwargs["step"]), **op_params
+        )
+    else:
+        labels = mvp.labels.event_label_series(
+            events, refined_obj.df, **op_params
+        )
+    plot_data = pd.concat(
+        [
+            close_data.to_frame(),
+            labels,
+            fast_ma.to_frame(name=MA_fast),
+            slow_ma.to_frame(name=MA_slow),
+        ],
+        axis=1,
+    ).copy()
+    buy_profit = plot_data[
+        (plot_data["Side"] == 1) & (plot_data["Label"] == 1)
+    ][["Close"]]
+    buy_loss = plot_data[
+        (plot_data["Side"] == 1) & (plot_data["Label"] == -1)
+    ][["Close"]]
+    buy_neutral = plot_data[
+        (plot_data["Side"] == 1) & (plot_data["Label"] == 0)
+    ][["Close"]]
+    sell_profit = plot_data[
+        (plot_data["Side"] == -1) & (plot_data["Label"] == 1)
+    ][["Close"]]
+    sell_loss = plot_data[
+        (plot_data["Side"] == -1) & (plot_data["Label"] == -1)
+    ][["Close"]]
+    sell_neutral = plot_data[
+        (plot_data["Side"] == -1) & (plot_data["Label"] == 0)
+    ][["Close"]]
+    with sns.axes_style("darkgrid"):
+        fig, ax = plt.subplots()
+        ax.scatter(
+            buy_profit.index,
+            buy_profit.Close,
+            c="limegreen",
+            marker="o",
+            s=point_size,
+        )
+        ax.scatter(
+            buy_loss.index,
+            buy_loss["Close"],
+            c="orangered",
+            marker="o",
+            s=point_size,
+        )
+        ax.scatter(
+            buy_neutral.index,
+            buy_neutral["Close"],
+            c="navy",
+            marker="o",
+            s=point_size,
+        )
+        ax.scatter(
+            sell_profit.index,
+            sell_profit["Close"],
+            c="limegreen",
+            marker="o",
+            s=point_size,
+        )
+        ax.scatter(
+            sell_loss.index,
+            sell_loss["Close"],
+            c="orangered",
+            marker="o",
+            s=point_size,
+        )
+        ax.scatter(
+            sell_neutral.index,
+            sell_neutral["Close"],
+            c="navy",
+            marker="o",
+            s=point_size,
+        )
+        ax.plot(
+            plot_data.index,
+            plot_data.Close,
+            c="black",
+            linewidth=linewidth * 0.8,
+        )
+        ax.plot(
+            plot_data.index,
+            plot_data[MA_fast].values,
+            c="tab:blue",
+            alpha=0.7,
+            label=MA_fast,
+        )
+        ax.plot(
+            plot_data.index,
+            plot_data[MA_slow].values,
+            c="tab:cyan",
+            alpha=0.7,
+            label=MA_slow,
+        )
+        ax.set_xlabel("DateTime")
+        ax.set_ylabel("Price")
+        ax.legend()
+        plt.title("Crossing-MA (" + refined_obj.symbol + ")")
+        plt.show()
+    return None
+
+
+def plot_classical_filter(model, labels, linewidth=1.0, point_size=15):
     plot_data = model.feature_data.copy()
     plot_data = pd.concat([plot_data, labels], axis=1).copy()
     buy_profit = plot_data[
@@ -233,80 +411,73 @@ def plot_crossing_MA(model, labels, linewidth=1.0, point_size = 15):
     sell_neutral = plot_data[
         (plot_data["Side"] == -1) & (plot_data["Label"] == 0)
     ][["Close"]]
-    with sns.axes_style('darkgrid'):
+    with sns.axes_style("darkgrid"):
         fig, ax = plt.subplots()
         ax.scatter(
-            buy_profit.index, buy_profit.Close, c="limegreen", marker="o", s= point_size
+            buy_profit.index,
+            buy_profit.Close,
+            c="limegreen",
+            marker="o",
+            s=point_size,
         )
-        ax.scatter(buy_loss.index, buy_loss["Close"], c="orangered", marker="o", s=point_size)
         ax.scatter(
-            buy_neutral.index, buy_neutral["Close"], c="navy", marker="o", s= point_size
+            buy_loss.index,
+            buy_loss["Close"],
+            c="orangered",
+            marker="o",
+            s=point_size,
         )
         ax.scatter(
-            sell_profit.index, sell_profit["Close"], c="limegreen", marker="o", s=point_size
+            buy_neutral.index,
+            buy_neutral["Close"],
+            c="navy",
+            marker="o",
+            s=point_size,
         )
-        ax.scatter(sell_loss.index, sell_loss["Close"], c="orangered", marker="o", s=point_size)
         ax.scatter(
-            sell_neutral.index, sell_neutral["Close"], c="navy", marker="o", s=point_size
+            sell_profit.index,
+            sell_profit["Close"],
+            c="limegreen",
+            marker="o",
+            s=point_size,
         )
-        ax.plot(plot_data.index,plot_data.Close, c='black',linewidth = linewidth*0.8)
-        ax.plot(plot_data.index,plot_data[MA_name1].values,c='tab:blue',alpha=0.7,label= MA_name1)
-        ax.plot(plot_data.index,plot_data[MA_name2].values,c='tab:cyan',alpha=0.7,label = MA_name2)
-        ax.set_xlabel('DateTime')
-        ax.set_ylabel('Price')
+        ax.scatter(
+            sell_loss.index,
+            sell_loss["Close"],
+            c="orangered",
+            marker="o",
+            s=point_size,
+        )
+        ax.scatter(
+            sell_neutral.index,
+            sell_neutral["Close"],
+            c="navy",
+            marker="o",
+            s=point_size,
+        )
+        ax.plot(
+            plot_data.index,
+            plot_data.Close,
+            c="black",
+            linewidth=linewidth * 0.8,
+            label="CUSUM th: " + str(model.features["threshold"]),
+        )
+        ax.set_xlabel("DateTime")
+        ax.set_ylabel("Price")
         ax.legend()
-        plt.title('Crossing-MA ('+model.symbol+')')
+        plt.title("Classical-Filter (" + model.symbol + ")")
         plt.show()
     return None
 
 
-def plot_classical_filter(model, labels, linewidth=1.0, point_size = 15):
-    plot_data = model.feature_data.copy()
-    plot_data = pd.concat([plot_data, labels], axis=1).copy()
-    buy_profit = plot_data[
-        (plot_data["Side"] == 1) & (plot_data["Label"] == 1)
-    ][["Close"]]
-    buy_loss = plot_data[
-        (plot_data["Side"] == 1) & (plot_data["Label"] == -1)
-    ][["Close"]]
-    buy_neutral = plot_data[
-        (plot_data["Side"] == 1) & (plot_data["Label"] == 0)
-    ][["Close"]]
-    sell_profit = plot_data[
-        (plot_data["Side"] == -1) & (plot_data["Label"] == 1)
-    ][["Close"]]
-    sell_loss = plot_data[
-        (plot_data["Side"] == -1) & (plot_data["Label"] == -1)
-    ][["Close"]]
-    sell_neutral = plot_data[
-        (plot_data["Side"] == -1) & (plot_data["Label"] == 0)
-    ][["Close"]]
-    with sns.axes_style('darkgrid'):
-        fig, ax = plt.subplots()
-        ax.scatter(
-            buy_profit.index, buy_profit.Close, c="limegreen", marker="o", s= point_size
-        )
-        ax.scatter(buy_loss.index, buy_loss["Close"], c="orangered", marker="o", s=point_size)
-        ax.scatter(
-            buy_neutral.index, buy_neutral["Close"], c="navy", marker="o", s= point_size
-        )
-        ax.scatter(
-            sell_profit.index, sell_profit["Close"], c="limegreen", marker="o", s=point_size
-        )
-        ax.scatter(sell_loss.index, sell_loss["Close"], c="orangered", marker="o", s=point_size)
-        ax.scatter(
-            sell_neutral.index, sell_neutral["Close"], c="navy", marker="o", s=point_size
-        )
-        ax.plot(plot_data.index,plot_data.Close, c='black',linewidth = linewidth*0.8, label='CUSUM th: '+str(model.features['threshold']))
-        ax.set_xlabel('DateTime')
-        ax.set_ylabel('Price')
-        ax.legend()
-        plt.title('Classical-Filter ('+model.symbol+')')
-        plt.show()
-    return None
-
-
-def plot_model(model, operation_parameters,event_filter=None , linewidth=0.8, point_size = 15):
+def plot_model(
+    refined_obj,
+    primary_params,
+    op_params,
+    kwargs,
+    linewidth=0.8,
+    point_size=15,
+):
     """
     Displays the target (usually Close) time-series along with the indicators
     used by the primary models to generate triggers, also highlights Buy/Sell
@@ -317,7 +488,7 @@ def plot_model(model, operation_parameters,event_filter=None , linewidth=0.8, po
         `model` : ``mvp.primary.PrimaryModel``
             provides all data for plotting signals and indicators
         `operation_parameters`: ``dict``
-            Inside `OperationParameters` key we have to provide another dict 
+            Inside `OperationParameters` key we have to provide another dict
             containing three values:
              - StopLoss (SL)
              - TakeProfit (TP)
@@ -333,16 +504,11 @@ def plot_model(model, operation_parameters,event_filter=None , linewidth=0.8, po
         `point_size`: ``float``
             specifies point size parameter for scatter plots (events)
     """
-    close_data = model.feature_data['Close']
-    if event_filter is not None:
-        filtered_dates = event_filter[event_filter>0].index
-        filtered_events = model.events.loc[filtered_dates]
-        label_data = mvp.labels.Labels(filtered_events, close_data, operation_parameters).label_data
-    else:
-        label_data = mvp.labels.Labels(model.events, close_data, operation_parameters).label_data
-    if model.strategy == "bollinger-bands":
-        plot_bollinger(model, label_data, linewidth, point_size)
-    if model.strategy == "crossing-MA":
-        plot_crossing_MA(model, label_data, linewidth, point_size)
-    if model.strategy == "classical-filter":
-        plot_classical_filter(model, label_data, linewidth, point_size)
+    if strategy == "bollinger-bands":
+        plot_bollinger(events, label_data, close_data, linewidth, point_size)
+    if strategy == "crossing-MA":
+        plot_crossing_MA(events, label_data, close_data, linewidth, point_size)
+    if strategy == "classical-filter":
+        plot_classical_filter(
+            events, label_data, close_data, linewidth, point_size
+        )

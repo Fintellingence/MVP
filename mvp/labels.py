@@ -1,140 +1,251 @@
+""" Result labeling of primary strategies
+
+This is a complement module to mvp.primary which consumes information
+from trade triggers to label the result of the operation considering
+thresholds to constrain the profit, loss and maximum investing time. 
+
+Functions
+---------
+
+``horizon_trading_range(
+    minute1_data -> pandas.DataFrame,
+    ih-> object,
+    ih_type -> str
+)``
+
+``event_label(
+    side -> int,
+    minute1_data -> pandas.DataFrame,
+    sl -> float,
+    tp -> float,
+    ih -> object,
+    ih_type -> str
+)``
+
+``continuous_event_label(
+    side -> int,
+    minute1_data -> pandas.DataFrame,
+    sl -> float,
+    tp -> float,
+    ih -> object,
+    ih_type -> str
+)``
+
+``event_label_series(
+    side_series -> pandas.Series,
+    minute1_data -> pandas.DataFrame,
+    sl -> float,
+    tp -> float,
+    ih -> object,
+    ih_type -> str,
+    label_type -> str
+)``
+
+"""
 import pandas as pd
-import mvp
-import numpy as np
-import datetime as dt
+from mvp.utils import smallest_cusum_i
 
 
-class Labels:
+def horizon_trading_range(minute1_data, ih, ih_type):
     """
-    This class is defined to label trading events based on the Triple-Barrier Method,
-    in order to be able to label the event triggers (`events`) the user should also
-    provide the operation parameters. Given the labels, one could feed it to the meta-
-    learning model with an enhanced feature space by freely utilizing the methods of
-    the `RefinedData` object in the `primary.PrimaryModel.feature_data` attribute.
+    Compute and return dataframe chunk corresponding to investiment horizon
+    Accept some different types for investiment horizon definition as below
+    The investiment horizon returned is ALWAYS with respect to the input
+    dataframe starting point, note that this function does not require a
+    starting datetime or index to slice `minute1_data`, as such consider
+    the starting point as the same of `minute1_data`
 
     Parameters
     ----------
-    `events` : ``pandas.DataFrame()``
-        A pandas Dataframe containing three columns:
-        - 'DateTime' is the index
-        - 'Side' is the Side of the operation (Buy = 1, Sell = -1)
-    `close_data`: ``pandas.DataFrame()``
-        A pandas Dataframe containing a single column:
-        - 'DateTime' is the index
-        - 'Close' is the Close price for the raw series
-    `operation_parameters`: ``dict``
-        Inside `OperationParameters` key we have to provide another dict containing three values:
-            - StopLoss (SL)
-            - TakeProfit (TP)
-            - InvestmentHorizon (IH)
-            - MarginMode (margin_mode)
-        These values should be provided like the following:
-            {'SL': 0.01, 'TP': 0.01, 'IH': 1000,'margin_mode':'percent'}}
-    Usage
-    -----
-    The class should be initialized with an event dataframe from
-    `primary.PrimaryModel.events`, a dict containing operation parameters (SL,TP,IH,MarginMode),
-    and a mode of labeling. The main output of this class is stored in the `labels.Labels.label_data`
-    attribute.
+    `minute1_data` : ``pandas.Dataframe``
+        dataframe with Timestamp indexes and full bar data
+        with open-high-low-close prices and volume as well
+        See ``RawData.df`` attribute to consult columns
+        `minute1_data.index[0]` is the start of horizon
+    `ih` : ``pandas.Timedelta/pandas.Timestamp/int``
+        investiment horizon
+    `ih_type` : ``str``
+        string code of type of investment horizon. Accept the following
+        1. "bars"       - the number of sequential bars
+        2. "Volume"     - IH in volume traded
+        3. "TickVol"    - IH in deals occurred
+        4. "money"      - IH in money traded
+        This value is ignored if `ih` is not integer
+
+    Return
+    ------
+    ``pandas.DataFrame``
+        chunk of the initial dataframe corresponding to the invest horizon
+
     """
-
-    def __init__(
-        self,
-        events,
-        close_data,
-        operation_parameters,
-    ):
-        self.events = events.reset_index()
-        self.close_data = close_data.reset_index()
-        self.operation_parameters = operation_parameters
-        self.label_data = self.get_label_data()
-
-    def horizon_reduced_dataframe(self, close_df, event_datetime, IH):
-        entry_point = close_df[close_df["DateTime"] == event_datetime].index[0]
-        reduced_df = close_df.iloc[
-            entry_point : entry_point + IH
-        ].reset_index()
-        return reduced_df.drop(columns=["index"]).copy()
-
-    def barriers(self, event_side, entry_value, SL, TP, margin_mode):
-        if margin_mode == "pips":
-            if event_side == 1:
-                return entry_value + TP, entry_value - SL
-            if event_side == -1:
-                return entry_value + SL, entry_value - TP
-        if margin_mode == "percent":
-            if event_side == 1:
-                return entry_value * (1 + TP / 100), entry_value * (
-                    1 - SL / 100
-                )
-            if event_side == -1:
-                return entry_value * (1 + SL / 100), entry_value * (
-                    1 - TP / 100
-                )
-
-    def barrier_break(self, horizon_data, upBarrier, downBarrier):
-        upBreak, downBreak = None, None
-        if not horizon_data[horizon_data["Close"] >= upBarrier].empty:
-            upBreak = horizon_data[horizon_data["Close"] >= upBarrier].iloc[0]
-        if not horizon_data[horizon_data["Close"] <= downBarrier].empty:
-            downBreak = horizon_data[
-                horizon_data["Close"] <= downBarrier
-            ].iloc[0]
-        if upBreak is None and downBreak is None:
-            return horizon_data.iloc[-1], "no_break"
-        if upBreak is None and downBreak is not None:
-            return downBreak, "down_break"
-        if upBreak is not None and downBreak is None:
-            return upBreak, "up_break"
-        if upBreak.DateTime < downBreak.DateTime:
-            return upBreak, "up_break"
-        if downBreak.DateTime < upBreak.DateTime:
-            return downBreak, "down_break"
-
-    def label(self, break_direction, event_side):
-        if break_direction == "no_break":
-            return 0
-        if event_side == 1:
-            if break_direction == "up_break":
-                return 1
-            if break_direction == "down_break":
-                return -1
-        if event_side == -1:
-            if break_direction == "up_break":
-                return -1
-            if break_direction == "down_break":
-                return 1
-
-    def get_label_data(self):
-        labeled_events = [["DateTime", "Side", "Label", "PositionEnd"]]
-        for i in range(0, len(self.events.index)):
-            event = self.events.iloc[i]
-            horizon_data = self.horizon_reduced_dataframe(
-                self.close_data,
-                event.DateTime,
-                self.operation_parameters["IH"],
+    init = minute1_data.index[0]
+    if ih is None:
+        ih_index = minute1_data.index.size
+    elif isinstance(ih, pd.Timestamp):
+        if ih <= minute1_data.index[0]:
+            raise ValueError(
+                "Invalid datetime {} for invest horizon".format(ih)
             )
-            upBarrier, downBarrier = self.barriers(
-                event.Side,
-                horizon_data.iloc[0]["Close"],
-                self.operation_parameters["SL"],
-                self.operation_parameters["TP"],
-                self.operation_parameters["margin_mode"],
-            )
-            break_event, break_direction = self.barrier_break(
-                horizon_data, upBarrier, downBarrier
-            )
-            event_label = self.label(break_direction, event.Side)
-            if break_event is not None:
-                labeled_events.append(
-                    [
-                        event.DateTime,
-                        event.Side,
-                        event_label,
-                        break_event.DateTime,
-                    ]
-                )
-        headers = labeled_events.pop(0)
-        return pd.DataFrame(labeled_events, columns=headers).set_index(
-            "DateTime"
+        if ih > minute1_data.index[-1]:
+            ih_index = minute1_data.index.size
+        else:
+            ih_index = 1 + minute1_data.index.get_loc(ih, method="backfill")
+    elif isinstance(ih, pd.Timedelta):
+        ih_index = 1 + minute1_data.index.get_loc(init + ih, method="backfill")
+    elif ih_type == "bars":
+        ih_index = ih
+    else:
+        if ih_type == "Volume" or ih_type == "TickVol":
+            horizon_vals = minute1_data[ih_type].values
+        elif ih_type.lower() == "money":
+            horizon_vals = (minute1_data.Volume * minute1_data.Close).values
+        ih_index = smallest_cusum_i(
+            horizon_vals.size, horizon_vals.astype("int32"), ih
         )
+    return minute1_data.iloc[:ih_index]
+
+
+def event_label(side, minute1_data, sl, tp, ih, ih_type="bars"):
+    """
+    Label of trade positioning given the respective operation side
+    To label trades, thresholds to abort the initial operation are
+    required, also known as barriers of take profit(tp), stop loss
+    (sl) and investiment horizon(ih)
+
+    Parameters
+    ----------
+    `side` : ``int``
+        binary info with buy(+1) or sell(-1) information
+    `minute1_data` : ``pandas.DataFrame``
+        A chunk of dataframe from `RefinedData.df` or `RawData.df`
+        attribute which must start at specific datetime the `side`
+        trigger occurred, that is, `minute1_data.index[0]` must be
+        the trigger instant p
+    `sl` : ``float``
+        stop loss of the positioning in percent value (4 means 4%)
+    `tp` : ``float``
+        take profit to close the positioning in percent value
+    `ih` : ``pandas.Timedelta/pandas.Timestamp/int``
+        investiment horizon
+    `ih_type` : ``str``
+        string code of type of investment horizon. Accept the following
+        1. "bars"       - the number of sequential bars
+        2. "Volume"     - IH in volume traded
+        3. "TickVol"    - IH in deals occurred
+        4. "money"      - IH in money traded
+        This value is ignored if `ih` is not integer
+
+    Return
+    ------
+    ``tuple (pandas.Timestamp, int)``
+        tuple with the smallest datetime prices touch one of the barriers
+        and the result (which barrier was hit first)
+        +1 profit
+         0 investment horizon hit before stop loss or take profit
+        -1 loss
+    """
+    hor_data = horizon_trading_range(minute1_data, ih, ih_type)
+    start_price = hor_data.Close[0]
+    percent_var = side * (hor_data.Close / start_price - 1) * 100
+    stop_event = hor_data.index[-1]
+    result = 0
+    if sl is not None:
+        loss_region = percent_var.index[percent_var <= -sl]
+        if not loss_region.empty:
+            result = -1
+            stop_event = loss_region[0]
+    if tp is not None:
+        profit_region = percent_var.index[percent_var >= tp]
+        if not profit_region.empty and profit_region[0] < stop_event:
+            result = 1
+            stop_event = profit_region[0]
+    return stop_event, result
+
+
+def continuous_event_label(side, minute1_data, sl, tp, ih, ih_type="bars"):
+    """
+    A continuous version of the label method of `event_label` function
+    The difference is only when hit investiment horizon barrier and in
+    which case return the relative percent price variation from the
+    initial value normalized by `tp` or `sl` if some profit or loss
+    occurred respectively
+    """
+    stop_event, result = event_label(side, minute1_data, sl, tp, ih, ih_type)
+    if result != 0:
+        return stop_event, result
+    percent_var = (
+        side
+        * (minute1_data.Close[stop_event] / minute1_data.Close[0] - 1)
+        * 100
+    )
+    if percent_var < 0:
+        result = percent_var / sl
+    else:
+        result = percent_var / tp
+    return stop_event, result
+
+
+def event_label_series(
+    side_series,
+    minute1_data,
+    sl,
+    tp,
+    ih,
+    ih_type="bars",
+    label_type="discrete",
+):
+    """
+    Label a series of requested side-trading events from primary models
+
+    Parameters
+    ----------
+    `side_series` : ``pandas.Series``
+        Series indexed by timestamps with the advisable positioning side
+        with +1 indicating buy and -1 sell
+    `minute1_data` : ``pandas.DataFrame``
+        The core minute 1 time frame market data either from `RefinedData.df`
+        or `RawData.df` attribute. A 1-minute data is always preferable since
+        provide better accuracy to label the result as the prices touch some
+        barrier from stopp loss or take profit
+    `sl` : ``float``
+        stop loss of the positioning in percent value (4 means 4%)
+    `tp` : ``float``
+        take profit to close the positioning in percent value
+    `ih` : ``pandas.Timedelta/int``
+        investiment horizon. If integer check `ih_type`
+    `ih_type` : ``str``
+        string code of type of investment horizon. Accept the following
+        1. "bars"       - the number of sequential bars
+        2. "Volume"     - IH in volume traded
+        3. "TickVol"    - IH in deals occurred
+        4. "money"      - IH in money traded
+        This value is ignored if `ih` is not integer
+    `label_type` : ``str``
+        Accept only two values with the labeling type
+        1. "continuous" - if hit the invest horizon barrier return float
+        2. "discrete"   - usual {+1,0,-1} for {tp,ih,sl} events
+
+    Return
+    ------
+    ``pandas.DataFrame``
+        A dataframe with the same indexes of `side_series` and the columns
+        `["Side", "Label", "PositionEnd"]`
+    """
+    triggers = side_series.index
+    sides = side_series.values
+    labels_df = pd.DataFrame(
+        index=triggers, columns=["Side", "Label", "PositionEnd"]
+    )
+    if label_type == "continuous":
+        label_fun = continuous_event_label
+    else:
+        label_fun = event_label
+    for i, (dt, side) in enumerate(zip(triggers, sides)):
+        stop_event, label = label_fun(
+            side, minute1_data.loc[dt:], sl, tp, ih, ih_type
+        )
+        labels_df.Side[i] = side
+        labels_df.Label[i] = label
+        labels_df.PositionEnd[i] = stop_event
+    labels_df.PositionEnd = pd.to_datetime(labels_df.PositionEnd)
+    return labels_df

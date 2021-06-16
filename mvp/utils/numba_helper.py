@@ -1,6 +1,26 @@
 from numba import float64, int32, njit, prange
 
 
+@njit(
+    [
+        "int32(int32, float64[:], float64)",
+        "int32(int32, int32[:], int32)",
+    ]
+)
+def smallest_cusum_i(n, values, threshold):
+    """
+    Return the smallest index `i`  of numpy array such that
+    `values[:i].sum() >= threshold` or array size `n` if it
+    fail to met this condition
+    """
+    current_cusum = 0.0
+    for i in prange(n):
+        current_cusum += values[i]
+        if current_cusum >= threshold:
+            return i + 1
+    return n
+
+
 @njit(int32(int32, float64[:], float64[:], float64))
 def cusum(n, inp_arr, cusum_arr, threshold):
     """
