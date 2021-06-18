@@ -619,8 +619,13 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         must be a ``tuple`` with two elements, a ``callabel`` used to apply the metric
         and a ``bool`` to indicate whether the sample weights will be used or not
         to assess the metric.
+    `approach` : ``int``
+        It is either 0 or 1. If 0, the side will be considered in the feature space and
+        labels will be interpreted as with profit and without for 1 and 0. On the other
+        hand, the approach 1 doesn't consider the sides and label 1 means "reached TP
+        bar first into horizon" and 0 means "reached SL first into horizon".
     `verbose` : ``int``
-        It is either 0 or 1. It 1, some log information will be shown in the terminal.
+        It is either 0 or 1. If 1, some log information will be shown in the terminal.
         Regardless the verbose value, these information is always accessed in log files.
     `seed` : ``int``
         The seed to initiate the numpy ``RandomState``.
@@ -650,6 +655,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             "F1": f1_score,
             "BAcc": balanced_accuracy_score,
         },
+        approach=1,
         verbose=0,
         seed=12345,
     ):
@@ -667,6 +673,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         self._labels_fn = labels_fn
         self._primary_model_fn = primary_model_fn
         self._refined_data = refined_data
+        self._approach = approach
         self._env_file_log = create_log_file("environment", log_dir=run_dir)
         self._best_kwargs_labels = None
         self._best_kwargs_primary = None
@@ -696,9 +703,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             seed,
         )
 
-    # TODO: Implement case 2
     def __set_env(
-        self, kwargs_features, kwargs_primary, kwargs_labels, approach=1
+        self, kwargs_features, kwargs_primary, kwargs_labels
     ):
         """Set the finance environment"""
         steps = ["[Labels]", "[Weights for Test]"]
@@ -729,7 +735,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         horizon = label_data.PositionEnd.copy()
         sides = label_data.Side.copy()
         labels = label_data.Label.copy()
-        labels.replace(-1, 0, inplace=True)
 
         bar.update()
         bar.set_description("Setting Environment {}".format(next(steps)))
@@ -759,7 +764,11 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                     )
                 )
             stats.append(feature.values)
-        stats.append(sides.values)
+        if self._approach == 0:
+            stats.append(sides.values)
+        else:
+            labels = labels * sides
+        labels.replace(-1, 0, inplace=True)
         data = np.stack(stats, axis=1)
 
         self._env_file_log.info(
@@ -857,7 +866,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             s_labels = self._best_s_labels
 
         horizon, closed, data, labels, weights = self.__set_env(
-            kwargs_features, kwargs_primary, kwargs_labels
+            kwargs_features, kwargs_primary, kwargs_labels,
         )
         model, scaler, cv_predictions, metrics = self.cv_fit(
             data,
