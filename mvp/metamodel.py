@@ -40,7 +40,7 @@ def save_hp_performance(
     s_primary=None,
     s_labels=None,
 ):
-    """ Save the hyper-parameters using Tensorboard"""
+    """Save the hyper-parameters using Tensorboard"""
     with summary.create_file_writer(base_dir).as_default():
         hparams = {}
         hparams.update(kwargs_model)
@@ -62,7 +62,7 @@ def save_hp_performance(
 
 
 def create_log_file(name, log_dir):
-    """ Create a file in `log_dir` with name `name` to save the logs"""
+    """Create a file in `log_dir` with name `name` to save the logs"""
     os.makedirs(log_dir, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(
         os.path.join(log_dir, "{}.log".format(name)),
@@ -91,6 +91,12 @@ class BaggingModelOptimizer:
         A callable object that instantiates a baging model.
     `run_dir` : ``str``
         The path in which the outcomes from optimization will be saved.
+    `outputs` : ``str``
+        A string to describe the expected output model. It is either `category` or
+        `probability`.
+    `threshold` : ``float``
+        The value of the threshold used to classify an event based on the probability
+        as a positive label [ignored in `category` mode].
     `scaler_pipeline` : ``Pipeline``
         A sklearn ``Pipeline`` composed of the steps to preprocess data.
     `cv_splits_fit` : ``int``
@@ -122,10 +128,13 @@ class BaggingModelOptimizer:
         The seed to initiate the numpy ``RandomState``.
 
     """
+
     def __init__(
         self,
         model_fn,
         run_dir,
+        outputs="category",
+        threshold=0.6,
         scaler_pipeline=None,
         cv_splits_fit=10,
         cv_splits_hp=5,
@@ -158,7 +167,9 @@ class BaggingModelOptimizer:
         )
         self._best_kwargs_model = None
         self._best_kwargs_scaler = {}
-        self._meta_file_log = create_log_file("metamodel", log_dir=self._run_dir)
+        self._meta_file_log = create_log_file(
+            "metamodel", log_dir=self._run_dir
+        )
         if self._use_weight:
             if (self._time_weights_fn is None) and (
                 self._samples_weights_fn is None
@@ -167,12 +178,25 @@ class BaggingModelOptimizer:
                     "With `use_weight` is True, at least one of the functions,"
                     " `time_weight_fn` or `sample_weights_fn`, have to be defined"
                 )
+        if not (
+            hasattr(self._model_fn, "predict")
+            and hasattr(self._model_fn, "predict_proba")
+        ):
+            raise ValueError(
+                "The model {} doesn't have one or both of the"
+                " methods predict and predict_proba".format(self._model_fn)
+            )
+        if outputs == "probability":
+            self._threshold = threshold
+            self._predict_fn_name = "predict_proba"
+        else:
+            self._predict_fn_name = "predict"
         self._verbose = verbose
         self._seed = seed
         self._random_state = np.random.RandomState(seed)
 
     def __is_better(self, last, best):
-        """ Determine if the set of values in `last` is greater than `best`"""
+        """Determine if the set of values in `last` is greater than `best`"""
         for l, b in zip(last, best):
             if l > b:
                 return True
@@ -185,7 +209,7 @@ class BaggingModelOptimizer:
         closed,
         train_horizon,
     ):
-        """ Initiate the model and the scaler based on the kwargs, the weights are also initiated"""
+        """Initiate the model and the scaler based on the kwargs, the weights are also initiated"""
         if kwargs_scaler is None:
             kwargs_scaler = {}
         if self._scaler_pipeline is not None:
@@ -217,7 +241,7 @@ class BaggingModelOptimizer:
         kwargs_model,
         kwargs_scaler=None,
     ):
-        """ Fit and evaluate the model based on partial configuration"""
+        """Fit and evaluate the model based on partial configuration"""
         model, scaler, train_weight = self.__set_model(
             kwargs_scaler,
             kwargs_model,
@@ -239,7 +263,10 @@ class BaggingModelOptimizer:
             horizon=train_horizon,
         )
         predicted_proba = model.predict_proba(x_test)
-        predicted = model.predict(x_test)
+
+        predicted = model.__getattribute__(self._predict_fn_name)(x_test)
+        if hasattr(self, "_threshold"):
+            predicted = (predicted[:, 1] >= self._threshold).astype(int)
         for name, metric_fn in self._metrics.items():
             outcomes[name] = metric_fn(
                 y_test, predicted, sample_weight=test_weight
@@ -256,7 +283,7 @@ class BaggingModelOptimizer:
         kwargs_model,
         kwargs_scaler=None,
     ):
-        """ Fit the model using all training data"""
+        """Fit the model using all training data"""
         print("Training the last model with all training dataset...  ", end="")
         model, scaler, train_weight, _ = self.__set_model(
             kwargs_scaler,
@@ -276,7 +303,7 @@ class BaggingModelOptimizer:
         return model, scaler
 
     def get_weight(self, closed, horizon, min_chunk_size=100):
-        """ Get the sample weights based on timestamp, horizon overlappig, and return values"""
+        """Get the sample weights based on timestamp, horizon overlappig, and return values"""
         data_size = horizon.shape[0]
         chunk_size = np.round(data_size / self._num_of_threads)
         if chunk_size < min_chunk_size:
@@ -317,7 +344,7 @@ class BaggingModelOptimizer:
         s_primary=None,
         s_labels=None,
     ):
-        """ Fit the model using a pre-defined configuration and report statistics using CV"""
+        """Fit the model using a pre-defined configuration and report statistics using CV"""
         if kwargs_model is None and self._best_kwargs_model is None:
             raise ValueError(
                 "At least one of the values, kwargs_model or"
@@ -435,7 +462,7 @@ class BaggingModelOptimizer:
         s_primary=None,
         s_labels=None,
     ):
-        """ Apply the grid search to determine the best hyper parameter for the model"""
+        """Apply the grid search to determine the best hyper parameter for the model"""
         if hp_scaler is None:
             hp_scaler = {}
         grid_model = ParameterGrid(hp_model)
@@ -560,6 +587,12 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         A callable object that instantiates a label model.
     `author` : ``str``
         The author name.
+    `outputs` : ``str``
+        A string to describe the expected output model. It is either `category` or
+        `probability`.
+    `threshold` : ``float``
+        The value of the threshold used to classify any event based on the probability
+        as a positive label [ignored in `category` mode].
     `scaler_pipeline` : ``Pipeline``
         A sklearn ``Pipeline`` composed of the steps to preprocess data.
     `cv_splits_fit` : ``int``
@@ -593,6 +626,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         The seed to initiate the numpy ``RandomState``.
 
     """
+
     def __init__(
         self,
         refined_data,
@@ -600,6 +634,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         primary_model_fn,
         labels_fn,
         author,
+        outputs="category",
+        threshold=0.6,
         cv_splits_fit=10,
         cv_splits_hp=5,
         use_weight=True,
@@ -624,7 +660,9 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         frame = inspect.stack()[1]
         module = inspect.getmodule(frame[0])
         filename = module.__file__
-        shutil.copyfile(os.path.abspath(filename), os.path.join(run_dir, filename))
+        shutil.copyfile(
+            os.path.abspath(filename), os.path.join(run_dir, filename)
+        )
         self._author = author
         self._labels_fn = labels_fn
         self._primary_model_fn = primary_model_fn
@@ -643,6 +681,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         super(EnvironmentOptimizer, self).__init__(
             model_fn,
             run_dir,
+            outputs,
+            threshold,
             scaler_pipeline,
             cv_splits_fit,
             cv_splits_hp,
@@ -660,7 +700,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
     def __set_env(
         self, kwargs_features, kwargs_primary, kwargs_labels, approach=1
     ):
-        """ Set the finance environment"""
+        """Set the finance environment"""
         steps = ["[Labels]", "[Weights for Test]"]
         for feature_name in kwargs_features.keys():
             steps.append("[" + feature_name + "]")
@@ -788,7 +828,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         s_primary=None,
         s_labels=None,
     ):
-        """ Train the model for a pre-defined configuration"""
+        """Train the model for a pre-defined configuration"""
         if kwargs_features is None and self._best_kwargs_features is None:
             raise ValueError(
                 "At least one of the values, kwargs_features or"
@@ -870,17 +910,11 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             colour="green",
         )
         for s_features in grid_features:
-            kwargs_features, _ = self.__parser_features(
-                s_features
-            )
+            kwargs_features, _ = self.__parser_features(s_features)
             for s_primary in grid_primary:
-                kwargs_primary, _ = self.__parser_primary(
-                    s_primary
-                )
+                kwargs_primary, _ = self.__parser_primary(s_primary)
                 for s_labels in grid_labels:
-                    kwargs_labels, _ = self.__parser_labels(
-                        s_labels
-                    )
+                    kwargs_labels, _ = self.__parser_labels(s_labels)
                     horizon, closed, data, labels, weights = self.__set_env(
                         kwargs_features, kwargs_primary, kwargs_labels
                     )
