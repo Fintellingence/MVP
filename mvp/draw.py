@@ -111,25 +111,54 @@ def plot_time_candles(raw_data, start, stop, time_step=1):
     ax[0].tick_params(axis="both", which="major", direction="in")
     plt.show()
 
-
-def plot_symbol(refined_data, time_step=1):
+def plot_symbol(refined_obj,start=None,stop=None,step=None,target="time:close"):
     """
     Basic Auxiliar function to plot symbols via refined_data.RefinedData()
     objects.
+
+    Parameters
+    ----------
+        refined_obj : ``mvp.refined_data.RefinedData``
+            Provides a refined_data object containing the symbol data.
+        `step`: ``int`` or ``str``
+            provides the step to form samples
+        `target`: ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
+        `start` : ``pd.Timestamp`` or ``int``
+            First index/date. Default is the beginning of dataframe
+        `stop` : ``pd.Timestamp`` or ``int``
+            Last index/date. Default is the end of dataframe
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+
     """
-    data = refined_data.change_sample_interval(step=time_step)
+    bar_type, plot_target = target.split(":")
+    mvp.rawdata.assert_bar_type(bar_type)
+    if step is None:
+        target_data = refined_obj.__getattribute__("get_"+plot_target)(start = start,stop = stop,bar_type=bar_type)
+        volume_data = refined_obj.get_volume(start = start, stop = stop,bar_type=bar_type)
+    else:
+        target_data = refined_obj.__getattribute__("get_"+plot_target)(start = start,stop = stop,step=step,bar_type=bar_type)
+        volume_data = refined_obj.get_volume(start = start, stop = stop,step=step,bar_type=bar_type)
     fig, ax = plt.subplots()
     with sns.axes_style("darkgrid"):
-        ax.plot(data.index, data.Close, label="Close Price")
+        ax.plot(target_data, label="Close Price")
         ax.set_xlabel("DateTime")
-        ax.set_ylabel("Close Price")
+        ax.set_ylabel(plot_target)
     with sns.axes_style("dark"):
         ax2 = ax.twinx()
-        ax2.plot(data.index, data.Volume, c="r", alpha=0.35, label="Volume")
+        ax2.plot(volume_data, c="r", alpha=0.35, label="Volume")
         ax2.set_ylabel("Volume")
-    plt.title(refined_data.symbol)
+    if step is None:
+        plt.title(refined_obj.symbol+"_"+bar_type)
+    else:
+        plt.title(refined_obj.symbol+"_"+bar_type+"_"+str(step))
     plt.show()
-
 
 def plot_two_series(series_a, series_b):
     fig, ax1 = plt.subplots()
