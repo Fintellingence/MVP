@@ -285,7 +285,7 @@ class BaggingModelOptimizer:
     ):
         """Fit the model using all training data"""
         print("Training the last model with all training dataset...  ", end="")
-        model, scaler, train_weight, _ = self.__set_model(
+        model, scaler, train_weight = self.__set_model(
             kwargs_scaler,
             kwargs_model,
             closed,
@@ -739,7 +739,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         bar.update()
         bar.set_description("Setting Environment {}".format(next(steps)))
 
-        weights = self.get_weight(self, closed, horizon)
+        weights = self.get_weight(closed, horizon)
 
         stats = []
         event_index = horizon.index
