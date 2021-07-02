@@ -1,15 +1,15 @@
 """ Primary strategies selection module
 
-In this module, based on basic statistical features provided by
-refined data, simple strategies are build. These strategies are
-based on combining features to generate events with some advice
-about what should be done. The advices are binary info, as such
-are represented here by +1 for buy and -1 for sell, also known
-as `side` of the suggested operation
+    In this module, based on basic statistical features provided by
+    refined data, simple strategies are build. These strategies are
+    based on combining features to generate events with some advice
+    about what should be done. The advices are binary info, as such
+    are represented here by +1 for buy and -1 for sell, also known
+    as `side` of the suggested operation
 
-All functions in this module implement a primary strategy hence
-always consume a ``RefinedData`` obj and return a pandas series
-with +1 and -1 values
+    All functions in this module implement a primary strategy hence
+    always consume a ``RefinedData`` obj and return a pandas series
+    with +1 and -1 values
 
 """
 

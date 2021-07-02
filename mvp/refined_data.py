@@ -1,21 +1,21 @@
 """ Module to analyzed refined data with basic statistical properties
 
-This module provide a workflow to extract directly from database some
-basic statistical properties from raw stock prices and volume. Before
-using it, have a look in `mvp.rawdata` documentation
+    This module provide a workflow to extract directly from database some
+    basic statistical properties from raw stock prices and volume. Before
+    using it, have a look in `mvp.rawdata` documentation
 
-Class
------
-``RefinedData``
-    class that inherit ``RawData`` from mvp.rawdata to provide basic
-    tools and statistical features to feed models though its methods
-    It is designed to fill requirements of strategies as pointed in:
+    Class
+    -----
+    ``RefinedData``
+        class that inherit ``RawData`` from mvp.rawdata to provide basic
+        tools and statistical features to feed models though its methods
+        It is designed to fill requirements of strategies as pointed in:
 
-    https://hudsonthames.org/does-meta-labeling-add-to-signal-efficacy-triple-barrier-method/
+        https://hudsonthames.org/does-meta-labeling-add-to-signal-efficacy-triple-barrier-method/
 
-    where some basic features as moving average and standard deviation
-    are required not only using the default time-interval candlesticks
-    but also over other targets, as volume and money bars.
+        where some basic features as moving average and standard deviation
+        are required not only using the default time-interval candlesticks
+        but also over other targets, as volume and money bars.
 
 """
 import numpy as np

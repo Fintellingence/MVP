@@ -8,11 +8,17 @@ build = 'build.py'
 [tool.poetry.dependencies]
 python = "~3.8.5"
 pandas = "^1.2.1"
-numpy = "^1.20.0"
+numpy = "~1.20.0"
 statsmodels = "^0.12.2"
 matplotlib = "^3.3.4"
 numba = "^0.52.0"
 pandas-datareader = "^0.9.0"
+tensorboard = "^2.5.0"
+Cython = "^0.29.23"
+numba-stats = "^0.6.0"
+seaborn = "^0.11.1"
+scikit-learn = "^0.24.2"
+tqdm = "^4.61.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
