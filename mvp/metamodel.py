@@ -17,6 +17,7 @@ from sklearn.model_selection import ParameterGrid
 
 from sklearn.metrics import f1_score, balanced_accuracy_score, precision_score
 
+from mvp.labels import many_event_labels
 from mvp.draw import draw_roc_curve
 from mvp.selection import (
     count_occurrences,
@@ -256,6 +257,7 @@ class BaggingModelOptimizer:
             x_train = scaler.fit_transform(x_train)
         if scaler is not None:
             x_test = scaler.transform(x_test)
+
         model.fit(
             x_train,
             y_train,
@@ -583,8 +585,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         A callable object that instantiates a baging model.
     `primary_model_fn` : ``callable``
         A callable object that instantiates the primary model.
-    `labels_fn` : ``callable``
-        A callable object that instantiates a label model.
     `author` : ``str``
         The author name.
     `outputs` : ``str``
@@ -637,7 +637,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         refined_data,
         model_fn,
         primary_model_fn,
-        labels_fn,
         author,
         outputs="category",
         threshold=0.6,
@@ -655,7 +654,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             "F1": f1_score,
             "BAcc": balanced_accuracy_score,
         },
-        approach=1,
+        approach=0,
         verbose=0,
         seed=12345,
     ):
@@ -670,7 +669,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             os.path.abspath(filename), os.path.join(run_dir, filename)
         )
         self._author = author
-        self._labels_fn = labels_fn
         self._primary_model_fn = primary_model_fn
         self._refined_data = refined_data
         self._approach = approach
@@ -678,13 +676,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         self._best_kwargs_labels = None
         self._best_kwargs_primary = None
         self._best_kwargs_features = None
-        # TODO: Ensure that all functions to get features in refined data have the format "get_<NAME>"
-        self._feature_acrons = {
-            "MA": "get_simple_MA",
-            "DEV": "get_deviation",
-            "RSI": "get_RSI",
-            "FRACDIFF": "frac_diff",
-        }
         super(EnvironmentOptimizer, self).__init__(
             model_fn,
             run_dir,
@@ -718,23 +709,17 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         )
         steps = iter(steps)
 
-        closed = self._refined_data.df.Close
-        primary_model = self._primary_model_fn(
-            self._refined_data, **kwargs_primary
-        )
+        raw_data = self._refined_data.df
+        closed = self._refined_data.get_close()
+        sides = self._primary_model_fn(self._refined_data, **kwargs_primary)
 
         bar.update()
         bar.set_description("Setting Environment {}".format(next(steps)))
 
-        labels_obj = self._labels_fn(
-            primary_model.events, closed, **kwargs_labels
-        )
-        label_data = labels_obj.label_data
-        zero_mask = label_data.Label != 0
-        label_data = label_data.loc[zero_mask, :]
-        horizon = label_data.PositionEnd.copy()
-        sides = label_data.Side.copy()
-        labels = label_data.Label.copy()
+        labels  = many_event_labels(sides, raw_data, **kwargs_labels)
+        zero_mask = labels != 0
+        labels = labels.loc[zero_mask]
+        horizon = pd.Series(labels.index, index=sides.index)
 
         bar.update()
         bar.set_description("Setting Environment {}".format(next(steps)))
@@ -767,7 +752,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         if self._approach == 0:
             stats.append(sides.values)
         else:
-            labels = labels * sides
+            labels = pd.Series(labels.values * sides.values, index=labels.index)
         labels.replace(-1, 0, inplace=True)
         data = np.stack(stats, axis=1)
 
@@ -789,42 +774,16 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         return horizon, closed, data, labels.values, weights
 
     def __parser_features(self, kwargs_features):
-        summary = {}
         new_kwargs = {}
         for k, v in kwargs_features.items():
             name = k.split("__")[0]
             param = k.split("__")[1]
-            f_name = self._feature_acrons[name]
+            f_name = "get_" + name
             if f_name not in new_kwargs:
-                summary[name] = ""
                 new_kwargs[f_name] = {}
-            summary[name] += str(v) + ","
             new_kwargs[f_name][param] = v
-        str_summary = ""
-        for name, s in summary.items():
-            str_summary += "[" + name + "]" + s[0:-1]
-        return new_kwargs, str_summary
+        return new_kwargs
 
-    def __parser_primary(self, kwargs_primary):
-        str_summary = ""
-        new_kwargs = {}
-        strategy = kwargs_primary.pop("strategy")
-        str_summary += strategy + ","
-        new_kwargs["strategy"] = strategy
-        new_kwargs["features"] = {}
-        for k, v in kwargs_primary.items():
-            new_kwargs["features"][k] = v
-            str_summary += str(v) + ","
-        return new_kwargs, str_summary[0:-1]
-
-    # TODO: Maybe a better solution be not to use the dictionary in Labels initialization
-    def __parser_labels(self, kwargs_labels):
-        str_summary = ""
-        new_kwargs = {"operation_parameters": {}}
-        for k, v in kwargs_labels.items():
-            new_kwargs["operation_parameters"][k] = v
-            str_summary += str(v) + ","
-        return new_kwargs, str_summary[0:-1]
 
     def train(
         self,
@@ -892,7 +851,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         If the use of same features with different parameters is desired, add a suffix
         to the desired feature key, e.g.,
             ```
-            dict(MA__window__A=[100], MA__window__A=[10000])
+            dict(sma__window__A=[100], sma__window__A=[10000])
             ```
         """
         if hp_scaler is None:
@@ -906,9 +865,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         for d in hp_features:
             for v in d.values():
                 n_steps *= len(v)
-        for d in hp_primary:
-            for v in d.values():
-                n_steps *= len(v)
+        for v in hp_primary:
+            n_steps *= len(v)
         for v in hp_labels.values():
             n_steps *= len(v)
         hp_bar = tqdm(
@@ -919,11 +877,9 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             colour="green",
         )
         for s_features in grid_features:
-            kwargs_features, _ = self.__parser_features(s_features)
-            for s_primary in grid_primary:
-                kwargs_primary, _ = self.__parser_primary(s_primary)
-                for s_labels in grid_labels:
-                    kwargs_labels, _ = self.__parser_labels(s_labels)
+            kwargs_features = self.__parser_features(s_features)
+            for kwargs_primary in grid_primary:
+                for kwargs_labels  in grid_labels:
                     horizon, closed, data, labels, weights = self.__set_env(
                         kwargs_features, kwargs_primary, kwargs_labels
                     )
@@ -936,8 +892,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                         hp_model,
                         hp_scaler,
                         s_features,
-                        s_primary,
-                        s_labels,
+                        kwargs_primary,
+                        kwargs_labels,
                     )
                     if out_metric[1] > best_metric:
                         best_metric = out_metric[1]
@@ -946,8 +902,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                         best_kwargs_features = kwargs_features
                         best_kwargs_model = self._best_kwargs_model
                         best_kwargs_scaler = self._best_kwargs_scaler
-                        best_s_labels = s_labels
-                        best_s_primary = s_primary
+                        best_s_labels = kwargs_labels
+                        best_s_primary = kwargs_primary
                         best_s_features = s_features
                     self._best_kwargs_model = None
                     self._best_kwargs_scaler = None

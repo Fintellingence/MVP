@@ -1,47 +1,56 @@
 """ Result labeling of primary strategies
 
-This is a complement module to mvp.primary which consumes information
-from trade triggers to label the result of the operation considering
-thresholds to constrain the profit, loss and maximum investing time. 
+    This is a complement module to mvp.primary which consumes information
+    from trade triggers to label the result of the operation considering
+    thresholds to constrain the profit, loss and maximum investing time. 
 
-Functions
----------
+    Functions
+    ---------
 
-``horizon_trading_range(
-    minute1_data -> pandas.DataFrame,
-    ih-> object,
-    ih_type -> str
-)``
+    ```
+    horizon_trading_range(
+        minute1_data -> pandas.DataFrame,
+        ih -> object,
+        ih_type -> str
+    )
+    ```
 
-``event_label(
-    side -> int,
-    minute1_data -> pandas.DataFrame,
-    sl -> float,
-    tp -> float,
-    ih -> object,
-    ih_type -> str
-)``
+    ```
+    event_label(
+        side -> int,
+        minute1_data -> pandas.DataFrame,
+        sl -> float,
+        tp -> float,
+        ih -> object,
+        ih_type -> str
+    )
+    ```
 
-``continuous_event_label(
-    side -> int,
-    minute1_data -> pandas.DataFrame,
-    sl -> float,
-    tp -> float,
-    ih -> object,
-    ih_type -> str
-)``
+    ```
+    continuous_event_label(
+        side -> int,
+        minute1_data -> pandas.DataFrame,
+        sl -> float,
+        tp -> float,
+        ih -> object,
+        ih_type -> str
+    )
+    ```
 
-``event_label_series(
-    side_series -> pandas.Series,
-    minute1_data -> pandas.DataFrame,
-    sl -> float,
-    tp -> float,
-    ih -> object,
-    ih_type -> str,
-    label_type -> str
-)``
+    ```
+    event_label_series(
+        side_series -> pandas.Series,
+        minute1_data -> pandas.DataFrame,
+        sl -> float,
+        tp -> float,
+        ih -> object,
+        ih_type -> str,
+        label_type -> str
+    )
+    ```
 
 """
+import numpy as np
 import pandas as pd
 from mvp.utils import smallest_cusum_i
 
@@ -160,6 +169,53 @@ def event_label(side, minute1_data, sl, tp, ih, ih_type="bars"):
             result = 1
             stop_event = profit_region[0]
     return stop_event, result
+
+
+def many_event_labels(sides, minute1_data, sl, tp, ih, ih_type="bars"):
+    """
+    Similar to `event_label`, but digned to be applied to many sides.
+
+    Parameters
+    ----------
+    `side` : ``pandas.Series``
+        time series with +1 and -1
+    `minute1_data` : ``pandas.DataFrame``
+        A chunk of dataframe from `RefinedData.df` or `RawData.df`
+        attribute which must start at specific datetime the `side`
+        trigger occurred, that is, `minute1_data.index[0]` must be
+        the trigger instant p
+    `sl` : ``float``
+        stop loss of the positioning in percent value (4 means 4%)
+    `tp` : ``float``
+        take profit to close the positioning in percent value
+    `ih` : ``pandas.Timedelta/pandas.Timestamp/int``
+        investiment horizon
+    `ih_type` : ``str``
+        string code of type of investment horizon. Accept the following
+        1. "bars"       - the number of sequential bars
+        2. "Volume"     - IH in volume traded
+        3. "TickVol"    - IH in deals occurred
+        4. "money"      - IH in money traded
+        This value is ignored if `ih` is not integer
+
+    Return
+    ------
+    ``pandas.Series``
+        Series inidicating the smallest datetime prices touch one of the barriers
+        associated with which barrier was hit first
+        +1 profit
+         0 investment horizon hit before stop loss or take profit
+        -1 loss
+    """
+    labels = []
+    indexes = []
+    for i, (start_event, side) in enumerate(sides.iteritems()):
+        stop_event, label = event_label(
+            side, minute1_data.loc[start_event:, :], sl, tp, ih, ih_type
+        )
+        labels.append(label)
+        indexes.append(stop_event)
+    return pd.Series(labels, index=indexes)
 
 
 def continuous_event_label(side, minute1_data, sl, tp, ih, ih_type="bars"):
