@@ -1,35 +1,35 @@
 """ Raw data processing from databases
 
-This module provides tools to to extract data from databases and set
-in suitable data structure to provide a systematic workflow for data
-analysis. The database must have a specific format that must provide
-data-tables with the following columns:
-    DateTime : YYYY-MM-DD HH:MM:SS
-    Open : float value
-    High : float value
-    Low : float value
-    Close : float Value
-    TickVol : integer value
-    Volume : integer value
-These value must correspond to packaged data bar in 1-minute of stock
-market trades. The column names provided above are case sensitive and
-`DateTime` must be specifically given as text entry in that format
+    This module provides tools to to extract data from databases and set
+    in suitable data structure to provide a systematic workflow for data
+    analysis. The database must have a specific format that must provide
+    data-tables with the following columns:
+        DateTime : YYYY-MM-DD HH:MM:SS
+        Open : float value
+        High : float value
+        Low : float value
+        Close : float Value
+        TickVol : integer value
+        Volume : integer value
+    These value must correspond to packaged data bar in 1-minute of stock
+    market trades. The column names provided above are case sensitive and
+    `DateTime` must be specifically given as text entry in that format
 
-Main class in this module:
+    Main class in this module:
 
-``RawData``
-    Provide attributes to access data in ``pandas.DataFrame`` format.
-    The `DateTime` database column is set as index and the others are
-    kept as dataframe columns in `RawData.df` attribute. The 1-minute
-    data are consider as the most fundamental, from which all methods
-    act on to transform in other formats.
-    Despite it is usual to organize stock market data in linear spaced
-    time intervals, from 1-minute packed data, it is possible to build
-    other type of packed data using different thresholds to form bars.
-    Instead of packaging data in minute of market trades occurred this
-    class provide ways to pack trades in amount of deals/ticks, volume
-    of shares exchanged or even money. For these features see methods
-    that has the suffix "_bars"
+    ``RawData``
+        Provide attributes to access data in ``pandas.DataFrame`` format.
+        The `DateTime` database column is set as index and the others are
+        kept as dataframe columns in `RawData.df` attribute. The 1-minute
+        data are consider as the most fundamental, from which all methods
+        act on to transform in other formats.
+        Despite it is usual to organize stock market data in linear spaced
+        time intervals, from 1-minute packed data, it is possible to build
+        other type of packed data using different thresholds to form bars.
+        Instead of packaging data in minute of market trades occurred this
+        class provide ways to pack trades in amount of deals/ticks, volume
+        of shares exchanged or even money. For these features see methods
+        that has the suffix "_bars"
 
 """
 
