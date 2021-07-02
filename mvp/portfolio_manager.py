@@ -1,14 +1,19 @@
+""" Portfolio module
+
+This module provide statistical features of a set of companies
+and implement basic tools to obtain portfolio performance
+
+"""
+
 import os
+import bisect
 import numpy as np
 import pandas as pd
-import bisect
-import numba_stats
 
 from functools import total_ordering
-from mvp.refined_data import RefinedData
-
-ROOT_DIR = os.path.join(os.path.expanduser("~"), "FintelligenceData")
-DB_PATH_FINTELLIGENCE = os.path.join(ROOT_DIR, "minute1_database_v1.db")
+from mvp.refined_data import RefinedData, assert_target, assert_feature
+from mvp.utils import numba_stats
+from mvp.utils import validate_features_string, get_features_iterable
 
 
 class RefinedSet:
@@ -16,202 +21,121 @@ class RefinedSet:
     Class to collect a set of stock shares and obtain common features
     For more info about the features see `RefinedData` class. Despite
     the possibility to compute new features acessing refined objects
-    by the `refined_obj` attribute, it is advisable to restricted the
-    analysis to the common features requested in the constructor, since
-    they are set in cache memory.
+    by the `self.refined_obj` dictionary, for better performance, the
+    useage of `common_features` is recomended. These `common_features`
+    does not change the workflow to access some feature, though they
+    can improve performance since the requested features are kept in
+    cache memory. Moreover new symbols introduced automatic set these
+    features in cache memory as well.
 
-    Main attributes
-    ---------------
+    Main attribute
+    --------------
     `refined_obj` : ``dict {str : RefinedData}``
-        set of refined data objects acessed using the symbol as key
-    `symbol_period` = ``dict {str : (pandas.Timestamp, pandas.Timestamp)}``
-        (start, stop) with period the refined object was analyzed
+        set of refined data objects accessible using the symbol as key
 
     """
 
     def __init__(
         self,
-        db_path=DB_PATH_FINTELLIGENCE,
-        common_features="MA_DAY:10,20:DEV_DAY:10,20:RET_DAY:1",
-        preload={"time": [5, 10, 15, 30, 60, "day"]},
+        db_path,
+        preload={},
+        cache_common_features={},
     ):
         """
         Parameters
         ----------
         `db_path` : ``str``
             full path to 1-minute database file
-
-        `common_features` : ``str``
-            All information of features to compute for all companies loaded
-            Must be formatted as follows:
-
-            "KEY1_T1:V11,V12,...:KEY2_T2:V21,V22,...:...:KEYM_TM:VM1,..."
-
-            where KEY is an `RefinedData` method abbreviation. Must be one of
-
-            "MA" = Moving Average (``int``)
-            "DEV" = Standart Deviation (``int``)
-            "RSI" = Relative Strenght Index (RSI) indicator (``int``)
-            "FRACDIFF": Fractional differentiation (``float``)
-
-            with the following data types of `Vij` in parentheses
-
-            Note the underscore after KEYj which can be one of the following
-            1, 5, 10, 15, 30, 60 and DAY indicating the time step to be used
-            in resampling the data to evaluare the statistical features
-
-            example
-            -------
-            "MA_60:100,1000:DEV_DAY:10,20:FRAC_DIFF_DAY:1,0.5"
-
-            compute for all symbols introduced in this object the moving
-            average for 60-minute bars with windows of 100, 1000, the
-            moving standard deviation for daily bars using 10 and 20 days
-            Finally the fractional differentiation for 1 (daily returns)
-            and 0.5.
-
-            In this string no successive : is allowed as well as : at the
-            end or beginning. Colons must aways be surrounded by keys and
-            values
-
-        `preload` : ``dict``
-            inform dataframes time intervals to hold in cache
+        `preload` : ``dict {str : int}``
+            Inform dataframes to be set in cache for fast access
+            Available keys are methods of `RawData` class which
+            end with the suffix "_bars" and the value is `step`
+            argument required in these methods. Some examples
+            {
+                "time" : ``int`` or "day"
+                "tick" : ``int``
+                "volume" : ``int``
+                "money" : ``int``
+            }
+            The value field also support ``list`` of these types
+        `cache_common_features` : ``dict {str : str}``
+            dictionary to preload set of common features for all symbols
+            introduced in this `RefinedSet` through `RefinedData` object
+            KEYS:
+                The keys must be formated as `"bar_type:data_field"`
+                where `bar_type` inform how data bars are formed and
+                `data_field` the bar value to use. Some examples are
+                    "time:close"  - use close price in time-spaced bars
+                    "time:volume" - use volume traded in time-spaced bars
+                    "tick:high"   - use high price in tick-spaced bars
+                    "money:close" - use close price in money-spaced bars
+                This disctionary keys is also referred to as `target`
+                which is an argument of `RefinedData` methods.
+                The available names for `bar_type` are the same of
+                the keys of `preload` parameter and are the methods
+                of `RawData` that has as suffix `_bars`
+                The available names for `data_field` are suffixes of
+                any `RawData` method that starts with `get_`
+            VALUES:
+                String codifying all infomration to pass in methods call
+                The values of this dictionaty must follow the convention
+                "MET1_T1:V11,V12,...:MET2_T2:V21,V22,...:METM_TM:VM1,..."
+                where MET is a `RefinedData` method suffix for all the
+                ones that begins with `get_`. Therefore, available values
+                to use can be consulted in `RefinedData` class methods
+                Some (default) examples
+                    "sma" = Moving Average (``int``)
+                    "dev" = Standart Deviation (``int``)
+                    "rsi" = Relative Strenght Index (RSI) indicator (``int``)
+                    "fracdiff": Fractional differentiation (``float``)
+                with the following data types of `Vij` in parentheses
+                Note the underscore after METj which can be one of the
+                following: 1, 5, 10, 15, 30, 60 and DAY indicating the
+                time step to be used in bars size, in case the target
+                provided in dict key is "time:*"
+                In case other target is set, such as "money:*" any int
+                is accepted, which is used to pack data in bars using
+                cumulative sum of the referred target
+                The values `Vij` must be of the type of the first
+                argument(s)(required) of the feature method, that
+                is one of those `RefinedData` methods with `get_`
+                as prefix. Especifically for methods that require
+                more than one argument, the syntax changes
+                Example given dictionary key "time:*" with value:
+                    "sma_60:100,1000:dev_DAY:10,20:autocorrmov_DAY:(20,5)"
+                The moving average for 60-minute bars with windows of 100,
+                1000, the moving standard deviation for daily bars with 10
+                and 20 days, and finally the moving autocorrelation with
+                daily bars for 20-days moving window and 5-days of shift
+                will be set in cache
+                Note that for `autocorrmov` the values are passed as tuple
+                and are exactly used as `get_autocorrmov(*Vij, append=True)`
+                For this reason, in this specific case, instead of using
+                comma to separate the values(that are actually tuples), the
+                user must use forward slashes '/'
+                For instance: (20,5)/(200,20)
+                WARNING:
+                In this string no successive colon(:) is allowed as well as
+                : at the end or beginning. Colons must aways be surrounded
+                by keys and values, and this format will be checked before
+                using for computations
 
         """
         if not os.path.isfile(db_path):
             raise IOError("Database file {} not found".format(db_path))
         self.db_path = db_path
-        self.__refined_attr = {
-            "MA": "get_simple_MA",
-            "DEV": "get_deviation",
-            "RSI": "get_RSI",
-            "RET": "get_returns",
-            "FRACDIFF": "frac_diff",
-        }
-        self.available_time_intervals = [1, 5, 10, 15, 30, 60, "day"]
         self.preload_data = preload
-        self.raw_input_string = self.__assert_input_string(common_features)
-        self.time_intervals = self.__extract_intervals(self.raw_input_string)
-        self.input_dict = self.__convert_input_dict()
+        self.cache_common_features = {}
+        for target, data_string in cache_common_features.items():
+            assert_target(target)
+            self.cache_common_features[target] = validate_features_string(
+                data_string, target.split(":")[0]
+            )
         self.refined_obj = {}
         self.symbol_period = {}
 
-    def __assert_input_string(self, input_string):
-        """
-        validade the input string with common features
-
-        Return
-        ------
-        ``str``
-            `input_string` removing repetitions and sorting the parameters
-        """
-        if not input_string:
-            return input_string
-        key_value_list_split = input_string.split(":")
-        if len(key_value_list_split) % 2 != 0:
-            raise ValueError(
-                "Wrong pairings divided by colons in {}".format(input_string)
-            )
-        keys = key_value_list_split[::2]
-        str_vals = key_value_list_split[1::2]
-        for key, str_val in zip(keys, str_vals):
-            if not str_val or not key:
-                raise ValueError(
-                    "empty fields separated by : in {}".format(input_string)
-                )
-            if len(key.split("_")) != 2:
-                raise ValueError(
-                    "Each key-code must have only one '_' separating "
-                    "feature abbreviation and interval. Check {}".format(
-                        input_string
-                    )
-                )
-            attr_abbr_key = key.split("_")[0]
-            if attr_abbr_key not in self.__refined_attr.keys():
-                raise ValueError(
-                    "Found invalid abbreviation {} in {}".format(
-                        attr_abbr_key, input_string
-                    )
-                )
-        intervals = self.__extract_intervals(input_string)
-        if not set(intervals).issubset(set(self.available_time_intervals)):
-            raise ValueError(
-                "There are invalid time intervals in {}".format(input_string)
-            )
-        return self.__remove_repetitions(input_string)
-
-    def __extract_intervals(self, input_string):
-        """
-        Return list with appropriate interval datatypes from input string
-        """
-        intervals = []
-        if not input_string:
-            return intervals
-        key_interval_codes = input_string.split(":")[::2]
-        string_intervals = [key.split("_")[1] for key in key_interval_codes]
-        for string_interval in string_intervals:
-            try:
-                time_interval = int(string_interval)
-            except ValueError:
-                time_interval = string_interval.lower()
-            if time_interval not in intervals:
-                intervals.append(time_interval)
-        return intervals
-
-    def __remove_repetitions(self, input_string):
-        """
-        Remove any duplicated feature of `input_string`
-        and sort parameters in ascending order
-        """
-        key_value_list_split = input_string.split(":")
-        keys = key_value_list_split[::2]
-        str_vals = key_value_list_split[1::2]
-        no_rep_map = {}
-        for key, str_val in zip(keys, str_vals):
-            if key in no_rep_map.keys() and str_val:
-                raw_str_val = no_rep_map[key] + "," + str_val
-            else:
-                raw_str_val = str_val
-            try:
-                num_vals = list(map(int, set(raw_str_val.split(","))))
-            except Exception:
-                num_vals = list(map(float, set(raw_str_val.split(","))))
-            num_vals.sort()
-            str_val_unique = ",".join(map(str, num_vals))
-            no_rep_map[key] = str_val_unique
-        no_rep_list = []
-        for no_rep_key, no_rep_val in no_rep_map.items():
-            no_rep_list.append(no_rep_key)
-            no_rep_list.append(no_rep_val)
-        no_rep_input_string = ":".join(no_rep_list)
-        return no_rep_input_string
-
-    def __convert_input_dict(self):
-        """
-        Process the input (raw)string with features to be computed
-
-        Return
-        ------
-        ``dict`` {"KEY_T" : [ value1, value2, ... , valueN }
-            "KEY" is a method abbreviation and "T" a period. All
-            values are mapped to number datatypes instead of strings
-
-        """
-        input_dict = {}
-        if not self.raw_input_string:
-            return input_dict
-        key_value_list_split = self.raw_input_string.split(":")
-        keys = key_value_list_split[::2]
-        str_vals = key_value_list_split[1::2]
-        for key, str_val in zip(keys, str_vals):
-            try:
-                values_list = list(map(int, str_val.split(",")))
-            except ValueError:
-                values_list = list(map(float, str_val.split(",")))
-            input_dict[key] = values_list
-        return input_dict
-
     def __clean_features_cache(self):
+        """ For each refined object in this set clean the cache """
         for ref_obj in self.refined_obj.values():
             ref_obj.cache_clean()
 
@@ -222,13 +146,10 @@ class RefinedSet:
         return not self.refined_obj
 
     def has_symbol(self, symbol):
-        """ Return True if the symbol (or list of) is present in the set """
+        """ Return True if the `symbol` (or list of) is in the set """
         if not isinstance(symbol, list):
             return symbol in self.refined_obj.keys()
-        for sym in symbol:
-            if sym not in self.refined_obj.keys():
-                return False
-        return True
+        return set(symbol).issubset(set(self.refined_obj.keys()))
 
     def memory_comsumption(self):
         """
@@ -250,143 +171,89 @@ class RefinedSet:
             start = self.symbol_period[symbol][0]
             stop = self.symbol_period[symbol][1]
             print("{} from {} to {}".format(symbol, start, stop))
-        print("\nraw input : {}".format(self.raw_input_string))
-        print("\nFeature key : list of parameters used")
-        for input_key in self.input_dict.keys():
-            print("\n{:20s}".format(input_key), end=" ")
-            for value in self.input_dict[input_key]:
-                print(value, end=" ")
-        print()
+        print("\nFeatures requested to be in cache memory")
+        print(self.cache_common_features)
 
-    def add_common_features(self, new_input_string):
+    def add_common_features(self, new_cache_features):
         """
-        Append `new_input_string` in features common to all symbols
+        Append `new_cache_features` to set in cache for all symbols
 
         Parameters
         ----------
-        `new_input_string` : ``str``
-            All information of features to compute for all companies loaded
-
-            "KEY1_T1:V11,V12,...:KEY2_T2:V21,V22,...:...:KEYM_TM:VM1,..."
-
-            where KEY is an `RefinedData` method abbreviation. Must be one of
-
-            "MA" = Moving Average (``int``)
-            "DEV" = Standart Deviation (``int``)
-            "RSI" = Relative Strenght Index (RSI) indicator (``int``)
-            "FRACDIFF": Fractional differentiation (``float``)
-
-            with the following data types of `Vij` in between parentheses
-
-            Note the underscore after KEYj which can be one of the following
-            1, 5, 10, 15, 30, 60 and "DAY" indicating the time step to be
-            used in resampling the data to evaluare the statistical features
-
-            example
-            -------
-            "MA_60:100,1000:DEV_DAY:10,20:FRACDIFF_DAY:1,0.5"
+        `new_cache_features` : ``dict {str : str} ``
+            Features to automatically set in cache in every `RefinedData`
+            For more info on how to format dict keys and values see this
+            class or `RefinedData` constructor documentation
 
         """
-        if not new_input_string:
+        if not isinstance(new_cache_features, dict):
+            print("New features must be informed as dictionary. Aborted")
             return
-        try:
-            self.raw_input_string = self.__assert_input_string(
-                self.raw_input_string + ":" + new_input_string
-            )
-            self.input_dict = self.__convert_input_dict()
-            self.refresh_all_features()
-        except ValueError as err:
-            print(
-                err,
-                "An error occurred while appending the new string {}".format(
-                    new_input_string
-                ),
-                sep="\n\n",
-            )
+        for target, data_string in new_cache_features.items():
+            bar_type = target.split(":")[0]
+            if target in self.cache_common_features.keys():
+                new_str = (
+                    self.cache_common_features[target] + ":" + data_string
+                )
+            else:
+                new_str = data_string
+            try:
+                valid_new_string = validate_features_string(new_str, bar_type)
+                self.cache_common_features[target] = valid_new_string
+            except ValueError as err:
+                print("Target '{}' raised the error:".format(target), err)
+        self.refresh_all_features()
 
-    def reset_common_features(self, new_input_string):
+    def reset_common_features(self, new_cache_features):
         """
-        Append `new_input_string` in features common to all symbols
+        Reset all features to set in cache previously defined
+        To have an empty cache just pass a empty dictionary
 
         Parameters
         ----------
-        `new_input_string` : ``str``
-            All information of features to compute for all companies loaded
-            if empty string given it will just clean the features cache
-
-            "KEY1_T1:V11,V12,...:KEY2_T2:V21,V22,...:...:KEYM_TM:VM1,..."
-
-            where KEY is an `RefinedData` method abbreviation. Must be one of
-
-            "MA" = Moving Average (``int``)
-            "DEV" = Standart Deviation (``int``)
-            "RSI" = Relative Strenght Index (RSI) indicator (``int``)
-            "FRACDIFF": Fractional differentiation (``float``)
-
-            with the following data types of `Vij` in between parentheses
-
-            Note the underscore after KEYj which can be one of the following
-            1, 5, 10, 15, 30, 60 and "DAY" indicating the time step to be
-            used in resampling the data to evaluare the statistical features
-
-            example
-            -------
-            "MA_60:100,1000:DEV_DAY:10,20:FRACDIFF_DAY:1,0.5"
+        `new_cache_features` : ``dict {str : str} ``
+            Features to automatically set in cache in every `RefinedData`
+            For more info on how to format dict keys and values see this
+            class or `RefinedData` constructor documentation
 
         """
-        try:
-            self.__clean_features_cache()
-            self.raw_input_string = self.__assert_input_string(
-                new_input_string
-            )
-            self.input_dict = self.__convert_input_dict()
-            self.refresh_all_features()
-        except ValueError as err:
-            print(
-                err,
-                "An error occurred with the new string {}".format(
-                    new_input_string
-                ),
-                sep="\n\n",
-            )
+        if not isinstance(new_cache_features, dict):
+            print("New features must be informed as dictionary. Aborted")
+            return
+        self.cache_common_features = {}
+        for target, data_string in new_cache_features.items():
+            bar_type = target.split(":")[0]
+            try:
+                self.cache_common_features[target] = validate_features_string(
+                    data_string, bar_type
+                )
+            except ValueError as err:
+                print("Target '{}' raised the error:".format(target), err)
+        self.refresh_all_features()
 
     def new_refined_symbol(self, symbol, start=None, stop=None):
         """
-        Introduce new symbol in the set for a given period. The period
-        refers to the common features that are computed and further
-        used as reference to portfolio management.
+        Introduce new symbol in the set for a given period
 
         Parameters
         ----------
         `symbol` : ``str``
             valid symbol contained in the `self.db_path` database
         `start` : ``pandas.Timestamp``
-            date-time of inclusion in the set
+            datetime of inclusion in the set
         `stop` : ``pandas.Timestamp``
-            date-time of exclusion in the set
+            datetime of exclusion in the set
 
         """
         if symbol in self.refined_obj.keys():
             return
         self.refined_obj[symbol] = RefinedData(
-            symbol, self.db_path, preload=self.preload_data
+            symbol, self.db_path, self.preload_data, self.cache_common_features
         )
         valid_start, valid_stop = self.refined_obj[symbol].assert_window(
             start, stop
         )
         self.symbol_period[symbol] = (valid_start, valid_stop)
-        for input_key in self.input_dict.keys():
-            attr_abbr_key = input_key.split("_")[0]
-            str_step = input_key.split("_")[1]
-            try:
-                time_step = int(str_step)
-            except ValueError:
-                time_step = str_step.lower()
-            attr_name = self.__refined_attr[attr_abbr_key]
-            for parameter in self.input_dict[input_key]:
-                self.refined_obj[symbol].__getattribute__(attr_name)(
-                    parameter, valid_start, valid_stop, time_step, True
-                )
 
     def remove_refined_symbol(self, symbol):
         """
@@ -408,48 +275,74 @@ class RefinedSet:
 
     def refresh_all_features(self):
         """
-        Compute again all common features currently in `self.input_dict`
+        Compute again all common features in `self.cache_common_features`
         """
-        for symbol, ref_obj in self.refined_obj.items():
-            start = self.symbol_period[symbol][0]
-            stop = self.symbol_period[symbol][1]
-            for input_key in self.input_dict.keys():
-                attr_abbr_key = input_key.split("_")[0]
-                str_step = input_key.split("_")[1]
-                try:
-                    time_step = int(str_step)
-                except ValueError:
-                    time_step = str_step.lower()
-                attr_name = self.__refined_attr[attr_abbr_key]
-                for parameter in self.input_dict[input_key]:
-                    ref_obj.__getattribute__(attr_name)(
-                        parameter, start, stop, time_step, True
-                    )
+        for target, inp_str in self.cache_common_features.items():
+            method_args_iter = get_features_iterable(inp_str, target)
+            for method_name, args, kwargs in method_args_iter:
+                for ref_obj in self.refined_obj.values():
+                    ref_obj.__getattribute__(method_name)(*args, **kwargs)
 
-    def correlation_matrix_period(self, start=None, stop=None, time_step=1):
+    def get_common_feature(
+        self,
+        attr_name,
+        attr_args,
+        attr_kwargs={},
+        as_dataframe=False,
+    ):
+        """
+        Return time series of a specific feature for all symbols in the set
+        The set of features supported are methods of `RefinedData`
+
+        Parameters
+        ----------
+        `attr_name` : ``str``
+            `RefinedData` method or method suffix without the get prefix
+        `attr_args` : ``int`` or ``tuple``
+            The first one or few argumets required in method
+            all those non-optional before `start` and `stop`
+        `attr_kwargs` : ``dict``
+            optional arguments given as ``dict``
+        `as_dataframe` : ``bool``
+            Define the return data structure
+            `False` : ``dict`` (default)
+            `True` : ``pandas.DataFrame``
+
+        Return
+        ------
+        either dictionary or data-frame depending on `as_dataframe`
+        ``dict{str : pandas.Series}``
+            symbols as keys
+        ``pandas.DataFrame``
+            symbols as column names
+
+        """
+        attr_name = attr_name.split("_")[-1]
+        assert_feature(attr_name)
+        attr_name = "get_" + attr_name
+        feat_dict = {}
+        for symbol, ref_obj in self.refined_obj.items():
+            feat_dict[symbol] = ref_obj.__getattribute__(attr_name)(
+                *attr_args, **attr_kwargs
+            )
+        if not as_dataframe:
+            return feat_dict
+        return pd.DataFrame(feat_dict)
+
+    def correlation_matrix_period(
+        self, start=None, stop=None, step=1, target="time:close"
+    ):
         """
         Correlation among all symbols in the set using a time period
 
-        Parameters
-        ---
-        `start` : ``pandas.Timestamp``
-            initial datetime of the period
-        `stop` : ``pandas.Timestamp``
-            final datetime of the period
-        `time_step` : ``int`` or ``str == "day"``
-            time step of the dataframe sample
-
         Return
-        ---
+        ------
         ``pandas.DataFrame``
 
         """
-        if time_step not in self.available_time_intervals:
-            raise ValueError(
-                "Time step {} not in available values {}".format(
-                    time_step, self.available_time_intervals
-                )
-            )
+        assert_target(target)
+        bar_type = target.split(":")[0]
+        data_method = "get_" + target.split(":")[1]
         nsymbols = len(self.refined_obj.keys())
         mat = np.empty([nsymbols, nsymbols])
         items_pkg = self.refined_obj.items()
@@ -470,13 +363,15 @@ class RefinedSet:
                     mat[i, j] = np.nan
                     mat[j, i] = np.nan
                     continue
-                cls_prices1 = ref_obj1.change_sample_interval(
-                    step=time_step
-                ).Close.loc[valid_start:valid_stop]
-                cls_prices2 = ref_obj2.change_sample_interval(
-                    step=time_step
-                ).Close.loc[valid_start:valid_stop]
-                corr = cls_prices1.corr(cls_prices2)
+                kwargs = {
+                    "start": valid_start,
+                    "stop": valid_stop,
+                    "step": step,
+                    "bar_type": bar_type,
+                }
+                data_ser1 = ref_obj1.__getattribute__(data_method)(**kwargs)
+                data_ser2 = ref_obj2.__getattribute__(data_method)(**kwargs)
+                corr = data_ser1.corr(data_ser2)
                 mat[i, j] = corr
                 mat[j, i] = corr
         corr_df = pd.DataFrame(
@@ -485,31 +380,22 @@ class RefinedSet:
             index=list(self.refined_obj.keys()),
             dtype=np.float64,
         )
-        corr_df.name = "Correlation Matrix"
+        corr_df.name = "CorrelationMatrix"
         corr_df.index.name = "symbols"
         return corr_df
 
     def moving_correlation(
-        self, symbol1, symbol2, window, start=None, stop=None, time_step=1
+        self,
+        symbol1,
+        symbol2,
+        window,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
     ):
         """
         Compute correlation of two symbols in a moving `window`
-
-        Parameters
-        ---
-        `symbol1` : ``str``
-            stock symbol present in the set
-        `symbol2` : ``str``
-            stock symbol present in the set
-        `window` : ``int``
-            window in number of bars of the dataframe
-        `start` : ``pandas.Timestamp``
-            initial datetime to consider
-        `stop` : ``pandas.Timestamp``
-            final datetime to consider
-        `time_step` : ``int``
-            available time step among dataframe rows
-            see self.available_time_intervals
 
         Return
         ---
@@ -517,6 +403,9 @@ class RefinedSet:
             Series with correlation in the moving window
 
         """
+        assert_target(target)
+        bar_type = target.split(":")[0]
+        data_method = "get_" + target.split(":")[1]
         valid_start = start or max(
             self.symbol_period[symbol1][0],
             self.symbol_period[symbol2][0],
@@ -527,13 +416,15 @@ class RefinedSet:
         )
         ref_obj1 = self.refined_obj[symbol1]
         ref_obj2 = self.refined_obj[symbol2]
-        cls_prices1 = ref_obj1.change_sample_interval(
-            step=time_step
-        ).Close.loc[valid_start:valid_stop]
-        cls_prices2 = ref_obj2.change_sample_interval(
-            step=time_step
-        ).Close.loc[valid_start:valid_stop]
-        clean_data = pd.concat([cls_prices1, cls_prices2], axis=1).dropna()
+        kwargs = {
+            "start": valid_start,
+            "stop": valid_stop,
+            "step": step,
+            "bar_type": bar_type,
+        }
+        data_ser1 = ref_obj1.__getattribute__(data_method)(**kwargs)
+        data_ser2 = ref_obj2.__getattribute__(data_method)(**kwargs)
+        clean_data = pd.concat([data_ser1, data_ser2], axis=1).dropna()
         indexes = clean_data.index
         data_set1 = clean_data.values[:, 0]
         data_set2 = clean_data.values[:, 1]
@@ -545,62 +436,6 @@ class RefinedSet:
             mov_corr,
         )
         return pd.Series(mov_corr[window - 1 :], indexes[window - 1 :])
-
-    def get_common_feature_dict(
-        self,
-        attr_str,
-        spec_args,
-        start=None,
-        stop=None,
-        time_step=1,
-        as_dataframe=False,
-    ):
-        """
-        Return time series features for all symbols in the set
-        The feature must be represented as time series, if it
-        instead gives a number, an error will occur
-
-        Parameters
-        ---
-        `attr_str` : ``str``
-            refined class feature to compute. Accept either a feature code
-            as in string given in class initialization or the attribute of
-            refined object as string
-        `spec_args` : ``int`` or ``tuple``
-            the first one or few argumets required in refined attribute
-            requested, including all before `start` and `stop`
-        `start` : ``pandas.Timestamp``
-            beginning of time interval of feature time series
-        `stop` : ``pandas.Timestamp``
-            end of time interval of feature time series
-        `time_step` : ``int`` or "day"
-            valid time interval of candlestick
-        `as_dataframe` : ``bool``
-            Define the return data structure
-            `False` : ``dict``
-            `True` : ``pandas.DataFrame``
-
-        Return
-        ---
-        either dictionary or data-frame depending on `as_dataframe`
-        ``dict`` {``str`` : ``pandas.Series``}
-            symbols as keys
-        ``pandas.DataFrame``
-            symbols as columns
-
-        """
-        if attr_str in self.__refined_attr.keys():
-            attr_str = self.__refined_attr[attr_str]
-        feat_dict = {}
-        if isinstance(spec_args, tuple):
-            params = (*spec_args, start, stop, time_step)
-        else:
-            params = (spec_args, start, stop, time_step)
-        for symbol, ref_obj in self.refined_obj.items():
-            feat_dict[symbol] = ref_obj.__getattribute__(attr_str)(*params)
-        if not as_dataframe:
-            return feat_dict
-        return pd.DataFrame(feat_dict)
 
 
 @total_ordering
@@ -638,12 +473,12 @@ class StockDeal:
         `flag` : ``int``
             either +1 for buy position and -1 for sell position
         `fixed_tax` : ``float``
-            contant value in currency to execute an order in the stock market
+            constant value in currency to execute an order in the stock market
         `relative_tax` : ``float``
-            fraction of the total order value
+            fraction of the total order value charged
         `daily_tax` : ``float`` (default 0)
             fraction of share price charged to hold position per day
-            Usually only applicable to maintain short position
+            Usually only applicable to maintain short/sell position
 
         """
         self.symbol = symbol
@@ -685,10 +520,7 @@ class StockDeal:
             raise ValueError("All taxes must be positive")
 
     def __valid_input_date(self, date):
-        """
-        Confirm `date` is ahead of `self.deal_date`
-        and is instance of ``pandas.Timestamp``
-        """
+        """ Confirm `date` is ahead of `self.deal_date` """
         if not isinstance(date, pd.Timestamp):
             return False
         return date >= self.deal_date
@@ -741,10 +573,7 @@ class StockDeal:
         return total_cost * days_elapsed * self.daily_tax
 
     def time_rolling_tax(self, date_array, quantity=None):
-        """
-        Compute the rolling cost of the operation
-        for time index of a price series in `date_array`
-        """
+        """ Compute the rolling cost of the operation from time array """
         if quantity is None:
             quantity = self.quantity
         if not self.__valid_input_quantity(quantity):
@@ -856,7 +685,7 @@ class StockDeal:
     def partial_close(self, unit_price, cls_quant, date=None):
         """
         Return partial result due to reduction in position
-        The object internal quantity is changed reducing it by `cls_quant`
+        `self.quantity` is reducing it by `cls_quant`
 
         Parameters
         ---
@@ -890,7 +719,7 @@ class PortfolioRecord:
     """
     Class to record a set of deals. Basically it holds as attribute a
     list of `StockDeal` objects ordered by date they ocurred. As date
-    object all methods use to the `pandas.Timestamp`
+    object all methods use `pandas.Timestamp`
 
     """
 
@@ -1077,16 +906,15 @@ class Portfolio(PortfolioRecord, RefinedSet):
     Portfolio Class
     ---
     This class provide methods to dynamically simulate a portfolio
-    with some real aspects, including some taxes and the possibility
-    of set sell orders without suficient shares in the portfolio
-    (known as short position with also a rent tax)
+    with some real aspects, including taxes and the possibility of
+    set sell orders without suficient shares in the portfolio
 
     This class also aims to provide a simple interface to analyze
     results from multiple shares and compute the results (profit/
     loss) at any input date-time. In this way its design is two-fold
     aimed, first to use alongside orders requested from other models
     and track the results of these orders, and second to serve as
-    input in some trainning technique
+    input in a trainning model
 
     Inherit
     ---
@@ -1099,11 +927,11 @@ class Portfolio(PortfolioRecord, RefinedSet):
 
     def __init__(
         self,
+        db_path,
         fixed_tax=0,
         relative_tax=0,
-        db_path=DB_PATH_FINTELLIGENCE,
+        preload={},
         common_features="",
-        preload={"time": [5, 10, 15, 30, 60, "day"]},
     ):
         """
         Define a portfolio subject to some operational taxes
@@ -1111,18 +939,17 @@ class Portfolio(PortfolioRecord, RefinedSet):
 
         Parameters
         ---
+        `db_path` : ``str``
+            full path (with filename) to database file
         `fixed_tax` : ``float``
             fixed tax charged independent of the volume
         `relative_tax` : ``float``
             relative fraction of the operation price charged in an order
             Usually very small (tipically < 0.001)
-        `db_path` : ``str``
-            full path to (with filename) to database file
-        `commom_features` : ``str``
-            A valid string with statistical features to be loaded
-            within the shares. See `RefinedSet` for more info
-        `preload` : ``dict`` {str : list}
-            dataframe with candle sticks to be loaded in memory
+        `preload` : ``dict {str : list}``
+            dictionary needed in `RefinedSet` constructor
+        `commom_features` : ``dict { str : str }``
+            dictionaty needed in `RefinedSet` constructor
 
         """
         ref_set_args = (db_path, common_features, preload)
@@ -1373,7 +1200,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 pos[deal.symbol] = deal.flag * deal.quantity
         finished_pos_symbols = []
         for symbol, quant in pos.items():
-            if abs(quant) < 1:
+            if quant == 0:
                 finished_pos_symbols.append(symbol)
         for symbol in finished_pos_symbols:
             pos.pop(symbol)
@@ -1582,7 +1409,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 next_deal_date = stop_date
             time_index = (
                 self.refined_obj[deal.symbol]
-                .change_sample_interval(step=time_step)
+                .time_bars(step=time_step)
                 .loc[last_deal_date:next_deal_date]
                 .index
             )
@@ -1592,7 +1419,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 position_flag = deals_stack[symbol][0].flag
                 price_series = (
                     self.refined_obj[symbol]
-                    .change_sample_interval(step=time_step)
+                    .time_bars(step=time_step)
                     .Close.loc[last_deal_date:next_deal_date]
                 )
                 if price_series.empty:

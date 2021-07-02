@@ -1,391 +1,253 @@
+""" Primary strategies selection module
+
+In this module, based on basic statistical features provided by
+refined data, simple strategies are build. These strategies are
+based on combining features to generate events with some advice
+about what should be done. The advices are binary info, as such
+are represented here by +1 for buy and -1 for sell, also known
+as `side` of the suggested operation
+
+All functions in this module implement a primary strategy hence
+always consume a ``RefinedData`` obj and return a pandas series
+with +1 and -1 values
+
+"""
+
 import pandas as pd
 import numpy as np
 
-class PrimaryModel:
-    """
-    This class implements event-driven trading strategies, which generate Buy/
-    Sell triggers whenever certain conditions are met by the parameters/
-    indicators. It shoud be understood as being defined by a model-type (so 
-    far only 3 supported), and the parameters for the given model type. The 
-    class then generates the trading signals automatically by evoking the 
-    `PrimaryModel.events()` method and storing the information in the 
-    `.PrimaryModel.events_df` attribute.
-        This class uses refined_data data to process three models:
+from mvp import utils
 
-    - Crossing Averages Model
-    - Bollinger Bands Model
-    - Classical Filter Model
+
+def crossing_ma(refined_obj, window1, window2, kwargs={}, draw=False):
+    """
+    Use fast and slow moving averages crossing as event definition
+    The primary strategy (advice) depends on cross relation
+
+    Paramters
+    ---------
+    `refined_obj` : ``mvp.RefinedData``
+        object with simple statistical features
+    `window1` : ``int``
+        size of one of the moving averages window
+    `window2` : ``int``
+        size of one of the moving averages window
+    `kwargs` : ``dict``
+        optional arguments of the `refined_obj` method involved
+        In this case `refined_obj.get_sma`. Check its documentation
+
+    Return
+    ------
+    ``pandas.Series``
+        time series with +1 (buy side) and -1(sell side)
+
+    """
+    slow_window = min(window1, window2)
+    fast_window = max(window1, window2)
+    slow_ma = refined_obj.get_sma(slow_window, **kwargs)
+    fast_ma = refined_obj.get_sma(fast_window, **kwargs)
+    diff = (fast_ma - slow_ma).dropna()
+    cross_time = diff.index[diff[1:] * diff.shift(1) < 0]
+    if draw:
+        return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32), slow_ma, fast_ma
+    else:
+        return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
+
+
+
+def trend(refined_obj, threshold, window=1, kwargs={}):
+    """
+    Consider the return series over (generally) very short moving average
+    to slice in sequences of positive and negative values. For each slice
+    perform a cummulative sum of the returns, and in case it each exceeds
+    a threshold, mark the index as the beggining of a trend in the prices
+    The return series here is the relative variation of the prices
+
+    Paramters
+    ---------
+    `refined_obj` : ``mvp.RefinedData``
+        object with simple statistical features
+    `threshold` : ``float``
+        tolerance to define a new trend if cummulative returns exceed it
+    `window` : ``int``
+        size of the moving average window. May be use to smooth data
+    `kwargs` : ``dict``
+        optional arguments of moving average
+
+    Return
+    ------
+    ``pandas.Series``
+        time series with +1 (buy side) and -1(sell side)
+
+    """
+    sma = refined_obj.get_sma(window, **kwargs)
+    diff = (sma - sma.shift(1)).dropna()
+    returns = (sma / sma.shift(1) - 1).dropna().values
+    n = returns.size
+    events_ind = np.empty(n, dtype=np.int32)
+    nevents = utils.sign_mark_cusum(n, returns, events_ind, threshold)
+    events_time = diff[events_ind[:nevents]].index
+    return pd.Series(np.sign(diff[events_time].values), events_time, np.int32)
+
+
+def cummulative_returns(refined_obj, threshold, window=1, kwargs={}):
+    """
+    Consider the return series over (generally) very short moving average
+    to perform cummulative sum and mark as events when its absolute value
+    exceed a threshold, then reset and start again.
+    This is different from `trend` model which requires the cumsum in the
+    period to have exclusive positive or negative returns, variations are
+    not allowed as in this case
+
+    Paramters
+    ---------
+    `refined_obj` : ``mvp.RefinedData``
+        object with simple statistical features
+    `threshold` : ``float``
+        tolerance to define a new trend if cummulative returns exceed it
+    `window` : ``int``
+        size of the moving average window. May be use to smooth data
+    `kwargs` : ``dict``
+        optional arguments of moving average
+
+    Return
+    ------
+    ``pandas.Series``
+        time series with +1 (buy side) and -1(sell side)
+
+    """
+    sma = refined_obj.get_sma(window, **kwargs)
+    returns = (sma / sma.shift(1) - 1).dropna()
+    n = returns.size
+    events_ind = np.empty(n, np.int32)
+    events_sign = np.empty(n, np.int32)
+    nevents = utils.indexing_cusum_abs(
+        n, returns.values, events_ind, events_sign, threshold
+    )
+    events_time = returns[events_ind[1:nevents]].index
+    return pd.Series(events_sign[1:nevents], events_time, np.int32)
+
+
+def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}, draw=False):
+    """
+    Use two bands of standard deviation around the moving average which
+    launch an event every time the prices touch one of the bands
+
+    Paramters
+    ---------
+    `refined_obj` : ``mvp.Refineddata``
+        object with simple statistical features
+    `dev_window` : ``int``
+        window size to compute moving standard deviation
+    `ma_window` : ``int``
+        window size to compute moving average
+    `mult` : ``float``
+        multiple of standard deviation to compute upper and lower bands
+    `kwargs` : ``dict``
+        dictionary with optional arguments of the features involved
+
+    Return
+    ------
+    ``pandas.Series``
+        time series with +1 (buy side) and -1(sell side)
+
+    """
+    try:
+        target = kwargs["target"]
+        bar_type, data_name = target.split(":")
+    except KeyError:
+        bar_type = "time"
+        data_name = "close"
+    try:
+        step = kwargs["step"]
+    except KeyError:
+        step = 1
+    get_data_kwargs = {"bar_type": bar_type, "step": step}
+    get_data_method = refined_obj.__getattribute__("get_" + data_name)
+    data_series = get_data_method(**get_data_kwargs)
+    dev = refined_obj.get_dev(dev_window, **kwargs)
+    sma = refined_obj.get_sma(ma_window, **kwargs)
+    upper = sma + mult * dev
+    lower = sma - mult * dev
+    upper_diff = (upper - data_series).dropna()
+    lower_diff = (data_series - lower).dropna()
+    sell_time = upper_diff[upper_diff.shift(1) * upper_diff < 0][
+        upper_diff < 0
+    ].index
+    buy_time = lower_diff[lower_diff.shift(1) * lower_diff < 0][
+        lower_diff < 0
+    ].index
+    buy_series = pd.Series(np.ones(buy_time.size, np.int32), buy_time)
+    sell_series = pd.Series(-np.ones(sell_time.size, np.int32), sell_time)
+    if draw:
+        return buy_series.append(sell_series, verify_integrity=True).sort_index(), upper, lower
+    else:
+        return buy_series.append(sell_series, verify_integrity=True).sort_index()
+
+def overlap_strategies(
+    refined_obj,
+    time_gap,
+    agree_threshold,
+    strategies_list,
+    args_list,
+    kwargs_list,
+):
+    """
+    Wihtin events from a main primary strategy, consider a time interval
+    for other events from different strategies to happen. In case other
+    strategies provides events in the respective interval, consider all
+    recomendations to evaluate an overlap region and define new events
 
     Parameters
     ----------
-    `refined_data` : ``refined_data.RefinedData Object``
-        A RefinedData object from the file refined_data.py
-    `strategy` : ``str``
-        Three available types: ``crossing-MA``, `bollinger-bands``, 
-        ``classical-filter``
-    `features` : ``dict```
-        A dict containing model parameters keys:
-            For Crossing Averages Model it should be like:
-                {'MA':[500,1000]}
-            For Bollinger Bands Model it should be like:
-                {'MA':500,'DEV':20,'K_value':2}
-            For Classical Model it should be like
-                {'threshold': 0.01}
-    `time_step` : ``int/str``
-        An ``int`` available: 1,5,15,30,60 
-        or a ``str`` available: 'day'
+    `refined_obj` : ``mvp.Refineddata``
+        object with simple statistical features
+    `time_gap` : ``pandas.Timedelta``
+        tolered time to match events from all strategies
+    `agree_threshold` : ``float`` in (0, 1]
+        Minimum required for average of sides that match the same period
+    `strategies_list` : ``list[mvp.primary functions]``
+        list with functions available from primary module
+    `args_list` : `list[tuple]``
+        list of tuples to use as positional arguments
+    `kwargs_list` : ``list[dict]``
+        list of dictionaries to use as optional arguments
 
-    Usage
-    -----
-    The user should provide a RefinedData object contaning no a priori 
-    calculated statistics (only 'OHLC', Volume, TickVol) along with the
-    desired model-type and its parameters.  This class is intended to be used 
-    in the following flow:
+    Return
+    ------
+    ``pandas.Series``
 
-    Given a .db containing ('OHLC', Volume, TickVol) time series data, one
-    should instantiate a RefinedData to read the time-series and feed the 
-    PrimaryModel class. The class then calculates the necessary features for
-    the desired strategy in a dataset in the `PrimaryModel.feature_data`
-    attribute. The feature_data is then used to generate the event triggers,
-    which are stored in `PrimaryModel.events`, containing the Side of the
-    model. The `time_step` parameters allows the calculation of the same model
-    in different time-frames, being defaulted to the 1-minute scale. 
-    
     """
-
-    def __init__(self, refined_data, strategy, features, time_step=1):
-        self.__features = {
-            "MA": "get_simple_MA",
-            "DEV": "get_deviation",
-            "RSI": "get_RSI",
-            "FRAC_DIFF": "frac_diff",
-            "AUTOCORRELATION": "moving_autocorr",
-            "AUTOCORRELATION_PERIOD": "autocorr_period",
-        }
-        self.symbol = refined_data.symbol
-        self.time_step = time_step
-        self.strategy = strategy
-        self.features = features
-        self.feature_data = self.get_feature_data(refined_data)
-        self.events = self.get_events_dataframe()[["Side"]].dropna()
-
-    def get_feature_data(self, refined_data):
-        dataframe_list = [
-            refined_data.change_sample_interval(step=self.time_step)[["Close"]]
+    if agree_threshold < 0 or agree_threshold > 1:
+        raise ValueError(
+            "Threshold of agreement among event must lies in (0, 1]"
+            " interval. {} was given".format(agree_threshold)
+        )
+    events_list = [
+        fun(refined_obj, *args_list[i], **kwargs_list[i])
+        for i, fun in enumerate(strategies_list)
+    ]
+    if len(events_list) == 1:
+        return events_list[0]
+    market_freq = pd.Timedelta(minutes=1)
+    master_events = events_list.pop(0)
+    for t, master_advice in zip(master_events.index, master_events.values):
+        t_end = t + time_gap
+        t_range = pd.period_range(t, t_end, freq=market_freq).to_timestamp()
+        intersection_indexes = [
+            t_range.intersection(event.index) for event in events_list
         ]
-        for feature in self.features.keys():
-            if feature not in self.__features.keys():
-                continue
-            if isinstance(self.features[feature], list):
-                parameters_list = self.features[feature]
-                for parameter in parameters_list:
-                    try:
-                        if isinstance(parameter, tuple):
-                            dataframe_list.append(
-                                pd.DataFrame(
-                                    refined_data.__getattribute__(
-                                        self.__features[feature]
-                                    )(*parameter).rename(
-                                        feature + "_" + str(parameter)
-                                    )
-                                )
-                            )
-                        else:
-                            dataframe_list.append(
-                                pd.DataFrame(
-                                    refined_data.__getattribute__(
-                                        self.__features[feature]
-                                    )(
-                                        window=parameter,
-                                        time_step=self.time_step,
-                                    ).rename(
-                                        feature + "_" + str(parameter)
-                                    )
-                                )
-                            )
-                    except Exception as err:
-                        print(err, ": param {} given".format(parameter))
-            else:
-                parameter = self.features[feature]
-                try:
-                    if isinstance(parameter, tuple):
-                        dataframe_list.append(
-                            pd.DataFrame(
-                                refined_data.__getattribute__(
-                                    self.__features[feature]
-                                )(*parameter).rename(
-                                    feature + "_" + str(parameter)
-                                )
-                            )
-                        )
-                    else:
-                        dataframe_list.append(
-                            pd.DataFrame(
-                                refined_data.__getattribute__(
-                                    self.__features[feature]
-                                )(
-                                    window=parameter, time_step=self.time_step
-                                ).rename(
-                                    feature + "_" + str(parameter)
-                                )
-                            )
-                        )
-                except ValueError as err:
-                    print(err, ": param {} given".format(parameter))
-        feature_df = pd.concat(dataframe_list, axis=1)
-        return feature_df
-
-    def sign(self, x):
-        if x >= 0:
-            return 1
-        else:
-            return -1
-
-    def states_condition(self, x):
-        x = x.tolist()
-        close = x[0]
-        plusK = x[1]
-        minusK = x[2]
-
-        if close < plusK and close > minusK:
-            return 0
-        if close >= plusK:
-            return 1
-        if close <= minusK:
-            return -1
-
-        return np.nan
-
-    def events_crossing_MA(self):
-        """
-        Public method which computes the events triggered by a crossing moving
-        average trading strategy. Given that the PrimaryModel class was 
-        initialized with two MA parameters, this method identifies the 
-        pd.Timestamp() value of a crossing of averages as well as the side 
-        signal: Buy or Sell, depending on the direction of the crossing. A 
-        pd.Dataframe() indexed by pd.Timestamp() and valued in a Boolean field
-        (Buy: 1, Sell: -1) is returned.
-
-        Parameters
-        ----------
-        None
-
-        Modified
-        ----------
-        None
-
-        Return
-        ----------
-
-        ``pd.DataFrame()``
-            columns = ['DateTime','Side']
-            'DateTime' is the pd.index column, containing pd.Timestamp()
-            values for the calculated events. 'Side' is a coulmn containing
-            the side of the stratgey: Buy = 1, Sell = -1.
-        """
-        MA_params = list(set(self.features["MA"]))
-        if len(MA_params) > 2:
-            print(
-                "warning, Number of parameters exceeded maximum of two, using MA's: ["
-                + str(MA_params[0])
-                + ", "
-                + str(MA_params[1])
-                + "]"
-            )
-        delta_MA = pd.DataFrame()
-        delta_MA["Delta"] = (
-            self.feature_data["MA_" + str(MA_params[0])]
-            - self.feature_data["MA_" + str(MA_params[1])]
-        ).dropna()
-        events_MA = delta_MA["Delta"].apply(self.sign)
-        events_MA = (
-            events_MA.rolling(window=2)
-            .apply(
-                lambda x: -1
-                if x[0] > x[1]
-                else (1 if x[0] < x[1] else np.nan),
-                raw=True,
-            )
-            .dropna()
-        )
-        return (
-            pd.DataFrame(events_MA)
-            .rename(columns={"Delta": "Side"})
-            .reset_index()
-        )
-
-    def events_classical_filter(self, threshold=0.1):
-        """
-        Public method which computes the events triggered by a Classical Filter
-        trading strategy. This method firs identifies all local inflexions of
-        'Close' prices of a given asset. It then calculates the CUSUM of 
-        returns from an inflexion and generates an event trigger for the first
-        pd.Timestamp() value for which the CUSUM > threshold. The side of the
-        event is a Buy if the inflexion is a minimum, and a Sell if it is a 
-        maximum. A pd.Dataframe() indexed by pd.Timestamp() and valued in a 
-        Bool (Buy: 1, Sell: -1) is returned.
-
-        Parameters
-        ----------
-        ``threshold``: 'float'
-            defines the threshold for the CUSUM operation. When CUSUM achieves
-            threshold, an event is triggered.
-
-        Modified
-        ----------
-        None
-
-        Return
-        ----------
-
-        ``pd.DataFrame()``
-            columns = ['DateTime','Side']
-            'DateTime' is the pd.index column, containing pd.Timestamp() 
-            values for the calculated events. 'Side' is a coulmn containing 
-            the side of the stratgey: Buy = 1, Sell = -1.
-        """
-        close_data = self.feature_data[["Close"]]
-        close_data["Min"] = close_data[
-            (close_data["Close"].shift(1) > close_data["Close"])
-            & (close_data["Close"].shift(-1) > close_data["Close"])
-        ]["Close"]
-        close_data["Max"] = close_data[
-            (close_data["Close"].shift(1) < close_data["Close"])
-            & (close_data["Close"].shift(-1) < close_data["Close"])
-        ]["Close"]
-        saddle_events = (
-            (close_data[close_data["Max"] >= 0].index)
-            .append(close_data[close_data["Min"] >= 0].index)
-            .sort_values()
-        )
-        if close_data.loc[saddle_events[0]]["Max"] != np.nan:
-            side = -1
-        else:
-            side = 1
-        events_CF = []
-        for start, end in list(zip(saddle_events, saddle_events[1:])):
-            inter_saddle_df = close_data[start:end]
-            inter_saddle_df["Returns"] = (
-                inter_saddle_df["Close"] / inter_saddle_df["Close"].shift(1)
-                - 1
-            )
-            inter_saddle_df["Cusum"] = 0
-            if side == 1:
-                for i in range(1, len(inter_saddle_df["Cusum"].values)):
-                    inter_saddle_df["Cusum"].iloc[i] = max(
-                        (
-                            inter_saddle_df["Cusum"].iloc[i - 1]
-                            + inter_saddle_df["Returns"].iloc[i]
-                        ),
-                        0,
-                    )
-                occurances = inter_saddle_df[
-                    inter_saddle_df["Cusum"] > threshold
-                ]
-            if side == -1:
-                for i in range(1, len(inter_saddle_df["Cusum"].values)):
-                    inter_saddle_df["Cusum"].iloc[i] = -max(
-                        -(
-                            inter_saddle_df["Cusum"].iloc[i - 1]
-                            + inter_saddle_df["Returns"].iloc[i]
-                        ),
-                        0,
-                    )
-                occurances = inter_saddle_df[
-                    inter_saddle_df["Cusum"] < -threshold
-                ]
-            if not occurances.empty:
-                event = [occurances.index[0], side]
-                events_CF.append(event)
-            side = -side
-
-        return pd.DataFrame(events_CF, columns=["DateTime", "Side"])
-
-    def events_bollinger(self):
-        """
-        Public method which computes the events triggered by a Bollinger Bands
-        trading strategy. Given that the PrimaryModel class was initialized 
-        with a DEV, MA, and K_value parameter, this method identifies the 
-        pd.Timestamp() value of a crossing of the close price with respect to
-        the upper and lower Bollinger Band, which gives us the side signal: 
-        Buy or Sell, depending on the crossed band. A pd.Dataframe() indexed 
-        by pd.Timestamp() and valued in a Bool (Buy: 1, Sell: -1) is returned.
-
-        Parameters
-        ----------
-        None
-
-        Modified
-        ----------
-        None
-
-        Return
-        ----------
-
-        ``pd.DataFrame()``
-            columns = ['DateTime','Side']
-            'DateTime' is the pd.index column, containing pd.Timestamp() 
-            values for the calculated events. 'Side' is a coulmn containing 
-            the side of the stratgey: Buy = 1, Sell = -1.
-        """
-        if isinstance(self.features["MA"], list):
-            if len(self.features["MA"]) > 1:
-                print(
-                    "Warning, more than one MA provided, using MA "
-                    + str(self.features["MA"][0])
-                )
-            MA_param = self.features["MA"][0]
-        else:
-            MA_param = self.features["MA"]
-
-        if isinstance(self.features["DEV"], list):
-            if len(self.features["DEV"]) > 1:
-                print(
-                    "Warning, more than one DEV provided, using DEV "
-                    + str(self.features["DEV"][0])
-                )
-            DEV_param = self.features["DEV"][0]
-        else:
-            DEV_param = self.features["DEV"]
-        K_value = self.features["K_value"]
-        temp = pd.DataFrame()
-        temp["Close"] = self.feature_data["Close"]
-        temp["plusK"] = (
-            self.feature_data["MA_" + str(MA_param)]
-            + K_value * self.feature_data["DEV_" + str(DEV_param)]
-        ).dropna()
-        temp["minusK"] = (
-            self.feature_data["MA_" + str(MA_param)]
-            - K_value * self.feature_data["DEV_" + str(DEV_param)]
-        ).dropna()
-
-        temp["Side"] = temp.apply(self.states_condition, raw=True, axis=1)
-
-        events_bol = (
-            temp["Side"]
-            .rolling(window=2)
-            .apply(
-                lambda x: -1
-                if x[0] == 0 and x[1] == 1
-                else (1 if x[0] == 0 and x[1] == -1 else np.nan),
-                raw=True,
-            )
-        ).dropna()
-        return pd.DataFrame(events_bol).reset_index()
-
-    def events(self):
-        if self.strategy == "crossing-MA":
-            return self.events_crossing_MA()
-        elif self.strategy == "bollinger-bands":
-            return self.events_bollinger()
-        elif self.strategy == "classical-filter":
-            return self.events_classical_filter(self.features["threshold"])
-
-    def get_events_dataframe(self):
-        return pd.concat(
-            [
-                self.feature_data[["Close"]],
-                self.events().set_index("DateTime"),
-            ],
-            axis=1,
-            )    
+        if all([index_set.empty for index_set in intersection_indexes]):
+            master_events[t] = np.NaN
+            continue
+        combined_advices = 0
+        total_advices = 0
+        for index_set, events in zip(intersection_indexes, events_list):
+            combined_advices += events[index_set].sum()
+            total_advices += events[index_set].size
+        overall_advice = combined_advices / total_advices
+        if master_advice * overall_advice < agree_threshold:
+            master_events[t] = np.NaN
+    intersect_events = master_events.dropna()
+    intersect_events.index = intersect_events.index + time_gap
+    return intersect_events.astype(np.int32)
