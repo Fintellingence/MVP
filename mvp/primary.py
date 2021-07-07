@@ -49,10 +49,15 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}, draw=False):
     diff = (fast_ma - slow_ma).dropna()
     cross_time = diff.index[diff[1:] * diff.shift(1) < 0]
     if draw:
-        return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32), slow_ma, fast_ma
+        return (
+            pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32),
+            slow_ma,
+            fast_ma,
+        )
     else:
-        return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
-
+        return pd.Series(
+            np.sign(diff[cross_time].values), cross_time, np.int32
+        )
 
 
 def trend(refined_obj, threshold, window=1, kwargs={}):
@@ -128,7 +133,9 @@ def cummulative_returns(refined_obj, threshold, window=1, kwargs={}):
     return pd.Series(events_sign[1:nevents], events_time, np.int32)
 
 
-def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}, draw=False):
+def bollinger_bands(
+    refined_obj, dev_window, ma_window, mult, kwargs={}, draw=False
+):
     """
     Use two bands of standard deviation around the moving average which
     launch an event every time the prices touch one of the bands
@@ -180,9 +187,16 @@ def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}, draw=Fa
     buy_series = pd.Series(np.ones(buy_time.size, np.int32), buy_time)
     sell_series = pd.Series(-np.ones(sell_time.size, np.int32), sell_time)
     if draw:
-        return buy_series.append(sell_series, verify_integrity=True).sort_index(), upper, lower
+        return (
+            buy_series.append(sell_series, verify_integrity=True).sort_index(),
+            upper,
+            lower,
+        )
     else:
-        return buy_series.append(sell_series, verify_integrity=True).sort_index()
+        return buy_series.append(
+            sell_series, verify_integrity=True
+        ).sort_index()
+
 
 def overlap_strategies(
     refined_obj,

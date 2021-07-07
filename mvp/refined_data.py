@@ -1,21 +1,27 @@
 """ Module to analyzed refined data with basic statistical properties
 
-    This module provide a workflow to extract directly from database some
-    basic statistical properties from raw stock prices and volume. Before
-    using it, have a look in `mvp.rawdata` documentation
+This module provide a workflow to extract directly from database some
+basic statistical properties from raw stock prices and volume. Before
+using it, have a look in `mvp.rawdata` documentation
 
-    Class
-    -----
-    ``RefinedData``
-        class that inherit ``RawData`` from mvp.rawdata to provide basic
-        tools and statistical features to feed models though its methods
-        It is designed to fill requirements of strategies as pointed in:
+Class
+-----
+``RefinedData(
+    symbol -> str, db_path -> str, preload -> dict, requested_features -> dict
+)``
+    class that inherit ``RawData`` from mvp.rawdata to provide basic
+    tools and statistical features to feed models though its methods
+    It is designed to fill requirements of strategies as pointed in:
+    https://hudsonthames.org/does-meta-labeling-add-to-signal-efficacy-triple-barrier-method/
+    where some basic features as moving average and standard deviation
+    are required not only using the default time-interval candlesticks
+    but also over other targets, as volume and money bars.
 
-        https://hudsonthames.org/does-meta-labeling-add-to-signal-efficacy-triple-barrier-method/
-
-        where some basic features as moving average and standard deviation
-        are required not only using the default time-interval candlesticks
-        but also over other targets, as volume and money bars.
+Functions
+---------
+``assert_target(target -> str)``
+``assert_feature(feat_name -> str)``
+``available_features()``
 
 """
 import numpy as np
@@ -27,8 +33,14 @@ from mvp.rawdata import RawData, assert_bar_type, assert_data_field
 
 def assert_target(target):
     """
-    Raise error if either `target` has invalid format or could
-    not found the corresponding methods in `RawData` class
+    Raise `ValueError` if `target` could not be found
+    A target encode the type of bars and the bar data field to be used. The
+    convention is to provide these informations as string separate by colon
+    `target` must be fromatted as "bar_type:data_field". Usually, it is any
+    combination of the strings below:
+        bar_type : ["time", "tick", "volume", "money"]
+        data_field : ["open", "high", "low", "close", "volume"]
+    See ``mvp.rawdata.RawData`` methods with `bars` and `get` keywords
     """
     if len(target.split(":")) != 2:
         raise ValueError("Found invalid target '{}'".format(target))
@@ -38,8 +50,8 @@ def assert_target(target):
 
 def assert_feature(feat_name):
     """
-    Raise error if could not found feature `feat_name` method in
-    ``RefinedData`` class. Use `available_features` if needed
+    Raise error if could not found feature `feat_name` method
+    in ``RefinedData`` class. See `available_features`
     """
     method_name = "get_" + feat_name
     methods_set = set(RefinedData.__dict__.keys())
@@ -53,8 +65,8 @@ def assert_feature(feat_name):
 
 def available_features():
     """
-    Return list of feature names available to use. Corresponds
-    to all ``RefinedData`` methods starting with "get_"
+    Return list of feature names available to use. A feature name
+    is the suffix of ``RefinedData`` methods starting with `get_`
     """
     methods_list = list(RefinedData.__dict__.keys())
     return [
@@ -85,10 +97,10 @@ class RefinedData(RawData):
         values can change drastically depending on `target`, see
         some examples below
     `target` : ``str``
-        String fromatted as "bar_type:data_field". Parameters of
-        this pair are
-            bar_type : ["time", "tick", "volume", "money"]
-            data_field : ["open", "high", "low", "close", "volume"]
+        String fromatted as "bar_type:data_field". Usually it is
+        any combination of the strings below, separated by colon
+        bar_type : ["time", "tick", "volume", "money"]
+        data_field : ["open", "high", "low", "close", "volume"]
 
     Consider the following example: if `target = "money:close"` and
     `step = 10000000` the feature requested will be computed over
@@ -128,7 +140,7 @@ class RefinedData(RawData):
         Parameters
         ----------
         `symbol` : ``str``
-            company symbol listed in stock market(available in database)
+            company symbol listed in stock market available in database
         `db_path` : ``str``
             full path to 1-minute database file
         `preload` : ``dict`` {`bar_type` : `step`}
@@ -148,34 +160,23 @@ class RefinedData(RawData):
             KEYS:
                 The keys must be formated according to "bar_type:data_field"
                 where `bar_type` inform how data bars are formed and
-                `data_field` the bar value to use. Some examples are
-                    "time:close"  - use close price in time-spaced bars
-                    "time:volume" - use volume traded in time-spaced bars
-                    "tick:high"   - use high price in tick-spaced bars
-                    "money:close" - use close price in money-spaced bars
+                `data_field` the bar value to use. Can be any combination of
+                    bar_type in ["time", "tick", "volume", "money"]
+                    data_field in ["open", "high", "low", "close", "volume"]
                 This disctionary keys is also referred to as `target`
                 parameters in this class methods to compute features
-                The available names for `bar_type` are the same of
-                the keys of `preload` parameter and are the methods
-                of `RawData` that has as suffix `_bars`(also method
-                of `RefinedData` as it inherit `RawData`)
-                The available names for `data_field` are suffixes of
-                any `RawData` method that starts with `get_`. Careful
-                to do not confuse with the `RefinedData` methods that
-                begins with `get_` which refers to features instead
             VALUES:
                 String codifying all infomration to pass in methods call
                 The values of this dictionaty must follow the convention
                 "MET1_T1:V11,V12,...:MET2_T2:V21,V22,...:METM_TM:VM1,..."
                 where MET is a `RefinedData` method suffix for all the
-                ones that begins with `get_`. Therefore, available values
-                to use can be consulted in `RefinedData` class methods
+                ones that begins with `get_`. A list with available names
+                is returned by ``mvp.refined_data.available_features``
                 Some (default) examples
-                    "sma" = Moving Average (``int``)
+                    "sma" = Simple Moving Average (``int``)
                     "dev" = Standart Deviation (``int``)
                     "rsi" = Relative Strenght Index (RSI) indicator (``int``)
-                    "fracdiff": Fractional differentiation (``float``)
-                with the following data types of `Vij` in parentheses
+                with the following types of `Vij` in parentheses
                 Note the underscore after METj which can be one of the
                 following: 1, 5, 10, 15, 30, 60 and DAY indicating the
                 time step to be used in bars size, in case the target
@@ -309,8 +310,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             Any further computation is avoided by a memory access
@@ -361,8 +361,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             Any further computation is avoided by a memory access
@@ -413,8 +412,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             Any further computation is avoided by a memory access
@@ -467,8 +465,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             Any further computation is avoided by a memory access
@@ -530,8 +527,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             Any further computation is avoided by a memory access
@@ -590,8 +586,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             Any further computation is avoided by a memory access
@@ -649,8 +644,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             Any further computation is avoided by a memory access
@@ -733,8 +727,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             The all-time data series is used in `append=True` case as for
@@ -799,8 +792,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             Any further computation is avoided by a memory access
@@ -861,8 +853,7 @@ class RefinedData(RawData):
             `bar_type` refers to which quantity `step` refers to, as
             ["time", "tick", "volume", "money"]. The second part,
             `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]. Consult this
-            class `RefinedData` documentation for more info
+            ["open", "high", "low", "close", "volume"]
         `append` : ``bool``
             Whether to append the full time series in cache memory or not
             Any further computation is avoided by a memory access
