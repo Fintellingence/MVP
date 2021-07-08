@@ -11,20 +11,14 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 import tensorflow.summary as summary
 from tensorboard.plugins.hparams import api as hp
 from sklearn.model_selection import ParameterGrid
 
-from sklearn.metrics import (
-    f1_score,
-    balanced_accuracy_score,
-    precision_score,
-    auc,
-    roc_curve,
-)
+from sklearn.metrics import f1_score, balanced_accuracy_score, precision_score
 
-from mvp.refined_data import RefinedData
+from mvp.labels import many_event_labels
+from mvp.draw import draw_roc_curve
 from mvp.selection import (
     count_occurrences,
     avg_uniqueness,
@@ -35,75 +29,6 @@ from mvp.selection import (
 )
 
 
-# TODO: Put into draw module
-def draw_roc_curve(path_dir, cv_expected, cv_true_probs, interpolation_size=100):
-    """ Draw ROC curve based on a set of binary probabilities. """
-    fig = plt.figure(dpi=300)
-    ax = fig.subplots(1, 1, sharey=False)
-    aucs = []
-    tprs = []
-    fprs = np.linspace(0, 1, interpolation_size)
-    for i, (expected, true_probs) in enumerate(
-        zip(cv_expected, cv_true_probs)
-    ):
-        # TODO: How determine the best threshold
-        fpr, tpr, thresholds = roc_curve(expected, true_probs)
-        tprs.append(np.interp(fprs, fpr, tpr))
-        tprs[-1][0] = 0.0
-        roc_auc = auc(fpr, tpr)
-        aucs.append(roc_auc)
-        ax.plot(
-            fpr,
-            tpr,
-            lw=1,
-            alpha=0.3,
-            label="ROC fold {} (AUC = {:.2f})".format(i, roc_auc),
-        )
-
-    ax.plot(
-        [0, 1],
-        [0, 1],
-        linestyle="--",
-        lw=2,
-        color="r",
-        label="Random Classifier",
-        alpha=0.8,
-    )
-
-    mean_tpr = np.mean(tprs, axis=0)
-    mean_tpr[-1] = 1.0
-    mean_auc = auc(fprs, mean_tpr)
-    std_auc = np.std(aucs)
-    ax.plot(
-        fprs,
-        mean_tpr,
-        color="b",
-        label=r"Mean ROC (AUC = {:.2f} $\pm$ {:.2f})".format(mean_auc, std_auc),
-        lw=2,
-        alpha=0.8,
-    )
-
-    std_tpr = np.std(tprs, axis=0)
-    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-    plt.fill_between(
-        fprs,
-        tprs_lower,
-        tprs_upper,
-        color="grey",
-        alpha=0.2,
-        label=r"$\pm$ 1 $\sigma$",
-    )
-
-    ax.set_xlim([-0.05, 1.05])
-    ax.set_ylim([-0.05, 1.05])
-    ax.set_xlabel("FPR $\left(\\frac{FP}{FP + TN}\\right)$")
-    ax.set_ylabel("TPR $\left(\\frac{TP}{TP + FN}\\right)$")
-    ax.legend(loc="lower right")
-    plt.savefig(os.path.join(path_dir, "roc.png"))
-
-
-# TODO: Consider the use of HParams objects insted of dicts
 def save_hp_performance(
     base_dir,
     kwargs_model,
@@ -116,7 +41,7 @@ def save_hp_performance(
     s_primary=None,
     s_labels=None,
 ):
-    """ Save the hyper-parameters using Tensorboard"""
+    """Save the hyper-parameters using Tensorboard"""
     with summary.create_file_writer(base_dir).as_default():
         hparams = {}
         hparams.update(kwargs_model)
@@ -138,7 +63,7 @@ def save_hp_performance(
 
 
 def create_log_file(name, log_dir):
-    """ Create a file in `log_dir` with name `name` to save the logs"""
+    """Create a file in `log_dir` with name `name` to save the logs"""
     os.makedirs(log_dir, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(
         os.path.join(log_dir, "{}.log".format(name)),
@@ -167,6 +92,12 @@ class BaggingModelOptimizer:
         A callable object that instantiates a baging model.
     `run_dir` : ``str``
         The path in which the outcomes from optimization will be saved.
+    `outputs` : ``str``
+        A string to describe the expected output model. It is either `category` or
+        `probability`.
+    `threshold` : ``float``
+        The value of the threshold used to classify an event based on the probability
+        as a positive label [ignored in `category` mode].
     `scaler_pipeline` : ``Pipeline``
         A sklearn ``Pipeline`` composed of the steps to preprocess data.
     `cv_splits_fit` : ``int``
@@ -198,22 +129,25 @@ class BaggingModelOptimizer:
         The seed to initiate the numpy ``RandomState``.
 
     """
+
     def __init__(
         self,
         model_fn,
         run_dir,
+        outputs="category",
+        threshold=0.6,
         scaler_pipeline=None,
         cv_splits_fit=10,
-        cv_splits_hp=3,
+        cv_splits_hp=5,
         use_weight=True,
         num_of_threads=None,
         min_time_weight=0.25,
         time_weights_fn=time_weights,
         samples_weights_fn=sample_weights,
         metrics={
-            "F1": (f1_score, True),
-            "Precision": (precision_score, True),
-            "BAcc": (balanced_accuracy_score, True),
+            "Precision": precision_score,
+            "F1": f1_score,
+            "BAcc": balanced_accuracy_score,
         },
         verbose=0,
         seed=12345,
@@ -234,7 +168,9 @@ class BaggingModelOptimizer:
         )
         self._best_kwargs_model = None
         self._best_kwargs_scaler = {}
-        self._file_log = create_log_file("metamodel", log_dir=self._run_dir)
+        self._meta_file_log = create_log_file(
+            "metamodel", log_dir=self._run_dir
+        )
         if self._use_weight:
             if (self._time_weights_fn is None) and (
                 self._samples_weights_fn is None
@@ -243,12 +179,25 @@ class BaggingModelOptimizer:
                     "With `use_weight` is True, at least one of the functions,"
                     " `time_weight_fn` or `sample_weights_fn`, have to be defined"
                 )
+        if not (
+            hasattr(self._model_fn, "predict")
+            and hasattr(self._model_fn, "predict_proba")
+        ):
+            raise ValueError(
+                "The model {} doesn't have one or both of the"
+                " methods predict and predict_proba".format(self._model_fn)
+            )
+        if outputs == "probability":
+            self._threshold = threshold
+            self._predict_fn_name = "predict_proba"
+        else:
+            self._predict_fn_name = "predict"
         self._verbose = verbose
         self._seed = seed
         self._random_state = np.random.RandomState(seed)
 
     def __is_better(self, last, best):
-        """ Determine if the set of values in `last` is greater than `best`"""
+        """Determine if the set of values in `last` is greater than `best`"""
         for l, b in zip(last, best):
             if l > b:
                 return True
@@ -260,9 +209,8 @@ class BaggingModelOptimizer:
         kwargs_model,
         closed,
         train_horizon,
-        test_horizon=None,
     ):
-        """ Initiate the model and the scaler based on the kwargs, the weights are also initiated"""
+        """Initiate the model and the scaler based on the kwargs, the weights are also initiated"""
         if kwargs_scaler is None:
             kwargs_scaler = {}
         if self._scaler_pipeline is not None:
@@ -271,20 +219,15 @@ class BaggingModelOptimizer:
             scaler = None
         if self._use_weight:
             train_weight = self.get_weight(closed, train_horizon)
-            if test_horizon is not None:
-                test_weight = self.get_weight(closed, test_horizon)
-            else:
-                test_weight = None
         else:
             train_weight = None
-            test_weight = None
         model = self._model_fn(
             n_jobs=self._num_of_threads,
             n_bootstrap_jobs=self._num_of_threads,
             random_state=self._random_state,
             **kwargs_model,
         )
-        return model, scaler, train_weight, test_weight
+        return model, scaler, train_weight
 
     def __partial_fit_eval(
         self,
@@ -295,16 +238,16 @@ class BaggingModelOptimizer:
         horizon,
         np_horizon,
         closed,
+        test_weight,
         kwargs_model,
         kwargs_scaler=None,
     ):
-        """ Fit and evaluate the model based on partial configuration"""
-        model, scaler, train_weight, test_weight = self.__set_model(
+        """Fit and evaluate the model based on partial configuration"""
+        model, scaler, train_weight = self.__set_model(
             kwargs_scaler,
             kwargs_model,
             closed,
             horizon[train_idx],
-            horizon[test_idx],
         )
         outcomes = {}
         x_train, x_test = data[train_idx], data[test_idx]
@@ -314,22 +257,22 @@ class BaggingModelOptimizer:
             x_train = scaler.fit_transform(x_train)
         if scaler is not None:
             x_test = scaler.transform(x_test)
+
         model.fit(
             x_train,
             y_train,
             sample_weight=train_weight,
             horizon=train_horizon,
         )
-        # TODO: Discuss the way that the prediction is assessed
         predicted_proba = model.predict_proba(x_test)
-        predicted = model.predict(x_test)
-        for name, (metric_fn, use_weight) in self._metrics.items():
-            if use_weight:
-                outcomes[name] = metric_fn(
-                    y_test, predicted, sample_weight=test_weight
-                )
-            else:
-                outcomes[name] = metric_fn(y_test, predicted)
+
+        predicted = model.__getattribute__(self._predict_fn_name)(x_test)
+        if hasattr(self, "_threshold"):
+            predicted = (predicted[:, 1] >= self._threshold).astype(int)
+        for name, metric_fn in self._metrics.items():
+            outcomes[name] = metric_fn(
+                y_test, predicted, sample_weight=test_weight
+            )
         return outcomes, predicted, horizon.index[test_idx], predicted_proba
 
     def __fit(
@@ -342,9 +285,9 @@ class BaggingModelOptimizer:
         kwargs_model,
         kwargs_scaler=None,
     ):
-        """ Fit the model using all training data"""
+        """Fit the model using all training data"""
         print("Training the last model with all training dataset...  ", end="")
-        model, scaler, train_weight, _ = self.__set_model(
+        model, scaler, train_weight = self.__set_model(
             kwargs_scaler,
             kwargs_model,
             closed,
@@ -362,7 +305,7 @@ class BaggingModelOptimizer:
         return model, scaler
 
     def get_weight(self, closed, horizon, min_chunk_size=100):
-        """ Get the sample weights based on timestamp, horizon overlappig, and return values"""
+        """Get the sample weights based on timestamp, horizon overlappig, and return values"""
         data_size = horizon.shape[0]
         chunk_size = np.round(data_size / self._num_of_threads)
         if chunk_size < min_chunk_size:
@@ -380,7 +323,6 @@ class BaggingModelOptimizer:
             chunck_size=chunk_size,
         )
         tw = time_weights(avg_uni, p=self._min_time_weight)
-        # TODO: Possible error during the weight computation when the first event happens in the first timestamp
         sw = sample_weights(
             occurrences,
             horizon,
@@ -397,17 +339,18 @@ class BaggingModelOptimizer:
         labels,
         closed,
         horizon,
+        weights,
         kwargs_model=None,
         kwargs_scaler=None,
         s_features=None,
         s_primary=None,
         s_labels=None,
     ):
-        """ Fit the model using a pre-defined configuration and report statistics using CV"""
+        """Fit the model using a pre-defined configuration and report statistics using CV"""
         if kwargs_model is None and self._best_kwargs_model is None:
             raise ValueError(
                 "At least one of the values, kwargs_model or"
-                " _best_kwargs_model, have to be setted"
+                " _best_kwargs_model, have to be set"
             )
         elif kwargs_model is None and self._best_kwargs_model is not None:
             kwargs_model = self._best_kwargs_model.copy()
@@ -443,6 +386,7 @@ class BaggingModelOptimizer:
                 horizon,
                 np_horizon,
                 closed,
+                weights[test_idx],
                 kwargs_model,
                 kwargs_scaler,
             )
@@ -492,7 +436,7 @@ class BaggingModelOptimizer:
                 kwargs_scaler,
             )
         )
-        self._file_log.info(summary_outcomes)
+        self._meta_file_log.info(summary_outcomes)
         model, scaler = self.__fit(
             data,
             labels,
@@ -513,13 +457,14 @@ class BaggingModelOptimizer:
         labels,
         horizon,
         closed,
+        weights,
         hp_model,
         hp_scaler=None,
         s_features=None,
         s_primary=None,
         s_labels=None,
     ):
-        """ Apply the grid search to determine the best hyper parameter for the model"""
+        """Apply the grid search to determine the best hyper parameter for the model"""
         if hp_scaler is None:
             hp_scaler = {}
         grid_model = ParameterGrid(hp_model)
@@ -567,6 +512,7 @@ class BaggingModelOptimizer:
                         horizon,
                         np_horizon,
                         closed,
+                        weights[test_idx],
                         kwargs_model,
                         kwargs_scaler,
                     )
@@ -620,7 +566,7 @@ class BaggingModelOptimizer:
                 self._best_kwargs_scaler,
             )
         )
-        self._file_log.info(summary_outcomes)
+        self._meta_file_log.info(summary_outcomes)
         if self._verbose > 0:
             print("\n" + summary_outcomes + "\n")
         return ("Avg_" + metric_names[0], best_metric_value[0])
@@ -633,18 +579,20 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
 
     Parameters
     ----------
-    `symbol` : ``str``
-        The symbol that will be used to collected the data.
-    `db_path` : ``str``
-        The path to the database.
+    `refined_data` : ``RefinedData``
+        A instance of ``RefinedData``.
     `model_fn` : ``callable``
         A callable object that instantiates a baging model.
     `primary_model_fn` : ``callable``
         A callable object that instantiates the primary model.
-    `labels_fn` : ``callable``
-        A callable object that instantiates a label model.
     `author` : ``str``
         The author name.
+    `outputs` : ``str``
+        A string to describe the expected output model. It is either `category` or
+        `probability`.
+    `threshold` : ``float``
+        The value of the threshold used to classify any event based on the probability
+        as a positive label [ignored in `category` mode].
     `scaler_pipeline` : ``Pipeline``
         A sklearn ``Pipeline`` composed of the steps to preprocess data.
     `cv_splits_fit` : ``int``
@@ -671,26 +619,29 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         must be a ``tuple`` with two elements, a ``callabel`` used to apply the metric
         and a ``bool`` to indicate whether the sample weights will be used or not
         to assess the metric.
-
-    `preload` : ``dict``
-        The time series that will be also load (see ``RefinedData``)
+    `approach` : ``int``
+        It is either 0 or 1. If 0, the side will be considered in the feature space and
+        labels will be interpreted as with profit and without for 1 and 0. On the other
+        hand, the approach 1 doesn't consider the sides and label 1 means "reached TP
+        bar first into horizon" and 0 means "reached SL first into horizon".
     `verbose` : ``int``
-        It is either 0 or 1. It 1, some log information will be shown in the terminal.
+        It is either 0 or 1. If 1, some log information will be shown in the terminal.
         Regardless the verbose value, these information is always accessed in log files.
     `seed` : ``int``
         The seed to initiate the numpy ``RandomState``.
 
     """
+
     def __init__(
         self,
-        symbol,
-        db_path,
+        refined_data,
         model_fn,
         primary_model_fn,
-        labels_fn,
         author,
+        outputs="category",
+        threshold=0.6,
         cv_splits_fit=10,
-        cv_splits_hp=3,
+        cv_splits_hp=5,
         use_weight=True,
         num_of_threads=None,
         scaler_pipeline=None,
@@ -699,11 +650,11 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         samples_weights_fn=sample_weights,
         log_dir="logs",
         metrics={
-            "F1": (f1_score, True),
-            "Precision": (precision_score, True),
-            "BAcc": (balanced_accuracy_score, True),
+            "Precision": precision_score,
+            "F1": f1_score,
+            "BAcc": balanced_accuracy_score,
         },
-        preload={"time": [5, 10, 15, 30, 60, "day"]},
+        approach=0,
         verbose=0,
         seed=12345,
     ):
@@ -714,27 +665,22 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         frame = inspect.stack()[1]
         module = inspect.getmodule(frame[0])
         filename = module.__file__
-        shutil.copyfile(os.path.abspath(filename), os.path.join(run_dir, filename))
+        shutil.copyfile(
+            os.path.abspath(filename), os.path.join(run_dir, filename)
+        )
         self._author = author
-        self._symbol = symbol
-        self._db_path = db_path
-        self._labels_fn = labels_fn
         self._primary_model_fn = primary_model_fn
-        self._refined_data = RefinedData(symbol, db_path, preload=preload)
-        self._file_log = create_log_file("environment", log_dir=run_dir)
+        self._refined_data = refined_data
+        self._approach = approach
+        self._env_file_log = create_log_file("environment", log_dir=run_dir)
         self._best_kwargs_labels = None
         self._best_kwargs_primary = None
         self._best_kwargs_features = None
-        # TODO: Ensure that all functions to get features in refined data have the format "get_<NAME>"
-        self._feature_acrons = {
-            "MA": "get_simple_MA",
-            "DEV": "get_deviation",
-            "RSI": "get_RSI",
-            "FRACDIFF": "frac_diff",
-        }
         super(EnvironmentOptimizer, self).__init__(
             model_fn,
             run_dir,
+            outputs,
+            threshold,
             scaler_pipeline,
             cv_splits_fit,
             cv_splits_hp,
@@ -748,12 +694,11 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             seed,
         )
 
-    # TODO: Implement case 2
     def __set_env(
-        self, kwargs_features, kwargs_primary, kwargs_labels, approach=1
+        self, kwargs_features, kwargs_primary, kwargs_labels
     ):
-        """ Set the finance environment"""
-        steps = ["[Labels]"]
+        """Set the finance environment"""
+        steps = ["[Labels]", "[Weights for Test]"]
         for feature_name in kwargs_features.keys():
             steps.append("[" + feature_name + "]")
         bar = tqdm(
@@ -764,27 +709,23 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         )
         steps = iter(steps)
 
-        # TODO: Implement a way to process different parameter (volume, frac diff) and a better way to access the raw data
-        closed = self._refined_data.df.Close
-        primary_model = self._primary_model_fn(
-            self._refined_data, **kwargs_primary
-        )
+        raw_data = self._refined_data.df
+        closed = self._refined_data.get_close()
+        sides = self._primary_model_fn(self._refined_data, **kwargs_primary)
 
         bar.update()
         bar.set_description("Setting Environment {}".format(next(steps)))
 
-        labels_obj = self._labels_fn(
-            primary_model.events, closed, **kwargs_labels
-        )
-        label_data = labels_obj.label_data
-        zero_mask = label_data.Label != 0
-        label_data = label_data.loc[zero_mask, :]
-        horizon = label_data.PositionEnd.copy()
-        sides = label_data.Side.copy()
-        labels = label_data.Label.copy()
-        labels.replace(-1, 0, inplace=True)
+        labels  = many_event_labels(sides, raw_data, **kwargs_labels)
+        zero_mask = labels != 0
+        labels = labels.loc[zero_mask]
+        horizon = pd.Series(labels.index, index=sides.index)
 
-        # TODO: Discuss other solutions, instead of drop events
+        bar.update()
+        bar.set_description("Setting Environment {}".format(next(steps)))
+
+        weights = self.get_weight(closed, horizon)
+
         stats = []
         event_index = horizon.index
         for get_stat_name, kwargs in kwargs_features.items():
@@ -797,27 +738,31 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             if feature_index[0] <= event_index[0]:
                 feature = feature.loc[event_index]
             else:
-                mask = (event_index >= feature_index[0]).values
+                mask = event_index >= feature_index[0]
                 horizon = horizon.loc[mask]
                 sides = sides.loc[mask]
                 labels = labels.loc[mask]
-                self._file_log.warning(
+                self._env_file_log.warning(
                     "{} events were droped due to {} with {}"
                     " starts before the first event".format(
                         (~mask).sum(), get_stat_name, kwargs
                     )
                 )
             stats.append(feature.values)
-        stats.append(sides.values)
+        if self._approach == 0:
+            stats.append(sides.values)
+        else:
+            labels = pd.Series(labels.values * sides.values, index=labels.index)
+        labels.replace(-1, 0, inplace=True)
         data = np.stack(stats, axis=1)
 
-        self._file_log.info(
+        self._env_file_log.info(
             "{} of {} events with label ZERO were droped".format(
                 (~zero_mask).sum(), zero_mask.shape[0]
             )
         )
-        self._file_log.info(
-            "The environment was setted with {} prices and {} events"
+        self._env_file_log.info(
+            "The environment was set with {} prices and {} events"
             " such that {} are labeled as 1 and {} as -1".format(
                 closed.shape[0],
                 horizon.shape[0],
@@ -826,45 +771,19 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             )
         )
         bar.close()
-        return horizon, closed, data, labels.values
+        return horizon, closed, data, labels.values, weights
 
     def __parser_features(self, kwargs_features):
-        summary = {}
         new_kwargs = {}
         for k, v in kwargs_features.items():
             name = k.split("__")[0]
             param = k.split("__")[1]
-            f_name = self._feature_acrons[name]
+            f_name = "get_" + name
             if f_name not in new_kwargs:
-                summary[name] = ""
                 new_kwargs[f_name] = {}
-            summary[name] += str(v) + ","
             new_kwargs[f_name][param] = v
-        str_summary = ""
-        for name, s in summary.items():
-            str_summary += "[" + name + "]" + s[0:-1]
-        return new_kwargs, str_summary
+        return new_kwargs
 
-    def __parser_primary(self, kwargs_primary):
-        str_summary = ""
-        new_kwargs = {}
-        strategy = kwargs_primary.pop("strategy")
-        str_summary += strategy + ","
-        new_kwargs["strategy"] = strategy
-        new_kwargs["features"] = {}
-        for k, v in kwargs_primary.items():
-            new_kwargs["features"][k] = v
-            str_summary += str(v) + ","
-        return new_kwargs, str_summary[0:-1]
-
-    # TODO: Maybe a better solution be not to use the dictionary in Labels initialization
-    def __parser_labels(self, kwargs_labels):
-        str_summary = ""
-        new_kwargs = {"operation_parameters": {}}
-        for k, v in kwargs_labels.items():
-            new_kwargs["operation_parameters"][k] = v
-            str_summary += str(v) + ","
-        return new_kwargs, str_summary[0:-1]
 
     def train(
         self,
@@ -877,11 +796,11 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         s_primary=None,
         s_labels=None,
     ):
-        """ Train the model for a pre-defined configuration"""
+        """Train the model for a pre-defined configuration"""
         if kwargs_features is None and self._best_kwargs_features is None:
             raise ValueError(
                 "At least one of the values, kwargs_features or"
-                " _best_kwargs_features, have to be setted"
+                " _best_kwargs_features, have to be set"
             )
         elif (
             kwargs_features is None and self._best_kwargs_features is not None
@@ -891,7 +810,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         if kwargs_primary is None and self._best_kwargs_primary is None:
             raise ValueError(
                 "At least one of the values, kwargs_primary or"
-                " _best_kwargs_primary, have to be setted"
+                " _best_kwargs_primary, have to be set"
             )
         elif kwargs_primary is None and self._best_kwargs_primary is not None:
             kwargs_primary = self._best_kwargs_primary.copy()
@@ -899,20 +818,21 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         if kwargs_labels is None and self._best_kwargs_labels is None:
             raise ValueError(
                 "At least one of the values, kwargs_labels or"
-                " _best_kwargs_labels, have to be setted"
+                " _best_kwargs_labels, have to be set"
             )
         elif kwargs_labels is None and self._best_kwargs_labels is not None:
             kwargs_labels = self._best_kwargs_labels.copy()
             s_labels = self._best_s_labels
 
-        horizon, closed, data, labels = self.__set_env(
-            kwargs_features, kwargs_primary, kwargs_labels
+        horizon, closed, data, labels, weights = self.__set_env(
+            kwargs_features, kwargs_primary, kwargs_labels,
         )
         model, scaler, cv_predictions, metrics = self.cv_fit(
             data,
             labels,
             closed,
             horizon,
+            weights,
             kwargs_model,
             kwargs_scaler,
             s_features,
@@ -924,7 +844,16 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
     def env_optimize(
         self, hp_model, hp_features, hp_primary, hp_labels, hp_scaler=None
     ):
-        """ Apply the grid search to determine the sub-optimal parameters for features, the primary and the labels generator"""
+        """
+        Apply the grid search to determine the optimal parameters for features,
+        the primary and the labels generator.
+
+        If the use of same features with different parameters is desired, add a suffix
+        to the desired feature key, e.g.,
+            ```
+            dict(sma__window__A=[100], sma__window__A=[10000])
+            ```
+        """
         if hp_scaler is None:
             hp_scaler = {}
         grid_features = ParameterGrid(hp_features)
@@ -936,9 +865,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         for d in hp_features:
             for v in d.values():
                 n_steps *= len(v)
-        for d in hp_primary:
-            for v in d.values():
-                n_steps *= len(v)
+        for v in hp_primary:
+            n_steps *= len(v)
         for v in hp_labels.values():
             n_steps *= len(v)
         hp_bar = tqdm(
@@ -949,18 +877,10 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             colour="green",
         )
         for s_features in grid_features:
-            kwargs_features, _ = self.__parser_features(
-                s_features
-            )
-            for s_primary in grid_primary:
-                kwargs_primary, _ = self.__parser_primary(
-                    s_primary
-                )
-                for s_labels in grid_labels:
-                    kwargs_labels, _ = self.__parser_labels(
-                        s_labels
-                    )
-                    horizon, closed, data, labels = self.__set_env(
+            kwargs_features = self.__parser_features(s_features)
+            for kwargs_primary in grid_primary:
+                for kwargs_labels  in grid_labels:
+                    horizon, closed, data, labels, weights = self.__set_env(
                         kwargs_features, kwargs_primary, kwargs_labels
                     )
                     out_metric = self.hp_meta_optimize(
@@ -968,11 +888,12 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                         labels,
                         horizon,
                         closed,
+                        weights,
                         hp_model,
                         hp_scaler,
                         s_features,
-                        s_primary,
-                        s_labels,
+                        kwargs_primary,
+                        kwargs_labels,
                     )
                     if out_metric[1] > best_metric:
                         best_metric = out_metric[1]
@@ -981,8 +902,8 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                         best_kwargs_features = kwargs_features
                         best_kwargs_model = self._best_kwargs_model
                         best_kwargs_scaler = self._best_kwargs_scaler
-                        best_s_labels = s_labels
-                        best_s_primary = s_primary
+                        best_s_labels = kwargs_labels
+                        best_s_primary = kwargs_primary
                         best_s_features = s_features
                     self._best_kwargs_model = None
                     self._best_kwargs_scaler = None

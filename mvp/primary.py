@@ -1,15 +1,15 @@
 """ Primary strategies selection module
 
-In this module, based on basic statistical features provided by
-refined data, simple strategies are build. These strategies are
-based on combining features to generate events with some advice
-about what should be done. The advices are binary info, as such
-are represented here by +1 for buy and -1 for sell, also known
-as `side` of the suggested operation
+    In this module, based on basic statistical features provided by
+    refined data, simple strategies are build. These strategies are
+    based on combining features to generate events with some advice
+    about what should be done. The advices are binary info, as such
+    are represented here by +1 for buy and -1 for sell, also known
+    as `side` of the suggested operation
 
-All functions in this module implement a primary strategy hence
-always consume a ``RefinedData`` obj and return a pandas series
-with +1 and -1 values
+    All functions in this module implement a primary strategy hence
+    always consume a ``RefinedData`` obj and return a pandas series
+    with +1 and -1 values
 
 """
 
@@ -49,10 +49,12 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}, draw=False):
     diff = (fast_ma - slow_ma).dropna()
     cross_time = diff.index[diff[1:] * diff.shift(1) < 0]
     if draw:
-        return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32), slow_ma, fast_ma
-    else:
-        return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
-
+        return (
+            pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32),
+            slow_ma,
+            fast_ma,
+        )
+    return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
 
 
 def trend(refined_obj, threshold, window=1, kwargs={}):
@@ -128,7 +130,9 @@ def cummulative_returns(refined_obj, threshold, window=1, kwargs={}):
     return pd.Series(events_sign[1:nevents], events_time, np.int32)
 
 
-def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}, draw=False):
+def bollinger_bands(
+    refined_obj, dev_window, ma_window, mult, kwargs={}, draw=False
+):
     """
     Use two bands of standard deviation around the moving average which
     launch an event every time the prices touch one of the bands
@@ -152,19 +156,7 @@ def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}, draw=Fa
         time series with +1 (buy side) and -1(sell side)
 
     """
-    try:
-        target = kwargs["target"]
-        bar_type, data_name = target.split(":")
-    except KeyError:
-        bar_type = "time"
-        data_name = "close"
-    try:
-        step = kwargs["step"]
-    except KeyError:
-        step = 1
-    get_data_kwargs = {"bar_type": bar_type, "step": step}
-    get_data_method = refined_obj.__getattribute__("get_" + data_name)
-    data_series = get_data_method(**get_data_kwargs)
+    data_series = refined_obj.get_sma(1, **kwargs)
     dev = refined_obj.get_dev(dev_window, **kwargs)
     sma = refined_obj.get_sma(ma_window, **kwargs)
     upper = sma + mult * dev
@@ -180,9 +172,13 @@ def bollinger_bands(refined_obj, dev_window, ma_window, mult, kwargs={}, draw=Fa
     buy_series = pd.Series(np.ones(buy_time.size, np.int32), buy_time)
     sell_series = pd.Series(-np.ones(sell_time.size, np.int32), sell_time)
     if draw:
-        return buy_series.append(sell_series, verify_integrity=True).sort_index(), upper, lower
-    else:
-        return buy_series.append(sell_series, verify_integrity=True).sort_index()
+        return (
+            buy_series.append(sell_series, verify_integrity=True).sort_index(),
+            upper,
+            lower,
+        )
+    return buy_series.append(sell_series, verify_integrity=True).sort_index()
+
 
 def overlap_strategies(
     refined_obj,
