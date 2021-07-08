@@ -54,10 +54,7 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}, draw=False):
             slow_ma,
             fast_ma,
         )
-    else:
-        return pd.Series(
-            np.sign(diff[cross_time].values), cross_time, np.int32
-        )
+    return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
 
 
 def trend(refined_obj, threshold, window=1, kwargs={}):
@@ -159,19 +156,7 @@ def bollinger_bands(
         time series with +1 (buy side) and -1(sell side)
 
     """
-    try:
-        target = kwargs["target"]
-        bar_type, data_name = target.split(":")
-    except KeyError:
-        bar_type = "time"
-        data_name = "close"
-    try:
-        step = kwargs["step"]
-    except KeyError:
-        step = 1
-    get_data_kwargs = {"bar_type": bar_type, "step": step}
-    get_data_method = refined_obj.__getattribute__("get_" + data_name)
-    data_series = get_data_method(**get_data_kwargs)
+    data_series = refined_obj.get_sma(1, **kwargs)
     dev = refined_obj.get_dev(dev_window, **kwargs)
     sma = refined_obj.get_sma(ma_window, **kwargs)
     upper = sma + mult * dev
@@ -192,10 +177,7 @@ def bollinger_bands(
             upper,
             lower,
         )
-    else:
-        return buy_series.append(
-            sell_series, verify_integrity=True
-        ).sort_index()
+    return buy_series.append(sell_series, verify_integrity=True).sort_index()
 
 
 def overlap_strategies(
