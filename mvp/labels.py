@@ -2,7 +2,7 @@
 
     This is a complement module to mvp.primary which consumes information
     from trade triggers to label the result of the operation considering
-    thresholds to constrain the profit, loss and maximum investing time. 
+    thresholds to constrain the profit, loss and maximum investing time.
 
     Functions
     ---------
@@ -50,7 +50,7 @@
     ```
 
 """
-import numpy as np
+
 import pandas as pd
 from mvp.utils import smallest_cusum_i
 
@@ -89,7 +89,7 @@ def horizon_trading_range(minute1_data, ih, ih_type):
     """
     init = minute1_data.index[0]
     if ih is None:
-        ih_index = minute1_data.index.size
+        return minute1_data
     elif isinstance(ih, pd.Timestamp):
         if ih <= minute1_data.index[0]:
             raise ValueError(
@@ -129,7 +129,7 @@ def event_label(side, minute1_data, sl, tp, ih, ih_type="bars"):
         A chunk of dataframe from `RefinedData.df` or `RawData.df`
         attribute which must start at specific datetime the `side`
         trigger occurred, that is, `minute1_data.index[0]` must be
-        the trigger instant p
+        the trigger instant
     `sl` : ``float``
         stop loss of the positioning in percent value (4 means 4%)
     `tp` : ``float``
@@ -201,8 +201,8 @@ def many_event_labels(sides, minute1_data, sl, tp, ih, ih_type="bars"):
     Return
     ------
     ``pandas.Series``
-        Series inidicating the smallest datetime prices touch one of the barriers
-        associated with which barrier was hit first
+        Series inidicating the smallest datetime prices touch one of the
+        barriers associated with which barrier was hit first
         +1 profit
          0 investment horizon hit before stop loss or take profit
         -1 loss
@@ -256,13 +256,13 @@ def event_label_series(
     Parameters
     ----------
     `side_series` : ``pandas.Series``
-        Series indexed by timestamps with the advisable positioning side
+        Series indexed by timestamps with the recommended positioning side
         with +1 indicating buy and -1 sell
     `minute1_data` : ``pandas.DataFrame``
         The core minute 1 time frame market data either from `RefinedData.df`
         or `RawData.df` attribute. A 1-minute data is always preferable since
         provide better accuracy to label the result as the prices touch some
-        barrier from stopp loss or take profit
+        barrier from stop loss or take profit
     `sl` : ``float``
         stop loss of the positioning in percent value (4 means 4%)
     `tp` : ``float``
