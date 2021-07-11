@@ -270,6 +270,25 @@ def plot_bollinger(
     kwargs={},
     linewidth=1.0,
     point_size=15,):
+    """
+    Provides visualization of bollinger bands primary strategy.
+
+    Parameters
+    ----------
+        `refined_obj` : ``mvp.refined_data.RefinedData``
+            Provides a refined_data object containing the symbol data.
+        `primary_data`: ``dict``
+            contains the parameters of a Bollinger band model.
+            See primary.bollinger_bands() for API call.
+        `op_params`: ``dict``
+            contains the stop loss, take profit, and investment horizon.
+            See labels.event_label_series() for API call.
+        `kwargs` : ``dict``
+            Extra optional arguments of statistics of 
+            refined_data.RefinedData.get_foo() and optional argument `kwargs`
+            of primary.bollinger_bands().
+
+    """
     MA_name = "MA_" + str(primary_data['ma_window'])
     close_data = refined_obj.get_close(**kwargs)
     upper_band = refined_obj.get_sma(primary_data['ma_window'],**kwargs) + primary_data['mult']*refined_obj.get_dev(primary_data['dev_window'],**kwargs)
@@ -382,6 +401,25 @@ def plot_crossing_ma(
     linewidth=1.0,
     point_size=15,
 ):
+    """
+    Provides visualization of crossing moving averages strategies.
+
+    Parameters
+    ----------
+        `refined_obj` : ``mvp.refined_data.RefinedData``
+            Provides a refined_data object containing the symbol data.
+        `primary_data`: ``dict``
+            contains the parameters of a Bollinger band model.
+            See primary.crossing_ma() for API call.
+        `op_params`: ``dict``
+            contains the stop loss, take profit, and investment horizon.
+            See labels.event_label_series() for API call.
+        `kwargs` : ``dict``
+            Extra optional arguments of statistics of 
+            refined_data.RefinedData.get_foo() and optional argument `kwargs`
+            of primary.crossing_ma().
+
+    """
     primary_data.values()
     slow_window = max(primary_data.values())
     fast_window = min(primary_data.values())
@@ -501,6 +539,25 @@ def plot_crossing_ma(
 
 
 def plot_cummulative_returns(refined_obj, primary_data, op_params, kwargs={}, linewidth=1.0, point_size=15):
+    """
+    Provides visualization of cummulative returns strategy.
+
+    Parameters
+    ----------
+        `refined_obj` : ``mvp.refined_data.RefinedData``
+            Provides a refined_data object containing the symbol data.
+        `primary_data`: ``dict``
+            contains the parameters of a Bollinger band model.
+            See primary.bollinger_bands() for API call.
+        `op_params`: ``dict``
+            contains the stop loss, take profit, and investment horizon.
+            See labels.event_label_series() for API call.
+        `kwargs` : ``dict``
+            Extra optional arguments of statistics of 
+            refined_data.RefinedData.get_foo() and optional argument `kwargs`
+            of primary.cummulative_returns().
+
+    """
     close_data = refined_obj.get_close(**kwargs)
     events = mvp.primary.cummulative_returns(refined_obj,**primary_data,kwargs=kwargs)
     if "step" in kwargs.keys():
