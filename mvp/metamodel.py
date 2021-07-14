@@ -49,9 +49,8 @@ def save_hp_performance(
         if s_features is not None:
             # hparams["features"] = s_features
             hparams.update(s_features)
-        if s_primary is not None:
-            # hparams["primary"] = s_primary
-            hparams.update(s_primary)
+        # if s_primary is not None:
+        #     hparams.update(s_primary)
         if s_labels is not None:
             # hparams["labels"] = s_labels
             hparams.update(s_labels)
@@ -134,7 +133,7 @@ class BaggingModelOptimizer:
         self,
         model_fn,
         run_dir,
-        outputs="category",
+        outputs="probability",
         threshold=0.6,
         scaler_pipeline=None,
         cv_splits_fit=10,
@@ -638,7 +637,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         model_fn,
         primary_model_fn,
         author,
-        outputs="category",
+        outputs="probability",
         threshold=0.6,
         cv_splits_fit=10,
         cv_splits_hp=5,
@@ -698,23 +697,26 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         self, kwargs_features, kwargs_primary, kwargs_labels
     ):
         """Set the finance environment"""
-        steps = ["[Labels]", "[Weights for Test]"]
+        process_steps = ["[Labels]", "[Weights for Test]"]
         for feature_name in kwargs_features.keys():
-            steps.append("[" + feature_name + "]")
+            process_steps.append("[" + feature_name + "]")
         bar = tqdm(
-            total=len(steps),
+            total=len(process_steps),
             desc="Setting Environment [Primary]",
             leave=False,
             colour="red",
         )
-        steps = iter(steps)
-
-        raw_data = self._refined_data.df
-        closed = self._refined_data.get_close()
+        process_steps = iter(process_steps)
+        
+        step = 1
+        if "kwargs" in kwargs_primary and "step" in kwargs_primary["kwargs"]:
+            step = kwargs_primary["kwargs"]["step"]
+        raw_data = self._refined_data.time_bars(step=step)
+        closed = raw_data.loc[:, "Close"]
         sides = self._primary_model_fn(self._refined_data, **kwargs_primary)
 
         bar.update()
-        bar.set_description("Setting Environment {}".format(next(steps)))
+        bar.set_description("Setting Environment {}".format(next(process_steps)))
 
         labels  = many_event_labels(sides, raw_data, **kwargs_labels)
         zero_mask = labels != 0
@@ -722,7 +724,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         horizon = pd.Series(labels.index, index=sides.index)
 
         bar.update()
-        bar.set_description("Setting Environment {}".format(next(steps)))
+        bar.set_description("Setting Environment {}".format(next(process_steps)))
 
         weights = self.get_weight(closed, horizon)
 
@@ -730,7 +732,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         event_index = horizon.index
         for get_stat_name, kwargs in kwargs_features.items():
             bar.update()
-            bar.set_description("Setting Environment {}".format(next(steps)))
+            bar.set_description("Setting Environment {}".format(next(process_steps)))
             feature = self._refined_data.__getattribute__(get_stat_name)(
                 **kwargs
             )
