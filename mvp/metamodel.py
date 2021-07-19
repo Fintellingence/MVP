@@ -446,6 +446,7 @@ class BaggingModelOptimizer:
             kwargs_scaler,
         )
         dump(model, os.path.join(base_dir, "fitted_model.pkl"))
+        dump(cv_predictions, os.path.join(base_dir, "metamodel_triggers.pkl"))
         if scaler is not None:
             dump(scaler, os.path.join(base_dir, "fitted_scaler.pkl"))
         return model, scaler, cv_predictions, cv_metric_values
