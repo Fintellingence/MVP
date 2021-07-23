@@ -179,25 +179,54 @@ def plot_time_candles(raw_data, start, stop, time_step=1):
     ax[0].tick_params(axis="both", which="major", direction="in")
     plt.show()
 
-
-def plot_symbol(refined_data, time_step=1):
+def plot_symbol(refined_obj,start=None,stop=None,step=None,target="time:close"):
     """
     Basic Auxiliar function to plot symbols via refined_data.RefinedData()
     objects.
+
+    Parameters
+    ----------
+        refined_obj : ``mvp.refined_data.RefinedData``
+            Provides a refined_data object containing the symbol data.
+        `step`: ``int`` or ``str``
+            provides the step to form samples
+        `target`: ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]. Consult this
+            class `RefinedData` documentation for more info
+        `start` : ``pd.Timestamp`` or ``int``
+            First index/date. Default is the beginning of dataframe
+        `stop` : ``pd.Timestamp`` or ``int``
+            Last index/date. Default is the end of dataframe
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+
     """
-    data = refined_data.change_sample_interval(step=time_step)
+    bar_type, plot_target = target.split(":")
+    mvp.rawdata.assert_bar_type(bar_type)
+    if step is None:
+        target_data = refined_obj.__getattribute__("get_"+plot_target)(start = start,stop = stop,bar_type=bar_type)
+        volume_data = refined_obj.get_volume(start = start, stop = stop,bar_type=bar_type)
+    else:
+        target_data = refined_obj.__getattribute__("get_"+plot_target)(start = start,stop = stop,step=step,bar_type=bar_type)
+        volume_data = refined_obj.get_volume(start = start, stop = stop,step=step,bar_type=bar_type)
     fig, ax = plt.subplots()
     with sns.axes_style("darkgrid"):
-        ax.plot(data.index, data.Close, label="Close Price")
+        ax.plot(target_data, label="Close Price")
         ax.set_xlabel("DateTime")
-        ax.set_ylabel("Close Price")
+        ax.set_ylabel(plot_target)
     with sns.axes_style("dark"):
         ax2 = ax.twinx()
-        ax2.plot(data.index, data.Volume, c="r", alpha=0.35, label="Volume")
+        ax2.plot(volume_data, c="r", alpha=0.35, label="Volume")
         ax2.set_ylabel("Volume")
-    plt.title(refined_data.symbol)
+    if step is None:
+        plt.title(refined_obj.symbol+"_"+bar_type)
+    else:
+        plt.title(refined_obj.symbol+"_"+bar_type+"_"+str(step))
     plt.show()
-
 
 def plot_two_series(series_a, series_b):
     fig, ax1 = plt.subplots()
@@ -234,14 +263,46 @@ def plot_equity(book, linewidth=0.8):
     pass
 
 
-def plot_bollinger(model, labels, linewidth=1.0, point_size=15):
-    MA_name = "MA_" + str(model.features["MA"])
-    DEV_name = "DEV_" + str(model.features["DEV"])
-    K_value = model.features["K_value"]
-    plot_data = model.feature_data.copy()
-    plot_data = pd.concat([plot_data, labels], axis=1).copy()
-    plot_data["UpBand"] = plot_data[MA_name] + K_value * plot_data[DEV_name]
-    plot_data["DownBand"] = plot_data[MA_name] - K_value * plot_data[DEV_name]
+def plot_bollinger(
+    refined_obj,
+    primary_data,
+    op_params,
+    kwargs={},
+    linewidth=1.0,
+    point_size=15,):
+    """
+    Provides visualization of bollinger bands primary strategy.
+
+    Parameters
+    ----------
+        `refined_obj` : ``mvp.refined_data.RefinedData``
+            Provides a refined_data object containing the symbol data.
+        `primary_data`: ``dict``
+            contains the parameters of a Bollinger band model.
+            See primary.bollinger_bands() for API call.
+        `op_params`: ``dict``
+            contains the stop loss, take profit, and investment horizon.
+            See labels.event_label_series() for API call.
+        `kwargs` : ``dict``
+            Extra optional arguments of statistics of 
+            refined_data.RefinedData.get_foo() and optional argument `kwargs`
+            of primary.bollinger_bands().
+
+    """
+    MA_name = "MA_" + str(primary_data['ma_window'])
+    close_data = refined_obj.get_close(**kwargs)
+    upper_band = refined_obj.get_sma(primary_data['ma_window'],**kwargs) + primary_data['mult']*refined_obj.get_dev(primary_data['dev_window'],**kwargs)
+    lower_band = refined_obj.get_sma(primary_data['ma_window'],**kwargs) - primary_data['mult']*refined_obj.get_dev(primary_data['dev_window'],**kwargs)
+    events = mvp.primary.bollinger_bands(refined_obj, **primary_data,kwargs=kwargs)
+    if "step" in kwargs.keys():
+        labels = mvp.labels.event_label_series(
+            events, refined_obj.time_bars(step=kwargs["step"]), **op_params
+        )
+    else:
+        labels = mvp.labels.event_label_series(
+            events, refined_obj.df, **op_params
+        )
+    plot_data = pd.concat([close_data.to_frame(), labels, upper_band.to_frame(name='UpBand'), lower_band.to_frame(name='LowBand') ], axis=1).copy()
     buy_profit = plot_data[
         (plot_data["Side"] == 1) & (plot_data["Label"] == 1)
     ][["Close"]]
@@ -315,19 +376,19 @@ def plot_bollinger(model, labels, linewidth=1.0, point_size=15):
             plot_data["UpBand"].values,
             c="tab:blue",
             alpha=0.7,
-            label="UpBand: " + MA_name + "+" + str(K_value) + "$\sigma$",
+            label="UpBand: " + MA_name + "+" + str(primary_data['mult']) + "$\sigma$",
         )
         ax.plot(
             plot_data.index,
-            plot_data["DownBand"].values,
+            plot_data["LowBand"].values,
             c="tab:cyan",
             alpha=0.7,
-            label="DownBand: " + MA_name + "-" + str(K_value) + "$\sigma$",
+            label="LowBand: " + MA_name + "-" + str(primary_data['mult']) + "$\sigma$",
         )
         ax.set_xlabel("DateTime")
         ax.set_ylabel("Price")
         ax.legend()
-        plt.title("Bollinger Bands (" + model.symbol + ")")
+        plt.title("Bollinger Bands (" + refined_obj.symbol + ")")
         plt.show()
     return None
 
@@ -340,6 +401,25 @@ def plot_crossing_ma(
     linewidth=1.0,
     point_size=15,
 ):
+    """
+    Provides visualization of crossing moving averages strategies.
+
+    Parameters
+    ----------
+        `refined_obj` : ``mvp.refined_data.RefinedData``
+            Provides a refined_data object containing the symbol data.
+        `primary_data`: ``dict``
+            contains the parameters of a Bollinger band model.
+            See primary.crossing_ma() for API call.
+        `op_params`: ``dict``
+            contains the stop loss, take profit, and investment horizon.
+            See labels.event_label_series() for API call.
+        `kwargs` : ``dict``
+            Extra optional arguments of statistics of 
+            refined_data.RefinedData.get_foo() and optional argument `kwargs`
+            of primary.crossing_ma().
+
+    """
     primary_data.values()
     slow_window = max(primary_data.values())
     fast_window = min(primary_data.values())
@@ -458,9 +538,37 @@ def plot_crossing_ma(
     return None
 
 
-def plot_classical_filter(model, labels, linewidth=1.0, point_size=15):
-    plot_data = model.feature_data.copy()
-    plot_data = pd.concat([plot_data, labels], axis=1).copy()
+def plot_cummulative_returns(refined_obj, primary_data, op_params, kwargs={}, linewidth=1.0, point_size=15):
+    """
+    Provides visualization of cummulative returns strategy.
+
+    Parameters
+    ----------
+        `refined_obj` : ``mvp.refined_data.RefinedData``
+            Provides a refined_data object containing the symbol data.
+        `primary_data`: ``dict``
+            contains the parameters of a Bollinger band model.
+            See primary.bollinger_bands() for API call.
+        `op_params`: ``dict``
+            contains the stop loss, take profit, and investment horizon.
+            See labels.event_label_series() for API call.
+        `kwargs` : ``dict``
+            Extra optional arguments of statistics of 
+            refined_data.RefinedData.get_foo() and optional argument `kwargs`
+            of primary.cummulative_returns().
+
+    """
+    close_data = refined_obj.get_close(**kwargs)
+    events = mvp.primary.cummulative_returns(refined_obj,**primary_data,kwargs=kwargs)
+    if "step" in kwargs.keys():
+        labels = mvp.labels.event_label_series(
+            events, refined_obj.time_bars(step=kwargs["step"]), **op_params
+        )
+    else:
+        labels = mvp.labels.event_label_series(
+            events, refined_obj.df, **op_params
+        )
+    plot_data = pd.concat([close_data.to_frame(), labels], axis=1).copy()
     buy_profit = plot_data[
         (plot_data["Side"] == 1) & (plot_data["Label"] == 1)
     ][["Close"]]
@@ -528,55 +636,13 @@ def plot_classical_filter(model, labels, linewidth=1.0, point_size=15):
             plot_data.Close,
             c="black",
             linewidth=linewidth * 0.8,
-            label="CUSUM th: " + str(model.features["threshold"]),
+            label="CUSUM th: " + str(primary_data['threshold']),
         )
         ax.set_xlabel("DateTime")
         ax.set_ylabel("Price")
         ax.legend()
-        plt.title("Classical-Filter (" + model.symbol + ")")
+        plt.title("Classical-Filter (" + refined_obj.symbol + ")")
         plt.show()
     return None
 
 
-def plot_model(
-    refined_obj,
-    primary_params,
-    op_params,
-    kwargs,
-    linewidth=0.8,
-    point_size=15,
-):
-    """
-    Displays the target (usually Close) time-series along with the indicators
-    used by the primary models to generate triggers, also highlights Buy/Sell
-    Sides and their success (label = 1, or -1)
-
-    Parameters
-    ----------
-        `model` : ``mvp.primary.PrimaryModel``
-            provides all data for plotting signals and indicators
-        `operation_parameters`: ``dict``
-            Inside `OperationParameters` key we have to provide another dict
-            containing three values:
-             - StopLoss (SL)
-             - TakeProfit (TP)
-             - InvestmentHorizon (IH)
-             - MarginMode (margin_mode)
-            These values should be provided like the following:
-                {'SL': 0.01, 'TP': 0.01, 'IH': 1000,'margin_mode':'percent'}}
-        `event_filter`" ``pandas.DataFrame``
-            DataFrame containing the output of a Metamodel which is used to
-            filter the trade suggestions of primary model
-        `linewidth`: ``float``
-            specifies linewidth parameter for line plots (series/indicators)
-        `point_size`: ``float``
-            specifies point size parameter for scatter plots (events)
-    """
-    if strategy == "bollinger-bands":
-        plot_bollinger(events, label_data, close_data, linewidth, point_size)
-    if strategy == "crossing-MA":
-        plot_crossing_MA(events, label_data, close_data, linewidth, point_size)
-    if strategy == "classical-filter":
-        plot_classical_filter(
-            events, label_data, close_data, linewidth, point_size
-        )
