@@ -1,4 +1,5 @@
 import os
+import json
 import inspect
 import shutil
 import logging
@@ -17,7 +18,7 @@ from sklearn.model_selection import ParameterGrid
 
 from sklearn.metrics import f1_score, balanced_accuracy_score, precision_score
 
-from mvp.labels import many_event_labels
+from mvp.labels import event_label_series
 from mvp.draw import draw_roc_curve
 from mvp.selection import (
     count_occurrences,
@@ -274,6 +275,13 @@ class BaggingModelOptimizer:
             )
         return outcomes, predicted, horizon.index[test_idx], predicted_proba
 
+    def __save_best_info(self, model, cv_predictions, base_dir, **kwargs):
+        dump(model, os.path.join(base_dir, "fitted_model.pkl"))
+        dump(cv_predictions, os.path.join(base_dir, "metamodel_triggers.pkl"))
+        with open(os.path.join(base_dir, "best_run_params.json"), "w") as f:
+            json.dump(kwargs, f)
+            print(os.path.join(base_dir, "best_run_params.json"))
+
     def __fit(
         self,
         x_train,
@@ -445,8 +453,17 @@ class BaggingModelOptimizer:
             kwargs_model,
             kwargs_scaler,
         )
-        dump(model, os.path.join(base_dir, "fitted_model.pkl"))
-        dump(cv_predictions, os.path.join(base_dir, "metamodel_triggers.pkl"))
+        self.__save_best_info(
+            model,
+            cv_predictions,
+            base_dir,
+            metrics=cv_metric_values,
+            feature_params=s_features,
+            primary_params=s_primary,
+            label_params=s_labels,
+            model_params=kwargs_model,
+            scaler_params=kwargs_scaler,
+        )
         if scaler is not None:
             dump(scaler, os.path.join(base_dir, "fitted_scaler.pkl"))
         return model, scaler, cv_predictions, cv_metric_values
@@ -694,9 +711,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             seed,
         )
 
-    def __set_env(
-        self, kwargs_features, kwargs_primary, kwargs_labels
-    ):
+    def __set_env(self, kwargs_features, kwargs_primary, kwargs_labels):
         """Set the finance environment"""
         process_steps = ["[Labels]", "[Weights for Test]"]
         for feature_name in kwargs_features.keys():
@@ -708,24 +723,37 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             colour="red",
         )
         process_steps = iter(process_steps)
-        
+
         step = 1
         if "kwargs" in kwargs_primary and "step" in kwargs_primary["kwargs"]:
             step = kwargs_primary["kwargs"]["step"]
         raw_data = self._refined_data.time_bars(step=step)
         closed = raw_data.loc[:, "Close"]
-        sides = self._primary_model_fn(self._refined_data, **kwargs_primary)
 
         bar.update()
-        bar.set_description("Setting Environment {}".format(next(process_steps)))
+        bar.set_description(
+            "Setting Environment {}".format(next(process_steps))
+        )
 
-        labels  = many_event_labels(sides, raw_data, **kwargs_labels)
-        zero_mask = labels != 0
-        labels = labels.loc[zero_mask]
-        horizon = pd.Series(labels.index, index=sides.index)
+        complete_events = event_label_series(
+            self._primary_model_fn(self._refined_data, **kwargs_primary),
+            raw_data,
+            **kwargs_labels,
+        )
+
+        zero_mask = complete_events["Label"] != 0
+        complete_events = complete_events.loc[zero_mask]
+
+        sides = complete_events["Side"]
+        labels = complete_events["Label"]
+        horizon = pd.Series(
+            complete_events["PositionEnd"], index=complete_events.index
+        )
 
         bar.update()
-        bar.set_description("Setting Environment {}".format(next(process_steps)))
+        bar.set_description(
+            "Setting Environment {}".format(next(process_steps))
+        )
 
         weights = self.get_weight(closed, horizon)
 
@@ -733,7 +761,9 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         event_index = horizon.index
         for get_stat_name, kwargs in kwargs_features.items():
             bar.update()
-            bar.set_description("Setting Environment {}".format(next(process_steps)))
+            bar.set_description(
+                "Setting Environment {}".format(next(process_steps))
+            )
             feature = self._refined_data.__getattribute__(get_stat_name)(
                 **kwargs
             )
@@ -755,7 +785,9 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         if self._approach == 0:
             stats.append(sides.values)
         else:
-            labels = pd.Series(labels.values * sides.values, index=labels.index)
+            labels = pd.Series(
+                labels.values * sides.values, index=labels.index
+            )
         labels.replace(-1, 0, inplace=True)
         data = np.stack(stats, axis=1)
 
@@ -786,7 +818,6 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
                 new_kwargs[f_name] = {}
             new_kwargs[f_name][param] = v
         return new_kwargs
-
 
     def train(
         self,
@@ -828,7 +859,9 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             s_labels = self._best_s_labels
 
         horizon, closed, data, labels, weights = self.__set_env(
-            kwargs_features, kwargs_primary, kwargs_labels,
+            kwargs_features,
+            kwargs_primary,
+            kwargs_labels,
         )
         model, scaler, cv_predictions, metrics = self.cv_fit(
             data,
@@ -882,7 +915,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         for s_features in grid_features:
             kwargs_features = self.__parser_features(s_features)
             for kwargs_primary in grid_primary:
-                for kwargs_labels  in grid_labels:
+                for kwargs_labels in grid_labels:
                     horizon, closed, data, labels, weights = self.__set_env(
                         kwargs_features, kwargs_primary, kwargs_labels
                     )
