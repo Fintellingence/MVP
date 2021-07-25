@@ -1,4 +1,5 @@
 import os
+import json
 import inspect
 import shutil
 import logging
@@ -274,6 +275,13 @@ class BaggingModelOptimizer:
             )
         return outcomes, predicted, horizon.index[test_idx], predicted_proba
 
+    def __save_best_info(self, model, cv_predictions, base_dir, **kwargs):
+        dump(model, os.path.join(base_dir, "fitted_model.pkl"))
+        dump(cv_predictions, os.path.join(base_dir, "metamodel_triggers.pkl"))
+        with open(os.path.join(base_dir, "best_run_params.json"), "w") as f:
+            json.dump(kwargs, f)
+            print(os.path.join(base_dir, "best_run_params.json"))
+
     def __fit(
         self,
         x_train,
@@ -445,8 +453,17 @@ class BaggingModelOptimizer:
             kwargs_model,
             kwargs_scaler,
         )
-        dump(model, os.path.join(base_dir, "fitted_model.pkl"))
-        dump(cv_predictions, os.path.join(base_dir, "metamodel_triggers.pkl"))
+        self.__save_best_info(
+            model,
+            cv_predictions,
+            base_dir,
+            metrics=cv_metric_values,
+            feature_params=s_features,
+            primary_params=s_primary,
+            label_params=s_labels,
+            model_params=kwargs_model,
+            scaler_params=kwargs_scaler,
+        )
         if scaler is not None:
             dump(scaler, os.path.join(base_dir, "fitted_scaler.pkl"))
         return model, scaler, cv_predictions, cv_metric_values
@@ -729,7 +746,9 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
 
         sides = complete_events["Side"]
         labels = complete_events["Label"]
-        horizon = pd.Series(complete_events["PositionEnd"], index=complete_events.index)
+        horizon = pd.Series(
+            complete_events["PositionEnd"], index=complete_events.index
+        )
 
         bar.update()
         bar.set_description(
