@@ -87,9 +87,12 @@ def trend(refined_obj, threshold, window=1, kwargs={}):
     returns = (sma / sma.shift(1) - 1).dropna().values
     n = returns.size
     events_ind = np.empty(n, dtype=np.int32)
-    nevents = utils.sign_mark_cusum(n, returns, events_ind, threshold)
+    events_marks = np.empty(n, dtype=np.int32)
+    nevents = utils.sign_mark_cusum(
+        n, returns, events_ind, events_marks, threshold
+    )
     events_time = diff[events_ind[:nevents]].index
-    return pd.Series(np.sign(diff[events_time].values), events_time, np.int32)
+    return pd.Series(events_marks[:nevents], events_time, np.int32)
 
 
 def cummulative_returns(refined_obj, threshold, window=1, kwargs={}):

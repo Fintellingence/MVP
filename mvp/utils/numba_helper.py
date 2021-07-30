@@ -137,8 +137,8 @@ def indexing_cusum_abs(n, values, accum_ind, accum_sign, threshold):
     return j
 
 
-@njit(int32(int32, float64[:], int32[:], float64))
-def sign_mark_cusum(n, inp_arr, accum_ind, threshold):
+@njit(int32(int32, float64[:], int32[:], int32[:], float64))
+def sign_mark_cusum(n, inp_arr, accum_ind, sign_mark, threshold):
     """
     Slice data in positive and negative (trending) parts and
     for each slice perform cumulative sum and mark the index
@@ -178,6 +178,7 @@ def sign_mark_cusum(n, inp_arr, accum_ind, threshold):
             i = i + 1
         if trend_cusum >= threshold:
             accum_ind[k] = mark_ind
+            sign_mark[k] = 1
             k = k + 1
         trend_cusum = 0
         while i < n - 1 and inp_arr[i] <= 0:
@@ -187,6 +188,7 @@ def sign_mark_cusum(n, inp_arr, accum_ind, threshold):
             i = i + 1
         if trend_cusum >= threshold:
             accum_ind[k] = mark_ind
+            sign_mark[k] = -1
             k = k + 1
         trend_cusum = 0
     return k
