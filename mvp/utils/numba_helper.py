@@ -174,7 +174,7 @@ def sign_mark_cusum(n, inp_arr, accum_ind, threshold):
         while i < n - 1 and inp_arr[i] >= 0:
             if trend_cusum < threshold:
                 trend_cusum += inp_arr[i]
-                mark_ind = i
+                mark_ind = i + 1
             i = i + 1
         if trend_cusum >= threshold:
             accum_ind[k] = mark_ind
@@ -183,7 +183,7 @@ def sign_mark_cusum(n, inp_arr, accum_ind, threshold):
         while i < n - 1 and inp_arr[i] <= 0:
             if trend_cusum < threshold:
                 trend_cusum -= inp_arr[i]
-                mark_ind = i
+                mark_ind = i + 1
             i = i + 1
         if trend_cusum >= threshold:
             accum_ind[k] = mark_ind
