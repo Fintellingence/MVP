@@ -1,4 +1,6 @@
 import pandas as pd
+import matplotlib.pyplot as plt
+from mvp.draw import plot_equity
 
 
 def trade_book(close_data, events, label_data):
@@ -28,34 +30,10 @@ def trade_book(close_data, events, label_data):
     )
     return trades_df.copy()
 
-
-def avg_holding_time(book):
-    return (book["ExitDate"] - book["EntryDate"]).mean()
-
-
-def gross_profit(book):
-    return book[book["Profit"] > 0]["Profit"].sum()
-
-
-def gross_loss(book):
-    return book[book["Profit"] < 0]["Profit"].sum()
-
-
-def net_profit(book):
-    return gross_profit(book) + gross_loss(book)
-
-
-def best_trade(book):
-    return book[book["Profit"] == book["Profit"].max()].drop(
-        columns=["NetProfit"]
-    )
-
-
-def worst_trade(book):
-    return book[book["Profit"] == book["Profit"].min()].drop(
-        columns=["NetProfit"]
-    )
-
-
-def time_range(primary_model):
-    return primary_model.index[0], primary_model.index[-1]
+def basic_strategy_info(book):
+    plot_equity(book)
+    print("Min: ",book["EquityCurve"].min())
+    print("Sharpe: ",book["RelativeProfit"].mean()/book["RelativeProfit"].std())
+    print("Avg Holding Period: ",(book["ExitDate"] - book["EntryDate"]).mean())
+    print("Distribution of returns: ")
+    plt.hist(book["RelativeProfit"],bins = 20)
