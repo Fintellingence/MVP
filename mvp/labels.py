@@ -70,7 +70,7 @@ def horizon_trading_range(minute1_data, ih, ih_type):
         dataframe with Timestamp indexes and full bar data
         with open-high-low-close prices and volume as well
         See ``RawData.df`` attribute to consult columns
-        `minute1_data.index[0]` is the start of horizon
+        `minute1_data.index[0]` is considered as horizon start
     `ih` : ``pandas.Timedelta/pandas.Timestamp/int``
         investiment horizon
     `ih_type` : ``str``
@@ -84,23 +84,28 @@ def horizon_trading_range(minute1_data, ih, ih_type):
     Return
     ------
     ``pandas.DataFrame``
-        chunk of the initial dataframe corresponding to the invest horizon
+        chunk of the dataframe corresponding to the invest horizon
 
     """
-    init = minute1_data.index[0]
+    time_index = minute1_data.index
+    init = time_index[0]
     if ih is None:
         return minute1_data
-    elif isinstance(ih, pd.Timestamp):
-        if ih <= minute1_data.index[0]:
+    if isinstance(ih, pd.Timestamp):
+        if ih <= init:
             raise ValueError(
                 "Invalid datetime {} for invest horizon".format(ih)
             )
-        if ih > minute1_data.index[-1]:
-            ih_index = minute1_data.index.size
+        if ih > time_index[-1]:
+            ih_index = time_index.size
         else:
-            ih_index = 1 + minute1_data.index.get_loc(ih, method="backfill")
+            ih_index = 1 + time_index.get_loc(ih, method="backfill")
     elif isinstance(ih, pd.Timedelta):
-        ih_index = 1 + minute1_data.index.get_loc(init + ih, method="backfill")
+        final_t = init + ih
+        if final_t > time_index[-1]:
+            ih_index = time_index.size
+        else:
+            ih_index = 1 + time_index.get_loc(final_t, method="backfill")
     elif ih_type == "bars":
         ih_index = ih
     else:
@@ -169,53 +174,6 @@ def event_label(side, minute1_data, sl, tp, ih, ih_type="bars"):
             result = 1
             stop_event = profit_region[0]
     return stop_event, result
-
-
-def many_event_labels(sides, minute1_data, sl, tp, ih, ih_type="bars"):
-    """
-    Similar to `event_label`, but digned to be applied to many sides.
-
-    Parameters
-    ----------
-    `side` : ``pandas.Series``
-        time series with +1 and -1
-    `minute1_data` : ``pandas.DataFrame``
-        A chunk of dataframe from `RefinedData.df` or `RawData.df`
-        attribute which must start at specific datetime the `side`
-        trigger occurred, that is, `minute1_data.index[0]` must be
-        the trigger instant p
-    `sl` : ``float``
-        stop loss of the positioning in percent value (4 means 4%)
-    `tp` : ``float``
-        take profit to close the positioning in percent value
-    `ih` : ``pandas.Timedelta/pandas.Timestamp/int``
-        investiment horizon
-    `ih_type` : ``str``
-        string code of type of investment horizon. Accept the following
-        1. "bars"       - the number of sequential bars
-        2. "Volume"     - IH in volume traded
-        3. "TickVol"    - IH in deals occurred
-        4. "money"      - IH in money traded
-        This value is ignored if `ih` is not integer
-
-    Return
-    ------
-    ``pandas.Series``
-        Series inidicating the smallest datetime prices touch one of the
-        barriers associated with which barrier was hit first
-        +1 profit
-         0 investment horizon hit before stop loss or take profit
-        -1 loss
-    """
-    labels = []
-    indexes = []
-    for i, (start_event, side) in enumerate(sides.iteritems()):
-        stop_event, label = event_label(
-            side, minute1_data.loc[start_event:, :], sl, tp, ih, ih_type
-        )
-        labels.append(label)
-        indexes.append(stop_event)
-    return pd.Series(labels, index=indexes)
 
 
 def continuous_event_label(side, minute1_data, sl, tp, ih, ih_type="bars"):
@@ -294,8 +252,10 @@ def event_label_series(
     )
     if label_type == "continuous":
         label_fun = continuous_event_label
+        label_dtype = "float64"
     else:
         label_fun = event_label
+        label_dtype = "int32"
     for i, (dt, side) in enumerate(zip(triggers, sides)):
         stop_event, label = label_fun(
             side, minute1_data.loc[dt:], sl, tp, ih, ih_type
@@ -304,4 +264,6 @@ def event_label_series(
         labels_df.Label[i] = label
         labels_df.PositionEnd[i] = stop_event
     labels_df.PositionEnd = pd.to_datetime(labels_df.PositionEnd)
+    labels_df.Side = labels_df.Side.astype("int32")
+    labels_df.Label = labels_df.Label.astype(label_dtype)
     return labels_df
