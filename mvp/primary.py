@@ -142,7 +142,7 @@ def bollinger_bands(
 
     Paramters
     ---------
-    `refined_obj` : ``mvp.Refineddata``
+    `refined_obj` : ``mvp.RefinedData``
         object with simple statistical features
     `dev_window` : ``int``
         window size to compute moving standard deviation
@@ -183,6 +183,56 @@ def bollinger_bands(
     return buy_series.append(sell_series, verify_integrity=True).sort_index()
 
 
+def day_openning_gaps(refined_obj, relative_gap_threshold=0.01):
+    """
+    Generate buy triggers if the openning value is larger than previous
+    day close and it was a 'green' candle. Conversely, sell triggers if
+    openning value is smaller than previous day close and it was a red
+    candle. Green and red means positive and negative price variations
+    in intraday trades, respectively.
+
+    Parameters
+    ----------
+    `refined_obj` : ``mvp.RefinedData``
+        object with simple statistical features
+    `relative_gap_threshold` : ``float``
+        relative price variation between adjacent days threshold
+
+    Return
+    ------
+    ``pandas.Series``
+        Series with side information either buy(+1) or sell(-1)
+
+    """
+    daily_bars = refined_obj.daily_bars()
+    full_df_index = refined_obj.df.index
+    daily_open = daily_bars.Open
+    daily_close = daily_bars.Close
+    shift_daily_result = (daily_close - daily_open).shift(1).dropna()
+    relative_gap = (daily_open / daily_close.shift(1) - 1).dropna()
+    day_buy_trig = relative_gap.index[
+        (relative_gap > relative_gap_threshold) & (shift_daily_result > 0)
+    ]
+    day_sell_trig = relative_gap.index[
+        (relative_gap < -relative_gap_threshold) & (shift_daily_result < 0)
+    ]
+    nbuys = day_buy_trig.size
+    nsells = day_sell_trig.size
+    int_buy_ind = np.empty(nbuys, dtype=np.int32)
+    int_sell_ind = np.empty(nsells, dtype=np.int32)
+    for i, dt in enumerate(day_buy_trig):
+        int_buy_ind[i] = full_df_index.get_loc(dt, method="backfill")
+    for i, dt in enumerate(day_sell_trig):
+        int_sell_ind[i] = full_df_index.get_loc(dt, method="backfill")
+    buy_sides = pd.Series(
+        np.ones(nbuys, dtype=np.int32), full_df_index[int_buy_ind]
+    )
+    sell_sides = pd.Series(
+        -np.ones(nsells, dtype=np.int32), full_df_index[int_sell_ind]
+    )
+    return buy_sides.append(sell_sides, verify_integrity=True).sort_index()
+
+
 def overlap_strategies(
     refined_obj,
     time_gap,
@@ -199,7 +249,7 @@ def overlap_strategies(
 
     Parameters
     ----------
-    `refined_obj` : ``mvp.Refineddata``
+    `refined_obj` : ``mvp.RefinedData``
         object with simple statistical features
     `time_gap` : ``pandas.Timedelta``
         tolered time to match events from all strategies
