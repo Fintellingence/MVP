@@ -30,10 +30,46 @@ def trade_book(close_data, events, label_data):
     )
     return trades_df.copy()
 
-def basic_strategy_info(book):
-    plot_equity(book)
-    print("Min: ",book["EquityCurve"].min())
-    print("Sharpe: ",book["RelativeProfit"].mean()/book["RelativeProfit"].std())
-    print("Avg Holding Period: ",(book["ExitDate"] - book["EntryDate"]).mean())
-    print("Distribution of returns: ")
-    plt.hist(book["RelativeProfit"],bins = 20)
+
+def basic_strategy_info(book, display=True):
+    if display:
+        plot_equity(book)
+        print("Min: ", book["EquityCurve"].min())
+        print(
+            "Sharpe: ",
+            book["RelativeProfit"].mean() / book["RelativeProfit"].std(),
+        )
+        print(
+            "Avg Holding Period: ",
+            (book["ExitDate"] - book["EntryDate"]).mean(),
+        )
+        print("Final Equity", str(book["EquityCurve"].iloc[-1]))
+        print("Distribution of returns: ")
+        plt.hist(book["RelativeProfit"], bins=20)
+    return dict(
+        min=book["EquityCurve"].min(),
+        sharpe=book["RelativeProfit"].mean() / book["RelativeProfit"].std(),
+        avg_hold_time=(book["ExitDate"] - book["EntryDate"]).mean(),
+        final_equity=book["EquityCurve"].iloc[-1],
+    )
+
+
+def filter_book(book, meta_filters):
+    original_book = book.copy()
+    original_book = original_book.set_index("EntryDate")
+    filter_pass = meta_filters[meta_filters == 1].index
+    filtered_book = original_book.loc[filter_pass]
+    filtered_book = filtered_book.drop(
+        columns=["Profit", "RelativeProfit", "EquityCurve"]
+    )
+    filtered_book["Profit"] = filtered_book["Side"] * (
+        filtered_book["ExitPrice"] - filtered_book["EntryPrice"]
+    )
+    filtered_book["NetProfit"] = filtered_book["Profit"].cumsum(skipna=False)
+    filtered_book["RelativeProfit"] = (
+        filtered_book["Profit"] * 100
+    ) / filtered_book["EntryPrice"]
+    filtered_book["EquityCurve"] = 100 + filtered_book[
+        "RelativeProfit"
+    ].cumsum(skipna=False)
+    return filtered_book.reset_index()
