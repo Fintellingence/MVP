@@ -758,7 +758,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         weights = self.get_weight(closed, horizon)
 
         stats = []
-        event_index = horizon.index
+        latest_start = closed.index[0]
         for get_stat_name, kwargs in kwargs_features.items():
             bar.update()
             bar.set_description(
@@ -767,21 +767,29 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
             feature = self._refined_data.__getattribute__(get_stat_name)(
                 **kwargs
             )
-            feature_index = feature.index
-            if feature_index[0] <= event_index[0]:
-                feature = feature.loc[event_index]
-            else:
-                mask = event_index >= feature_index[0]
-                horizon = horizon.loc[mask]
-                sides = sides.loc[mask]
-                labels = labels.loc[mask]
-                self._env_file_log.warning(
-                    "{} events were droped due to {} with {}"
-                    " starts before the first event".format(
-                        (~mask).sum(), get_stat_name, kwargs
-                    )
+            stats.append(feature)
+            if feature.index[0] > latest_start:
+                latest_start = feature.index[0]
+
+        event_index = horizon.index
+        update_horizon = latest_start > event_index[0]
+        if update_horizon:
+            mask = event_index >= latest_start
+            horizon = horizon.loc[mask]
+            sides = sides.loc[mask]
+            labels = labels.loc[mask]
+            event_index = horizon.index
+            self._env_file_log.warning(
+                "{} events were droped due to {} with {}"
+                " starts before the first event".format(
+                    (~mask).sum(), get_stat_name, kwargs
                 )
-            stats.append(feature.values)
+            )
+            for i, feature in enumerate(stats):
+                stats[i] = feature.loc[latest_start:]
+        for i, feature in enumerate(stats):
+            stats[i] = feature.loc[event_index].values
+
         if self._approach == 0:
             stats.append(sides.values)
         else:
