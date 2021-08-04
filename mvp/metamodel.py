@@ -2,6 +2,7 @@ import os
 import json
 import inspect
 import shutil
+import warnings
 import logging
 import logging.handlers
 from joblib import dump
@@ -15,6 +16,9 @@ from tqdm import tqdm
 import tensorflow.summary as summary
 from tensorboard.plugins.hparams import api as hp
 from sklearn.model_selection import ParameterGrid
+from sklearn.exceptions import UndefinedMetricWarning
+
+warnings.filterwarnings(action='ignore', category=UndefinedMetricWarning)
 
 from sklearn.metrics import f1_score, balanced_accuracy_score, precision_score
 
