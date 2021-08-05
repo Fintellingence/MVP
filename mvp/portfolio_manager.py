@@ -482,6 +482,9 @@ class StockTrade:
         `daily_tax` : ``float`` (default 0)
             fraction of share price charged to hold position per day
             Usually only applicable to maintain short/sell position
+        `parent` : ``StockTrade`` (default None)
+            Indicate if this stock trade is derived from another trade
+            Commonly, this came from imposing barriers in parent trade
         """
         self.symbol = symbol
         self.quantity = int(quantity)
@@ -545,6 +548,12 @@ class StockTrade:
             raise ValueError("All taxes must be positive")
 
     def __assert_parent(self, parent):
+        """
+        Parent trade must fullfill certain conditions such as being the
+        opposite operation of this trade and have the same quantity and
+        cannot be nested, that is, the parent trade opens a position,
+        thus cannot be related to another parent trade
+        """
         if parent:
             if not isinstance(parent, StockTrade):
                 raise ValueError(
@@ -565,6 +574,8 @@ class StockTrade:
                 raise ValueError(
                     "Parent and self does not have opposite sides"
                 )
+            if parent.parent is not None:
+                raise ValueError("Parent trade alredy have a parent")
 
     def __valid_input_date(self, date):
         """Confirm `date` is ahead of `self.date`"""
@@ -643,6 +654,12 @@ class StockTrade:
             + self.relative_tax * quantity * self.unit_price
             + self.total_rent_tax(date, quantity)
         )
+
+    def operation_taxes(self, quantity=None):
+        quantity = self.__get_valid_quantity(quantity)
+        if quantity < self.quantity:
+            return self.relative_tax * quantity * self.unit_price
+        return self.fixed_tax + self.relative_tax * quantity * self.unit_price
 
     def raw_invest(self, current_price=None, quantity=None):
         """
@@ -958,7 +975,37 @@ class PortfolioRecord:
 
     def __copy_trades(self, list_of_trades):
         copy_list = []
+        child_trades = [trade for trade in list_of_trades if trade.parent]
+        id_trades_set = set()
+        for trade in child_trades:
+            new_parent = StockTrade(
+                trade.parent.symbol,
+                trade.parent.quantity,
+                trade.parent.unit_price,
+                trade.parent.date,
+                trade.parent.side,
+                trade.parent.fixed_tax,
+                trade.parent.relative_tax,
+                trade.parent.daily_tax,
+            )
+            bisect.insort(copy_list, new_parent)
+            new_child = StockTrade(
+                trade.symbol,
+                trade.quantity,
+                trade.unit_price,
+                trade.date,
+                trade.side,
+                trade.fixed_tax,
+                trade.relative_tax,
+                trade.daily_tax,
+                new_parent,
+            )
+            bisect.insort(copy_list, new_child)
+            id_trades_set.add(trade.parent.id)
+            id_trades_set.add(trade.id)
         for trade in list_of_trades:
+            if trade.id in id_trades_set:
+                continue
             bisect.insort(
                 copy_list,
                 StockTrade(
@@ -970,13 +1017,12 @@ class PortfolioRecord:
                     trade.fixed_tax,
                     trade.relative_tax,
                     trade.daily_tax,
-                    trade.parent,
                 ),
             )
         return copy_list
 
     def __str__(self):
-        return str(self.get_trades_dataframe())
+        return str(self.get_trades_book())
 
 
 class Portfolio(PortfolioRecord, RefinedSet):
@@ -1176,7 +1222,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         self.set_position_buy(symbol, cls_date, quantity, parent=parent_trade)
 
     def set_trade_pair(
-        self, symbol, nshares, open_dt, close_dt, side, rent_tax=0
+        self, symbol, nshares, open_dt, close_dt, open_side, rent_tax=0
     ):
         """
         Set pair of trades with the same number of shares that opens and close
@@ -1192,8 +1238,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
             datetime when the position was opened
         `close_dt` : ``pandas.Timestamp``
             datetime when the position was closed
-        `side` : ``int``
-            inform how the position is opened wither buy(+1) or close(-1)
+        `open_side` : ``int``
+            inform how the position is opened whether buy(+1) or close(-1)
         `rent_tax` : ``float``
             daily price fraction charged to sustain short position
             This parameter is ignored if `side = 1`
@@ -1201,14 +1247,14 @@ class Portfolio(PortfolioRecord, RefinedSet):
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, open_dt)
         approx_price = self.__approx_price(symbol, open_dt)
-        if side > 0:
+        if open_side > 0:
             rent_tax = 0
         trade_id = self.record_trade(
             symbol,
             nshares,
             approx_price,
             valid_date,
-            side,
+            open_side,
             self.fixed_tax,
             self.relative_tax,
             rent_tax,
@@ -1221,7 +1267,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             nshares,
             approx_price,
             valid_date,
-            -side,
+            -open_side,
             self.fixed_tax,
             self.relative_tax,
             parent=parent_trade,
@@ -1249,9 +1295,12 @@ class Portfolio(PortfolioRecord, RefinedSet):
         ):
             self.set_trade_pair(symbol, quantity, init, end, side, rent_tax)
 
-    def number_trade_pairs(self, symbol):
+    def number_trade_pairs(self, symbol=None):
         """Return number of trades paired by barriers for a `symbol`"""
-        trades = self.get_trades_symbol(symbol)
+        if symbol:
+            trades = self.get_trades_symbol(symbol)
+        else:
+            trades = self.get_all_trades()
         npairs = 0
         for trade in trades:
             if trade.parent:
@@ -1307,6 +1356,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             trades.pop()
         trade_stack = []
         if trades:
+            print("Found not paired trades")
             trade_stack.append(trades.pop())
         while trades:
             if trades[-1].id in proc_id:
@@ -1348,22 +1398,19 @@ class Portfolio(PortfolioRecord, RefinedSet):
             elif trades:
                 # reverse trade exactly closed all open positions(empty stack)
                 trade_stack.append(trades.pop())
-        while ret_list:
-            # compute returns of closed trades
-            trade_ret = ret_list.pop()
+        for ret in ret_list:
+            # compute (extended) returns of closed trades
+            ex_trade_ret = pd.Series(np.zeros(full_ret.size), full_ret.index)
+            ex_trade_ret[ret.index] = ret
             if cummulative:
-                end_dt = trade_ret.index[-1]
-                i = prices.index.get_loc(end_dt, method="backfill") + 1
-                extend_ind = prices.index[i:]
-                after_ret = pd.Series(trade_ret[-1], index=extend_ind)
-                trade_ret = pd.concat([trade_ret, after_ret])
-            fill_copy = full_ret.copy()
-            full_ret = (full_ret + trade_ret).fillna(fill_copy)
+                ex_trade_ret[ret.index[-1] :] = ret[-1]
+            full_ret = full_ret.add(ex_trade_ret)
         for trade in trade_stack:
             # compute returns of opened positions that remains on stack
-            trade_ret = trade.net_result_series(prices)
-            fill_copy = full_ret.copy()
-            full_ret = (full_ret + trade_ret).fillna(fill_copy)
+            ret = trade.net_result_series(prices)
+            ex_trade_ret = pd.Series(np.zeros(full_ret.size), full_ret.index)
+            ex_trade_ret[ret.index] = ret
+            full_ret = full_ret.add(ex_trade_ret)
         if trade_stack or cummulative:
             # if stack is not empty there are open positions
             last_trade_date = prices.size
@@ -1401,5 +1448,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 dt = trade.date
                 proc_id.add(trade.id)
                 proc_id.add(trade.parent.id)
-                ret_list.append(trade.parent.net_result_series(prices[:dt]))
+                ret_list.append(
+                    trade.parent.net_result_series(prices[:dt])
+                    - trade.operation_taxes()
+                )
         return proc_id, ret_list
