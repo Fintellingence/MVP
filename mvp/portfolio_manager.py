@@ -34,9 +34,9 @@ Classes
 
 import os
 import bisect
+import itertools
 import numpy as np
 import pandas as pd
-import itertools
 
 from functools import total_ordering
 from mvp.refined_data import RefinedData, assert_target, assert_feature
@@ -1066,6 +1066,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
         db_path,
         fixed_tax=0,
         relative_tax=0,
+        spread=0,
+        fixed_spread=False,
         preload={},
         common_features={},
     ):
@@ -1082,6 +1084,15 @@ class Portfolio(PortfolioRecord, RefinedSet):
         `relative_tax` : ``float``
             relative fraction of the operation price charged in an order
             Usually very small (tipically < 0.0005)
+        `spread` : ``float``
+            A multiplicative factor for the standard dev of last 5 candles
+            to generate a spread in operation prices if `fixed_spread=False`
+            If `fixed_spread=True` it is just the spread in local currency
+            Typically choose:
+                0.5 ~= 1 if `fixed_spread=False`
+                0.01 ~= 0.02 if `fixed_spread=True`
+        `fixed_spread` : ``bool``
+            How to interpret `spread` parameter
         `preload` : ``dict {str : list}``
             dictionary needed in `RefinedSet` constructor
         `commom_features` : ``dict { str : str }``
@@ -1091,6 +1102,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
         ref_set_args = (db_path, preload, common_features)
         self.fixed_tax = fixed_tax
         self.relative_tax = relative_tax
+        self.spread = spread
+        self.fixed_spread = fixed_spread
         RefinedSet.__init__(self, *(ref_set_args))
         PortfolioRecord.__init__(self)
 
@@ -1106,11 +1119,18 @@ class Portfolio(PortfolioRecord, RefinedSet):
             self.__nearest_index(symbol, date)
         ]
 
-    def __approx_price(self, symbol, date):
+    def __approx_price(self, symbol, date, op_side):
         """Return approximate price (using nearest available date)"""
-        return self.refined_obj[symbol].df.Close[
-            self.__nearest_index(symbol, date)
-        ]
+        i = self.__nearest_index(symbol, date)
+        if self.fixed_spread:
+            op_spread = self.spread
+        else:
+            op_spread = (
+                self.spread
+                * (self.refined_obj[symbol].df.Close[i - 5 : i]).std()
+            )
+        op_price = self.refined_obj[symbol].df.Close[i] + op_side * op_spread
+        return op_price
 
     def set_position_buy(
         self, symbol, date, quantity, sl=None, tp=None, ih=None, parent=None
@@ -1150,7 +1170,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 )
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, date)
-        approx_price = self.__approx_price(symbol, date)
+        approx_price = self.__approx_price(symbol, date, 1)
         trade_id = self.record_trade(
             symbol,
             quantity,
@@ -1214,7 +1234,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             raise ValueError("Invalid stop loss {} for sell order".format(sl))
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, date)
-        approx_price = self.__approx_price(symbol, date)
+        approx_price = self.__approx_price(symbol, date, -1)
         trade_id = self.record_trade(
             symbol,
             quantity,
@@ -1260,7 +1280,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         """
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, open_dt)
-        approx_price = self.__approx_price(symbol, open_dt)
+        approx_price = self.__approx_price(symbol, open_dt, open_side)
         if open_side > 0:
             rent_tax = 0
         trade_id = self.record_trade(
@@ -1274,7 +1294,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             rent_tax,
         )
         valid_date = self.__nearest_date(symbol, close_dt)
-        approx_price = self.__approx_price(symbol, close_dt)
+        approx_price = self.__approx_price(symbol, close_dt, -open_side)
         parent_trade = self.get_trade(trade_id)
         trade_id = self.record_trade(
             symbol,
@@ -1326,7 +1346,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
         Compute ``self.symbol_net_result`` for all symbols present
         `as_dataframe` defines the format of return datatype, thus
         the result series of all symbols are constrained to latest
-        date among all indexes
+        date among all indexes. `step` give in minutes the temporal
+        resolution of the time series or a daily series if `step = "day"`
 
         Return
         ------
@@ -1354,6 +1375,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
         all time returns. For example, if the last trade was
         in some time instant `t`, after that the series will
         display a constant value corresponding to the result
+        `step` is the time series resolution in minutes or a
+        day in case `step = "day"`
         """
         if not self.has_symbol(symbol):
             return pd.Series([], dtype=float)
@@ -1363,8 +1386,12 @@ class Portfolio(PortfolioRecord, RefinedSet):
         )
         first_trade_date = trades[-1].date
         last_trade_date = trades[0].date
+        if isinstance(step, str):
+            start_offset = pd.Timedelta(days=1)
+        else:
+            start_offset = pd.Timedelta(minutes=2 * step)
         prices = self.refined_obj[symbol].get_close(
-            first_trade_date - pd.Timedelta(days=1), step=step
+            first_trade_date - start_offset, step=step
         )
         full_ret = pd.Series(np.zeros(prices.size), index=prices.index)
         # ignore all trades taken in account in __trade_pairs_preprocessing
@@ -1374,7 +1401,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             trades.pop()
         trade_stack = []
         if trades:
-            print("Found not paired trades")
+            print("\nFound trades without pairs\n")
             trade_stack.append(trades.pop())
         while trades:
             if trades[-1].id in proc_id:
@@ -1444,16 +1471,17 @@ class Portfolio(PortfolioRecord, RefinedSet):
 
     def __trade_pairs_preprocessing(self, symbol, trades, step):
         """
-        Assistant function to handle all paired trades due to stop
-        barriers and provided the net returns more efficiently
+        Assistant function to handle all paired trades due to
+        stop barriers and provide the net returns efficiently
 
         Parameters
         ----------
         `symbol` : ``str``
             company stock market symbol
         `trades` : ``list[StockTrade]``
-            list of stock trades from the company corresponding to `symbol`
-            from which those with parent trades will be filtered
+            list of stock trades corresponding to `symbol`
+        `step` : ``int/"day"``
+            time step to build the return series
 
         Return
         ------
@@ -1461,8 +1489,12 @@ class Portfolio(PortfolioRecord, RefinedSet):
             Set of trades id that were taken into account and list with returns
         """
         first_trade_date = trades[-1].date
+        if isinstance(step, str):
+            start_offset = pd.Timedelta(days=1)
+        else:
+            start_offset = pd.Timedelta(minutes=2 * step)
         prices = self.refined_obj[symbol].get_close(
-            first_trade_date - pd.Timedelta(days=1), step=step
+            first_trade_date - start_offset, step=step
         )
         ret_list = []
         proc_id = set()
