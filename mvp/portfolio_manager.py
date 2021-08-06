@@ -623,10 +623,14 @@ class StockTrade:
     def rolling_rent_tax(self, date_array, quantity=None):
         """Compute the rolling cost of the operation as time series"""
         quantity = self.__get_valid_quantity(quantity)
+        total_cost = quantity * self.unit_price
+        if date_array[-1] < self.date:
+            return pd.Series(
+                [total_cost * self.daily_tax], index=[date_array[-1]]
+            )
         valid_init = date_array.get_loc(self.date, method="backfill")
         dt_arr = date_array[valid_init:]
         days_elapsed_arr = 1 + (dt_arr - self.date).days
-        total_cost = quantity * self.unit_price
         tax_arr = (total_cost * days_elapsed_arr * self.daily_tax).values
         return pd.Series(tax_arr, index=dt_arr)
 
@@ -721,16 +725,21 @@ class StockTrade:
         taxes = self.total_taxes(date, self.quantity)
         return self.raw_result(unit_price, self.quantity) - taxes
 
-    def raw_result_series(self, unit_price_series, quantity=None):
+    def raw_result_series(self, unit_price_series, quantity=None, lp=None):
         """Equivalent to ``self.net_result_series`` but ignoring taxes"""
         quantity = self.__get_valid_quantity(quantity)
-        valid_init = unit_price_series.index.get_loc(
-            self.date, method="backfill"
-        )
+        if lp is None:
+            lp = unit_price_series[-1]
+        if unit_price_series.index[-1] < self.date:
+            r = quantity * (lp - self.unit_price) * self.side
+            return pd.Series([r], index=[unit_price_series.index[-1]])
+        valid_init = unit_price_series.index.get_loc(self.date, "backfill")
         valid_prices = unit_price_series[valid_init:]
-        return quantity * (valid_prices - self.unit_price) * self.side
+        ret_series = quantity * (valid_prices - self.unit_price) * self.side
+        ret_series[-1] = quantity * (lp - self.unit_price) * self.side
+        return ret_series
 
-    def net_result_series(self, unit_price_series, quantity=None):
+    def net_result_series(self, unit_price_series, quantity=None, lp=None):
         """
         Compute total return time series in local currency discounting taxes
         If `quantity < self.quantity` corresponding to a partial close, then
@@ -745,6 +754,9 @@ class StockTrade:
             The index final time must be larger than `self.date`
         `quantity` : ``int``
             number of shares to consider. Default is `self.quantity`
+        `lp` : ``float``
+            last price in closing position trade. The fidelity of price
+            series may not be in agreement with the close trade price
 
         Return
         ------
@@ -759,7 +771,9 @@ class StockTrade:
             total_tax = rela_tax + roll_tax
         else:
             total_tax = rela_tax
-        return self.raw_result_series(unit_price_series, quantity) - total_tax
+        return (
+            self.raw_result_series(unit_price_series, quantity, lp) - total_tax
+        )
 
 
 class PortfolioRecord:
@@ -1332,7 +1346,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         df["Total"] = df.sum(axis=1)
         return df.loc[:max_date]
 
-    def symbol_net_result(self, symbol, cummulative=True):
+    def symbol_net_result(self, symbol, cummulative=True, step=60):
         """
         Compute the total return series for selected `symbol`
         in local currency. The `cummulative` hold the result
@@ -1344,10 +1358,14 @@ class Portfolio(PortfolioRecord, RefinedSet):
         if not self.has_symbol(symbol):
             return pd.Series([], dtype=float)
         trades = self.get_trades_symbol(symbol)[::-1]
-        proc_id, ret_list = self.__trade_pairs_preprocessing(symbol, trades)
+        proc_id, ret_list = self.__trade_pairs_preprocessing(
+            symbol, trades, step
+        )
         first_trade_date = trades[-1].date
         last_trade_date = trades[0].date
-        prices = self.refined_obj[symbol].get_close(first_trade_date)
+        prices = self.refined_obj[symbol].get_close(
+            first_trade_date - pd.Timedelta(days=1), step=step
+        )
         full_ret = pd.Series(np.zeros(prices.size), index=prices.index)
         # ignore all trades taken in account in __trade_pairs_preprocessing
         # trades that were not paired with stop mechanisms are now taken in
@@ -1368,17 +1386,25 @@ class Portfolio(PortfolioRecord, RefinedSet):
             if not trades:
                 break
             reverse_trade = trades.pop()
+            reverse_price = reverse_trade.unit_price
             quant = reverse_trade.quantity
             dt = reverse_trade.date
             while trade_stack and quant >= trade_stack[-1].quantity:
                 pop_stack = trade_stack.pop()
-                ret_list.append(pop_stack.net_result_series(prices[:dt]))
-                quant = quant - pop_stack.quantity
+                ret_list.append(
+                    pop_stack.net_result_series(prices[:dt], lp=reverse_price)
+                    - reverse_trade.operation_taxes(pop_stack.quantity)
+                )
+                quant -= pop_stack.quantity
+                reverse_trade.quantity -= pop_stack.quantity
             if trade_stack:
                 # partial close
                 if quant > 0:
                     ret_list.append(
-                        trade_stack[-1].net_result_series(prices[:dt], quant)
+                        trade_stack[-1].net_result_series(
+                            prices[:dt], quant, reverse_price
+                        )
+                        - reverse_trade.operation_taxes(quant)
                     )
                     trade_stack[-1].quantity -= quant
                     quant = 0
@@ -1416,7 +1442,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             last_trade_date = prices.size
         return full_ret[:last_trade_date]
 
-    def __trade_pairs_preprocessing(self, symbol, trades):
+    def __trade_pairs_preprocessing(self, symbol, trades, step):
         """
         Assistant function to handle all paired trades due to stop
         barriers and provided the net returns more efficiently
@@ -1435,7 +1461,9 @@ class Portfolio(PortfolioRecord, RefinedSet):
             Set of trades id that were taken into account and list with returns
         """
         first_trade_date = trades[-1].date
-        prices = self.refined_obj[symbol].get_close(first_trade_date)
+        prices = self.refined_obj[symbol].get_close(
+            first_trade_date - pd.Timedelta(days=1), step=step
+        )
         ret_list = []
         proc_id = set()
         for trade in trades:
@@ -1446,10 +1474,11 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 )
             if trade.parent:
                 dt = trade.date
+                lp = trade.unit_price
                 proc_id.add(trade.id)
                 proc_id.add(trade.parent.id)
                 ret_list.append(
-                    trade.parent.net_result_series(prices[:dt])
+                    trade.parent.net_result_series(prices[:dt], lp=lp)
                     - trade.operation_taxes()
                 )
         return proc_id, ret_list
