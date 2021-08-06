@@ -1321,7 +1321,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 npairs += 1
         return npairs
 
-    def overall_net_result(self, as_dataframe=False):
+    def overall_net_result(self, as_dataframe=False, step=60):
         """
         Compute ``self.symbol_net_result`` for all symbols present
         `as_dataframe` defines the format of return datatype, thus
@@ -1338,7 +1338,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         """
         res_dict = {}
         for symbol in self.refined_obj.keys():
-            res_dict[symbol] = self.symbol_net_result(symbol, True)
+            res_dict[symbol] = self.symbol_net_result(symbol, True, step)
         if not as_dataframe:
             return res_dict
         max_date = min([series.index[-1] for series in res_dict.values()])
