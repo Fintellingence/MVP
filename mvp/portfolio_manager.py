@@ -111,13 +111,13 @@ class RefinedSet:
         for ref_obj in self.refined_obj.values():
             ref_obj.cache_clean()
 
-    def is_empty(self):
+    def is_empty_refined_set(self):
         """
         Return `True` if there are no symbols refined in this object
         """
         return not self.refined_obj
 
-    def has_symbol(self, symbol):
+    def has_refined_symbol(self, symbol):
         """Return True if the `symbol` (or list of) is in the set"""
         if not isinstance(symbol, list):
             return symbol in self.refined_obj.keys()
@@ -250,6 +250,12 @@ class RefinedSet:
         """
         self.symbol_period.pop(symbol, None)
         return self.refined_obj.pop(symbol, None)
+
+    def reset_refined_set(self):
+        del self.symbol_period
+        del self.refined_obj
+        self.refined_obj = {}
+        self.symbol_period = {}
 
     def refresh_all_features(self):
         """
@@ -806,9 +812,9 @@ class PortfolioRecord:
         ``pandas.DataFrame``
         """
         if not date:
-            trades = self.get_all_trades()
+            trades = self.get_all_trades(True)
         else:
-            trades = self.get_trades_before(date)
+            trades = self.get_trades_before(date, True)
         df_list = []
         invest_dict = {}
         for trade in trades:
@@ -855,7 +861,7 @@ class PortfolioRecord:
                 "Symbol",
                 "Quantity",
                 "Price",
-                "FlagInfo",
+                "Side",
                 "TotalQuantity",
                 "MeanPrice",
             ],
@@ -868,25 +874,59 @@ class PortfolioRecord:
         """
         Search and return trade object with given `trade_id`
         If there is not trade with this id return ``None``
+        WARNING : This is a hard object copy thus any change
+        to its attributes will impact this class
         """
         for trade in self.__trades[::-1]:
             if trade.id == trade_id:
                 return trade
         return None
 
-    def get_all_trades(self):
+    def get_all_trades(self, hard_copy=False):
         """Return the list of all trades recorded"""
-        return self.__copy_trades(self.__trades)
+        return self.__copy_trades(self.__trades, hard_copy)
 
-    def get_trades_symbol(self, symbol):
+    def get_paired_trades(self, symbol=None, hard_copy=False):
+        """Get all trades with stop barriers (with parent)"""
+        paired_trades = []
+        if symbol:
+            trades = self.get_trades_symbol(symbol, True)
+        else:
+            trades = self.get_all_trades(True)
+        for trade in trades:
+            if trade.parent:
+                bisect.insort(paired_trades, trade.parent)
+                bisect.insort(paired_trades, trade)
+        return self.__copy_trades(paired_trades, hard_copy)
+
+    def number_trade_pairs(self, symbol=None):
+        """Return number of trades paired by barriers for a `symbol`"""
+        if symbol:
+            trades = self.get_trades_symbol(symbol, True)
+        else:
+            trades = self.get_all_trades(True)
+        npairs = 0
+        for trade in trades:
+            if trade.parent:
+                npairs += 1
+        return npairs
+
+    def get_trades_symbol(self, symbol, hard_copy=False):
         """Return list with all trades involving `symbol`"""
         sym_trades = []
         for trade in self.__trades:
             if trade.symbol == symbol:
                 sym_trades.append(trade)
-        return self.__copy_trades(sym_trades)
+        return self.__copy_trades(sym_trades, hard_copy)
 
-    def get_trades_before(self, date):
+    def get_symbols_traded(self):
+        """Return list of all symbols traded in portfolio"""
+        symbols_set = set()
+        for trade in self.__trades:
+            symbols_set.add(trade.symbol)
+        return list(symbols_set)
+
+    def get_trades_before(self, date, hard_copy=False):
         """Return list of trades objects occurred before `date`"""
         i = 0
         if not date:
@@ -895,9 +935,9 @@ class PortfolioRecord:
             if trade.date >= date:
                 break
             i = i + 1
-        return self.__copy_trades(self.__trades[:i])
+        return self.__copy_trades(self.__trades[:i], hard_copy)
 
-    def get_trades_after(self, date):
+    def get_trades_after(self, date, hard_copy=False):
         """Return list of trades objects occurred afeter `date`"""
         i = 0
         if not date:
@@ -906,7 +946,7 @@ class PortfolioRecord:
             if trade.date > date:
                 break
             i = i + 1
-        return self.__copy_trades(self.__trades[i:])
+        return self.__copy_trades(self.__trades[i:], hard_copy)
 
     def delete_all_trades(self):
         del self.__trades
@@ -971,7 +1011,7 @@ class PortfolioRecord:
             possibly tax to hold the position each day.
             Useful to describe short positions. Default 0 for long positions
         `parent` : ``StockTrade``
-            The trade that openned the position
+            The trade that openned the position  if there was one
         """
         new_trade = StockTrade(
             symbol,
@@ -987,7 +1027,9 @@ class PortfolioRecord:
         bisect.insort(self.__trades, new_trade)
         return new_trade.id
 
-    def __copy_trades(self, list_of_trades):
+    def __copy_trades(self, list_of_trades, hard_copy):
+        if hard_copy:
+            return list_of_trades
         copy_list = []
         child_trades = [trade for trade in list_of_trades if trade.parent]
         id_trades_set = set()
@@ -1329,17 +1371,97 @@ class Portfolio(PortfolioRecord, RefinedSet):
         ):
             self.set_trade_pair(symbol, quantity, init, end, side, rent_tax)
 
-    def number_trade_pairs(self, symbol=None):
-        """Return number of trades paired by barriers for a `symbol`"""
+    def trade_success_rate(self, symbol=None):
+        """Success rate [0, 1] of trades involving given `symbol`"""
         if symbol:
-            trades = self.get_trades_symbol(symbol)
+            trades = self.get_trades_symbol(symbol, True)
         else:
-            trades = self.get_all_trades()
+            trades = self.get_all_trades(True)
         npairs = 0
+        correct_trades = 0
         for trade in trades:
             if trade.parent:
                 npairs += 1
-        return npairs
+                result = trade.parent.side * (
+                    trade.unit_price - trade.parent.unit_price
+                )
+                if result > 0:
+                    correct_trades += 1
+        return correct_trades / npairs
+
+    def trade_average_rentability(self, symbol=None):
+        """Average rentability of trades involving given `symbol`"""
+        if symbol:
+            trades = self.get_trades_symbol(symbol, True)
+        else:
+            trades = self.get_all_trades(True)
+        npairs = 0
+        rent = 0
+        for trade in trades:
+            if trade.parent:
+                npairs += 1
+                if trade.parent.side > 0:
+                    rent += (
+                        trade.unit_price
+                        - trade.parent.unit_price
+                        - trade.parent.total_taxes(trade.date)
+                    ) / trade.parent.unit_price
+                else:
+                    rent += (
+                        trade.parent.unit_price
+                        - trade.unit_price
+                        - trade.parent.total_taxes(trade.date)
+                    ) / trade.unit_price
+        return rent / npairs
+
+    def trades_book_result(self, symbol=None):
+        """Average rentability of trades involving given `symbol`"""
+        trades = self.get_paired_trades(symbol, True)
+        df_list = []
+        net_res = 0
+        traded_amount = 0
+        for trade in trades:
+            if trade.parent:
+                res = trade.parent.net_result(trade.unit_price, trade.date)
+                net_res += res
+                if trade.parent.side > 0:
+                    traded_value = trade.quantity * trade.parent.unit_price
+                    rent = res / (trade.quantity * trade.parent.unit_price)
+                else:
+                    traded_value = trade.quantity * trade.unit_price
+                    rent = res / (trade.quantity * trade.unit_price)
+                traded_amount += traded_value
+                df_row = [
+                    trade.parent.date,
+                    trade.date,
+                    trade.symbol,
+                    trade.parent.quantity,
+                    trade.parent.unit_price,
+                    trade.unit_price,
+                    trade.parent.side,
+                    res,
+                    rent,
+                    net_res,
+                    net_res / traded_amount,
+                ]
+                df_list.append(df_row)
+        raw_df = pd.DataFrame(
+            df_list,
+            columns=[
+                "DateTime",
+                "PositionEnd",
+                "Symbol",
+                "Quantity",
+                "EnterPrice",
+                "ExitPrice",
+                "Side",
+                "Result",
+                "Rentability",
+                "NetResult",
+                "WeightedRentability",
+            ],
+        )
+        return raw_df.set_index("DateTime")
 
     def overall_net_result(self, as_dataframe=False, step=60):
         """
@@ -1386,10 +1508,10 @@ class Portfolio(PortfolioRecord, RefinedSet):
         )
         first_trade_date = trades[-1].date
         last_trade_date = trades[0].date
-        if isinstance(step, str):
+        if step != 1:
             start_offset = pd.Timedelta(days=1)
         else:
-            start_offset = pd.Timedelta(minutes=2 * step)
+            start_offset = pd.Timedelta(minutes=5)
         prices = self.refined_obj[symbol].get_close(
             first_trade_date - start_offset, step=step
         )
@@ -1489,10 +1611,10 @@ class Portfolio(PortfolioRecord, RefinedSet):
             Set of trades id that were taken into account and list with returns
         """
         first_trade_date = trades[-1].date
-        if isinstance(step, str):
+        if step != 1:
             start_offset = pd.Timedelta(days=1)
         else:
-            start_offset = pd.Timedelta(minutes=2 * step)
+            start_offset = pd.Timedelta(minutes=5)
         prices = self.refined_obj[symbol].get_close(
             first_trade_date - start_offset, step=step
         )
@@ -1514,3 +1636,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
                     - trade.operation_taxes()
                 )
         return proc_id, ret_list
+
+    def reset_portfolio(self):
+        """Reset to empty portfolio removing refined data and trades"""
+        self.delete_all_trades()
+        self.reset_refined_set()
