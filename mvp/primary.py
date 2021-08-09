@@ -42,11 +42,16 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}, draw=False):
         time series with +1 (buy side) and -1(sell side)
 
     """
+    sshift = 0
+    if kwargs.get("step").lower() == "day":
+        target = kwargs.get("target")
+        if not target or target.lower().find("close") > 0:
+            sshift = 1
     slow_window = min(window1, window2)
     fast_window = max(window1, window2)
     slow_ma = refined_obj.get_sma(slow_window, **kwargs)
     fast_ma = refined_obj.get_sma(fast_window, **kwargs)
-    diff = (fast_ma - slow_ma).dropna()
+    diff = (fast_ma - slow_ma).shift(sshift).dropna()
     cross_time = diff.index[diff[1:] * diff.shift(1) < 0]
     if draw:
         return (
@@ -82,17 +87,23 @@ def trend(refined_obj, threshold, window=1, kwargs={}):
         time series with +1 (buy side) and -1(sell side)
 
     """
+    sshift = 0
+    if kwargs.get("step").lower() == "day":
+        target = kwargs.get("target")
+        if not target or target.lower().find("close") > 0:
+            sshift = 1
     sma = refined_obj.get_sma(window, **kwargs)
     diff = (sma - sma.shift(1)).dropna()
     returns = (sma / sma.shift(1) - 1).dropna().values
     n = returns.size
     events_ind = np.empty(n, dtype=np.int32)
-    events_marks = np.empty(n, dtype=np.int32)
+    events_sides = np.empty(n, dtype=np.int32)
     nevents = utils.sign_mark_cusum(
-        n, returns, events_ind, events_marks, threshold
+        n, returns, events_ind, events_sides, threshold
     )
+    events_ind = events_ind - 1 + sshift
     events_time = diff[events_ind[:nevents]].index
-    return pd.Series(events_marks[:nevents], events_time, np.int32)
+    return pd.Series(events_sides[:nevents], events_time, np.int32)
 
 
 def cummulative_returns(refined_obj, threshold, window=1, kwargs={}):
@@ -121,16 +132,22 @@ def cummulative_returns(refined_obj, threshold, window=1, kwargs={}):
         time series with +1 (buy side) and -1(sell side)
 
     """
+    sshift = 0
+    if kwargs.get("step").lower() == "day":
+        target = kwargs.get("target")
+        if not target or target.lower().find("close") > 0:
+            sshift = 1
     sma = refined_obj.get_sma(window, **kwargs)
     returns = (sma / sma.shift(1) - 1).dropna()
     n = returns.size
     events_ind = np.empty(n, np.int32)
-    events_sign = np.empty(n, np.int32)
+    events_sides = np.empty(n, np.int32)
     nevents = utils.indexing_cusum_abs(
-        n, returns.values, events_ind, events_sign, threshold
+        n, returns.values, events_ind, events_sides, threshold
     )
+    events_ind = events_ind - 1 + sshift
     events_time = returns[events_ind[1:nevents]].index
-    return pd.Series(events_sign[1:nevents], events_time, np.int32)
+    return pd.Series(events_sides[1:nevents], events_time, np.int32)
 
 
 def bollinger_bands(
@@ -159,13 +176,18 @@ def bollinger_bands(
         time series with +1 (buy side) and -1(sell side)
 
     """
+    sshift = 0
+    if kwargs.get("step").lower() == "day":
+        target = kwargs.get("target")
+        if not target or target.lower().find("close") > 0:
+            sshift = 1
     data_series = refined_obj.get_sma(1, **kwargs)
     dev = refined_obj.get_dev(dev_window, **kwargs)
     sma = refined_obj.get_sma(ma_window, **kwargs)
     upper = sma + mult * dev
     lower = sma - mult * dev
-    upper_diff = (upper - data_series).dropna()
-    lower_diff = (data_series - lower).dropna()
+    upper_diff = (upper - data_series).shift(sshift).dropna()
+    lower_diff = (data_series - lower).shift(sshift).dropna()
     sell_time = upper_diff[upper_diff.shift(1) * upper_diff < 0][
         upper_diff < 0
     ].index

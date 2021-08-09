@@ -1415,7 +1415,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         return rent / npairs
 
     def trades_book_result(self, symbol=None):
-        """Average rentability of trades involving given `symbol`"""
+        """Return improved trade book with result for all paired trades"""
         trades = self.get_paired_trades(symbol, True)
         df_list = []
         net_res = 0
@@ -1448,7 +1448,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         raw_df = pd.DataFrame(
             df_list,
             columns=[
-                "DateTime",
+                "PositionOpen",
                 "PositionEnd",
                 "Symbol",
                 "Quantity",
@@ -1461,7 +1461,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 "WeightedRentability",
             ],
         )
-        return raw_df.set_index("DateTime")
+        return raw_df.set_index("PositionEnd")
 
     def overall_net_result(self, as_dataframe=False, step=60):
         """
