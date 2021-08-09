@@ -18,7 +18,7 @@ from tensorboard.plugins.hparams import api as hp
 from sklearn.model_selection import ParameterGrid
 from sklearn.exceptions import UndefinedMetricWarning
 
-warnings.filterwarnings(action='ignore', category=UndefinedMetricWarning)
+warnings.filterwarnings(action="ignore", category=UndefinedMetricWarning)
 
 from sklearn.metrics import f1_score, balanced_accuracy_score, precision_score
 
@@ -650,6 +650,10 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         Regardless the verbose value, these information is always accessed in log files.
     `seed` : ``int``
         The seed to initiate the numpy ``RandomState``.
+    `cross_study` : ``Boolean``
+        True indicates the class is being used in a cross study context, this option
+        ignores copying the training script, which prevents path errors when the contex
+        of training is more general.
 
     """
 
@@ -678,6 +682,7 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         approach=0,
         verbose=0,
         seed=12345,
+        cross_study=False,
     ):
         run_dir = os.path.join(
             log_dir, author, "run-" + dt.now().strftime("%Y%m%d-%H%M%S")
@@ -686,9 +691,11 @@ class EnvironmentOptimizer(BaggingModelOptimizer):
         frame = inspect.stack()[1]
         module = inspect.getmodule(frame[0])
         filename = module.__file__
-        shutil.copyfile(
-            os.path.abspath(filename), os.path.join(run_dir, filename)
-        )
+        if not cross_study:
+            shutil.copyfile(
+                os.path.abspath(filename), os.path.join(run_dir, filename)
+            )
+        self.cross_study = cross_study
         self._author = author
         self._primary_model_fn = primary_model_fn
         self._refined_data = refined_data

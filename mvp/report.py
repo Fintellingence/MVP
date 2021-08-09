@@ -44,6 +44,7 @@ def basic_strategy_info(book, display=True):
             (book["ExitDate"] - book["EntryDate"]).mean(),
         )
         print("Final Equity", str(book["EquityCurve"].iloc[-1]))
+        print("Number of trades:", len(book.index))
         print("Distribution of returns: ")
         plt.hist(book["RelativeProfit"], bins=20)
     return dict(
@@ -51,6 +52,7 @@ def basic_strategy_info(book, display=True):
         sharpe=book["RelativeProfit"].mean() / book["RelativeProfit"].std(),
         avg_hold_time=(book["ExitDate"] - book["EntryDate"]).mean(),
         final_equity=book["EquityCurve"].iloc[-1],
+        n_trades=len(book.index)
     )
 
 
@@ -73,3 +75,12 @@ def filter_book(book, meta_filters):
         "RelativeProfit"
     ].cumsum(skipna=False)
     return filtered_book.reset_index()
+
+def compare_observable(observable, primary_stats, meta_stats):
+    plt.hist(primary_stats[observable],color='b') ,plt.hist(meta_stats[observable],color='r')
+    print('[+] primary:') 
+    print('mean: ', primary_stats[observable].mean())
+    print('std: ',primary_stats[observable].std())
+    print('[+] metamodel:') 
+    print('mean: ', meta_stats[observable].mean())
+    print('std: ',meta_stats[observable].std())
