@@ -34,6 +34,7 @@ Classes
 
 import os
 import bisect
+import itertools
 import numpy as np
 import pandas as pd
 
@@ -110,13 +111,13 @@ class RefinedSet:
         for ref_obj in self.refined_obj.values():
             ref_obj.cache_clean()
 
-    def is_empty(self):
+    def is_empty_refined_set(self):
         """
         Return `True` if there are no symbols refined in this object
         """
         return not self.refined_obj
 
-    def has_symbol(self, symbol):
+    def has_refined_symbol(self, symbol):
         """Return True if the `symbol` (or list of) is in the set"""
         if not isinstance(symbol, list):
             return symbol in self.refined_obj.keys()
@@ -249,6 +250,12 @@ class RefinedSet:
         """
         self.symbol_period.pop(symbol, None)
         return self.refined_obj.pop(symbol, None)
+
+    def reset_refined_set(self):
+        del self.symbol_period
+        del self.refined_obj
+        self.refined_obj = {}
+        self.symbol_period = {}
 
     def refresh_all_features(self):
         """
@@ -443,10 +450,9 @@ class RefinedSet:
 
 @total_ordering
 class StockTrade:
-    """
-    Object to represent stock market shares negociations
-    with ordering methods based on datetime
-    """
+    """Object to represent stock market trades with datetime ordering"""
+
+    trade_counter = itertools.count()
 
     def __init__(
         self,
@@ -454,10 +460,11 @@ class StockTrade:
         quantity,
         unit_price,
         date,
-        flag=1,
+        side=1,
         fixed_tax=0,
         relative_tax=0,
         daily_tax=0,
+        parent=None,
     ):
         """
         Construct a trade order in stock market using all required information
@@ -481,16 +488,42 @@ class StockTrade:
         `daily_tax` : ``float`` (default 0)
             fraction of share price charged to hold position per day
             Usually only applicable to maintain short/sell position
+        `parent` : ``StockTrade`` (default None)
+            Indicate if this stock trade is derived from another trade
+            Commonly, this came from imposing barriers in parent trade
         """
         self.symbol = symbol
         self.quantity = int(quantity)
         self.unit_price = unit_price
         self.date = date
-        self.flag = flag
+        self.side = side
         self.fixed_tax = fixed_tax
         self.relative_tax = relative_tax
         self.daily_tax = daily_tax
         self.__assert_input_params()
+        self.__assert_parent(parent)
+        self.parent = parent
+        self.id = next(StockTrade.trade_counter)
+
+    def __str__(self):
+        trade_str1 = "{} shares of {} traded in {} ".format(
+            self.quantity, self.symbol, self.date
+        )
+        trade_str2 = "with side {}. Trade ID = {}".format(self.side, self.id)
+        return trade_str1 + trade_str2
+
+    def _valid_comparison(self, other):
+        return hasattr(other, "date") and hasattr(other, "symbol")
+
+    def __eq__(self, other):
+        if not self._valid_comparison(other):
+            return NotImplemented
+        return (self.date, self.symbol) == (other.date, other.symbol)
+
+    def __lt__(self, other):
+        if not self._valid_comparison(other):
+            return NotImplemented
+        return (self.date, self.symbol) < (other.date, other.symbol)
 
     def __assert_input_params(self):
         if self.quantity < 0:
@@ -505,10 +538,10 @@ class StockTrade:
                     self.unit_price
                 )
             )
-        if abs(self.flag) != 1 and not isinstance(self.flag, int):
+        if abs(self.side) != 1 and not isinstance(self.side, int):
             raise ValueError(
-                "Flag in a trade must be 1>buy or -1>sell. {} given".format(
-                    self.flag
+                "Side in a trade must be +1(buy) or -1(sell). {} given".format(
+                    self.side
                 )
             )
         if not isinstance(self.date, pd.Timestamp):
@@ -519,6 +552,36 @@ class StockTrade:
             )
         if self.fixed_tax < 0 or self.relative_tax < 0 or self.daily_tax < 0:
             raise ValueError("All taxes must be positive")
+
+    def __assert_parent(self, parent):
+        """
+        Parent trade must fullfill certain conditions such as being the
+        opposite operation of this trade and have the same quantity and
+        cannot be nested, that is, the parent trade opens a position,
+        thus cannot be related to another parent trade
+        """
+        if parent:
+            if not isinstance(parent, StockTrade):
+                raise ValueError(
+                    "Incorrect type for parent trade."
+                    " {} given".format(type(parent))
+                )
+            if parent.date > self.date:
+                raise ValueError(
+                    "Parent trade date must be before child trade"
+                )
+            if parent.quantity != self.quantity:
+                raise ValueError(
+                    "Parent has {} shares and self {} shares".format(
+                        parent.quantity, self.quantity
+                    )
+                )
+            if parent.side * self.side > 0:
+                raise ValueError(
+                    "Parent and self does not have opposite sides"
+                )
+            if parent.parent is not None:
+                raise ValueError("Parent trade alredy have a parent")
 
     def __valid_input_date(self, date):
         """Confirm `date` is ahead of `self.date`"""
@@ -548,41 +611,32 @@ class StockTrade:
             )
         )
 
-    def _valid_comparison(self, other):
-        return hasattr(other, "date") and hasattr(other, "symbol")
+    def __get_valid_quantity(self, input_quantity):
+        probe_quantity = input_quantity or self.quantity
+        if not self.__valid_input_quantity(probe_quantity):
+            self.__raise_quantity_error(probe_quantity)
+        return probe_quantity
 
-    def __eq__(self, other):
-        if not self._valid_comparison(other):
-            return NotImplemented
-        return (self.date, self.symbol) == (other.date, other.symbol)
-
-    def __lt__(self, other):
-        if not self._valid_comparison(other):
-            return NotImplemented
-        return (self.date, self.symbol) < (other.date, other.symbol)
-
-    def total_rolling_tax(self, date, quantity=None):
+    def total_rent_tax(self, date, quantity=None):
         """Compute the rolling cost of the operation up to `date`"""
-        if quantity is None:
-            quantity = self.quantity
+        quantity = self.__get_valid_quantity(quantity)
         if not self.__valid_input_date(date):
             self.__raise_date_error(date)
-        if not self.__valid_input_quantity(quantity):
-            self.__raise_quantity_error(quantity)
         days_elapsed = 1 + (date - self.date).days
         total_cost = quantity * self.unit_price
         return total_cost * days_elapsed * self.daily_tax
 
-    def rolling_tax(self, date_array, quantity=None):
-        """Compute the rolling cost of the operation from time array"""
-        if quantity is None:
-            quantity = self.quantity
-        if not self.__valid_input_quantity(quantity):
-            self.__raise_quantity_error(quantity)
+    def rolling_rent_tax(self, date_array, quantity=None):
+        """Compute the rolling cost of the operation as time series"""
+        quantity = self.__get_valid_quantity(quantity)
+        total_cost = quantity * self.unit_price
+        if date_array[-1] < self.date:
+            return pd.Series(
+                [total_cost * self.daily_tax], index=[date_array[-1]]
+            )
         valid_init = date_array.get_loc(self.date, method="backfill")
         dt_arr = date_array[valid_init:]
         days_elapsed_arr = 1 + (dt_arr - self.date).days
-        total_cost = quantity * self.unit_price
         tax_arr = (total_cost * days_elapsed_arr * self.daily_tax).values
         return pd.Series(tax_arr, index=dt_arr)
 
@@ -598,33 +652,35 @@ class StockTrade:
             date to consider in rolling taxes (shares rent if applicable)
         `quantity` : ``int``
             number of shares to compute the taxes
-
         """
-        if quantity is None:
-            quantity = self.quantity
-        if not self.__valid_input_quantity(quantity):
-            self.__raise_quantity_error(quantity)
+        quantity = self.__get_valid_quantity(quantity)
         inc_fixed = 0  # discard fixed tax if not close position
         if quantity == self.quantity:
             inc_fixed = self.fixed_tax
-        if self.flag > 0:
+        if self.side > 0:
             return inc_fixed + self.relative_tax * quantity * self.unit_price
         return (
             inc_fixed
             + self.relative_tax * quantity * self.unit_price
-            + self.total_rolling_tax(date, quantity)
+            + self.total_rent_tax(date, quantity)
         )
+
+    def operation_taxes(self, quantity=None):
+        quantity = self.__get_valid_quantity(quantity)
+        if quantity < self.quantity:
+            return self.relative_tax * quantity * self.unit_price
+        return self.fixed_tax + self.relative_tax * quantity * self.unit_price
 
     def raw_invest(self, current_price=None, quantity=None):
         """
-        Compute the value invested in the trade up to `date`
+        Compute the value invested in the trade.
         Note that for short position it requires the price of
         the shares, since the investiment needs current price
 
         Parameters
         ---
         `current_price` : ``float``
-            Only required for sell/short position
+            Only required for sell/short trade
         `quantity` : ``int``
             number of shares to consider. Default `self.quantity`
 
@@ -632,13 +688,9 @@ class StockTrade:
         ---
         ``float``
             value in currency invested according to `quantity`
-
         """
-        if quantity is None:
-            quantity = self.quantity
-        if not self.__valid_input_quantity(quantity):
-            self.__raise_quantity_error(quantity)
-        if self.flag > 0:
+        quantity = self.__get_valid_quantity(quantity)
+        if self.side > 0:
             return quantity * self.unit_price
         if current_price is None:
             raise ValueError("Need current price to compute short investment")
@@ -646,19 +698,17 @@ class StockTrade:
 
     def total_invest(self, date=None, current_price=None, quantity=None):
         """
-        Return the total amount in local currency required including taxes
+        Similar to `self.raw_invest` but including taxes. The parameters
+        `date` and `current_price` are mandatory for short/sell trades
         """
         return self.raw_invest(current_price, quantity) + self.total_taxes(
             date, quantity
         )
 
     def raw_result(self, unit_price, quantity=None):
-        """Return the raw result ignoring taxes for `quantity` shares"""
-        if quantity is None:
-            quantity = self.quantity
-        if not self.__valid_input_quantity(quantity):
-            self.__raise_quantity_error(quantity)
-        return quantity * (unit_price - self.unit_price) * self.flag
+        """Return the raw result ignoring taxes"""
+        quantity = self.__get_valid_quantity(quantity)
+        return quantity * (unit_price - self.unit_price) * self.side
 
     def net_result(self, unit_price, date=None):
         """
@@ -669,7 +719,7 @@ class StockTrade:
         `unit_price` : ``float``
             share unit price in current date
         `date` : ``pandas.Timestamp``
-            date is only required to compute rolling tax of short operation
+            mandatory for short/sell trade to compute rent tax
 
         Return
         ---
@@ -681,17 +731,21 @@ class StockTrade:
         taxes = self.total_taxes(date, self.quantity)
         return self.raw_result(unit_price, self.quantity) - taxes
 
-    def raw_result_series(self, unit_price_series, quantity=None):
+    def raw_result_series(self, unit_price_series, quantity=None, lp=None):
         """Equivalent to ``self.net_result_series`` but ignoring taxes"""
-        if quantity is None:
-            quantity = self.quantity
-        valid_init = unit_price_series.index.get_loc(
-            self.date, method="backfill"
-        )
+        quantity = self.__get_valid_quantity(quantity)
+        if lp is None:
+            lp = unit_price_series[-1]
+        if unit_price_series.index[-1] < self.date:
+            r = quantity * (lp - self.unit_price) * self.side
+            return pd.Series([r], index=[unit_price_series.index[-1]])
+        valid_init = unit_price_series.index.get_loc(self.date, "backfill")
         valid_prices = unit_price_series[valid_init:]
-        return quantity * (valid_prices - self.unit_price) * self.flag
+        ret_series = quantity * (valid_prices - self.unit_price) * self.side
+        ret_series[-1] = quantity * (lp - self.unit_price) * self.side
+        return ret_series
 
-    def net_result_series(self, unit_price_series, quantity=None):
+    def net_result_series(self, unit_price_series, quantity=None, lp=None):
         """
         Compute total return time series in local currency discounting taxes
         If `quantity < self.quantity` corresponding to a partial close, then
@@ -706,27 +760,32 @@ class StockTrade:
             The index final time must be larger than `self.date`
         `quantity` : ``int``
             number of shares to consider. Default is `self.quantity`
+        `lp` : ``float``
+            last price in closing position trade. The fidelity of price
+            series may not be in agreement with the close trade price
 
         Return
         ------
         ``pandas.Series``
         """
-        if quantity is None:
-            quantity = self.quantity
-        roll_tax = self.rolling_tax(unit_price_series.index, quantity)
+        quantity = self.__get_valid_quantity(quantity)
+        roll_tax = self.rolling_rent_tax(unit_price_series.index, quantity)
         rela_tax = quantity * self.unit_price * self.relative_tax
         if quantity == self.quantity:
             total_tax = self.fixed_tax + rela_tax + roll_tax
-        else:
+        elif self.side < 0:
             total_tax = rela_tax + roll_tax
-        return self.raw_result_series(unit_price_series, quantity) - total_tax
+        else:
+            total_tax = rela_tax
+        return (
+            self.raw_result_series(unit_price_series, quantity, lp) - total_tax
+        )
 
 
 class PortfolioRecord:
     """
-    Class to record a set of trades. Basically it holds as attribute a
-    list of `StockDeal` objects ordered by date they ocurred. As date
-    object all methods use `pandas.Timestamp`
+    Class to record a set of trades. Basically, it holds as
+    attribute a list of `StockDeal` objects ordered by date
     """
 
     def __init__(self):
@@ -737,7 +796,7 @@ class PortfolioRecord:
         """Return True if there are no trades registered"""
         return not self.__trades
 
-    def get_trades_dataframe(self, date=None, symbol=None):
+    def get_trades_book(self, date=None, symbol=None):
         """
         Return trades information as dataframe
 
@@ -753,25 +812,25 @@ class PortfolioRecord:
         ``pandas.DataFrame``
         """
         if not date:
-            trades = self.get_all_trades()
+            trades = self.get_all_trades(True)
         else:
-            trades = self.get_trades_before(date)
+            trades = self.get_trades_before(date, True)
         df_list = []
         invest_dict = {}
         for trade in trades:
             if trade.symbol not in invest_dict.keys():
                 invest_dict[trade.symbol] = (
-                    trade.flag * trade.quantity,
+                    trade.side * trade.quantity,
                     trade.unit_price,
                 )
             else:
                 old_quant = invest_dict[trade.symbol][0]
                 old_price = invest_dict[trade.symbol][1]
-                new_quant = old_quant + trade.flag * trade.quantity
-                if trade.flag * old_quant > 0:
+                new_quant = old_quant + trade.side * trade.quantity
+                if trade.side * old_quant > 0:
                     new_price = (
                         old_price * old_quant
-                        + trade.flag * trade.quantity * trade.unit_price
+                        + trade.side * trade.quantity * trade.unit_price
                     ) / new_quant
                 else:
                     if trade.quantity > invest_dict[trade.symbol][0]:
@@ -779,7 +838,7 @@ class PortfolioRecord:
                     else:
                         new_price = old_price
                 invest_dict[trade.symbol] = (new_quant, new_price)
-            if trade.flag > 0:
+            if trade.side > 0:
                 flag_info = "buy"
             else:
                 flag_info = "sell"
@@ -802,7 +861,7 @@ class PortfolioRecord:
                 "Symbol",
                 "Quantity",
                 "Price",
-                "FlagInfo",
+                "Side",
                 "TotalQuantity",
                 "MeanPrice",
             ],
@@ -811,19 +870,67 @@ class PortfolioRecord:
             return raw_df.loc[raw_df.Symbol == symbol].set_index("DateTime")
         return raw_df.set_index("DateTime")
 
-    def get_all_trades(self):
-        """Return the list of all trades recorded"""
-        return self.__copy_trades(self.__trades)
+    def get_trade(self, trade_id):
+        """
+        Search and return trade object with given `trade_id`
+        If there is not trade with this id return ``None``
+        WARNING : This is a hard object copy thus any change
+        to its attributes will impact this class
+        """
+        for trade in self.__trades[::-1]:
+            if trade.id == trade_id:
+                return trade
+        return None
 
-    def get_trades_symbol(self, symbol):
+    def get_all_trades(self, hard_copy=False):
+        """Return the list of all trades recorded"""
+        return self.__copy_trades(self.__trades, hard_copy)
+
+    def get_paired_trades(self, symbol=None, hard_copy=False):
+        """Get all trades with stop barriers (with parent)"""
+        paired_trades = []
+        if symbol:
+            trades = self.get_trades_symbol(symbol, True)
+        else:
+            trades = self.get_all_trades(True)
+        for trade in trades:
+            if trade.parent:
+                bisect.insort(paired_trades, trade.parent)
+                bisect.insort(paired_trades, trade)
+        return self.__copy_trades(paired_trades, hard_copy)
+
+    def number_trade_pairs(self, symbol=None):
+        """Return number of trades paired by barriers for a `symbol`"""
+        if symbol:
+            trades = self.get_trades_symbol(symbol, True)
+        else:
+            trades = self.get_all_trades(True)
+        npairs = 0
+        for trade in trades:
+            if trade.parent:
+                npairs += 1
+        return npairs
+
+    def get_trades_symbol(self, symbol, hard_copy=False):
         """Return list with all trades involving `symbol`"""
         sym_trades = []
         for trade in self.__trades:
             if trade.symbol == symbol:
                 sym_trades.append(trade)
-        return self.__copy_trades(sym_trades)
+        return self.__copy_trades(sym_trades, hard_copy)
 
-    def get_trades_before(self, date):
+    def get_symbols_traded(self):
+        """Return list of all symbols traded in portfolio"""
+        symbols_set = set()
+        for trade in self.__trades:
+            symbols_set.add(trade.symbol)
+        return list(symbols_set)
+
+    def symbol_in_records(self, symbol):
+        """Return whether a symbol has ever been traded"""
+        return symbol in self.get_symbols_traded()
+
+    def get_trades_before(self, date, hard_copy=False):
         """Return list of trades objects occurred before `date`"""
         i = 0
         if not date:
@@ -832,9 +939,9 @@ class PortfolioRecord:
             if trade.date >= date:
                 break
             i = i + 1
-        return self.__copy_trades(self.__trades[:i])
+        return self.__copy_trades(self.__trades[:i], hard_copy)
 
-    def get_trades_after(self, date):
+    def get_trades_after(self, date, hard_copy=False):
         """Return list of trades objects occurred afeter `date`"""
         i = 0
         if not date:
@@ -843,7 +950,11 @@ class PortfolioRecord:
             if trade.date > date:
                 break
             i = i + 1
-        return self.__copy_trades(self.__trades[i:])
+        return self.__copy_trades(self.__trades[i:], hard_copy)
+
+    def delete_all_trades(self):
+        del self.__trades
+        self.__trades = []
 
     def delete_trades_symbol(self, symbol):
         """Remove from records all trades related to the `symbol`"""
@@ -875,10 +986,11 @@ class PortfolioRecord:
         quantity,
         unit_price,
         date,
-        flag=1,
+        side=1,
         fixed_tax=0,
         relative_tax=0,
         daily_tax=0,
+        parent=None,
     ):
         """
         Insert new trade in the records
@@ -902,25 +1014,58 @@ class PortfolioRecord:
         `daily_tax` : ``float``
             possibly tax to hold the position each day.
             Useful to describe short positions. Default 0 for long positions
-
+        `parent` : ``StockTrade``
+            The trade that openned the position  if there was one
         """
-        bisect.insort(
-            self.__trades,
-            StockTrade(
-                symbol,
-                quantity,
-                unit_price,
-                date,
-                flag,
-                fixed_tax,
-                relative_tax,
-                daily_tax,
-            ),
+        new_trade = StockTrade(
+            symbol,
+            quantity,
+            unit_price,
+            date,
+            side,
+            fixed_tax,
+            relative_tax,
+            daily_tax,
+            parent,
         )
+        bisect.insort(self.__trades, new_trade)
+        return new_trade.id
 
-    def __copy_trades(self, list_of_trades):
+    def __copy_trades(self, list_of_trades, hard_copy):
+        if hard_copy:
+            return list_of_trades
         copy_list = []
+        child_trades = [trade for trade in list_of_trades if trade.parent]
+        id_trades_set = set()
+        for trade in child_trades:
+            new_parent = StockTrade(
+                trade.parent.symbol,
+                trade.parent.quantity,
+                trade.parent.unit_price,
+                trade.parent.date,
+                trade.parent.side,
+                trade.parent.fixed_tax,
+                trade.parent.relative_tax,
+                trade.parent.daily_tax,
+            )
+            bisect.insort(copy_list, new_parent)
+            new_child = StockTrade(
+                trade.symbol,
+                trade.quantity,
+                trade.unit_price,
+                trade.date,
+                trade.side,
+                trade.fixed_tax,
+                trade.relative_tax,
+                trade.daily_tax,
+                new_parent,
+            )
+            bisect.insort(copy_list, new_child)
+            id_trades_set.add(trade.parent.id)
+            id_trades_set.add(trade.id)
         for trade in list_of_trades:
+            if trade.id in id_trades_set:
+                continue
             bisect.insort(
                 copy_list,
                 StockTrade(
@@ -928,7 +1073,7 @@ class PortfolioRecord:
                     trade.quantity,
                     trade.unit_price,
                     trade.date,
-                    trade.flag,
+                    trade.side,
                     trade.fixed_tax,
                     trade.relative_tax,
                     trade.daily_tax,
@@ -937,7 +1082,7 @@ class PortfolioRecord:
         return copy_list
 
     def __str__(self):
-        return str(self.get_trades_dataframe())
+        return str(self.get_trades_book())
 
 
 class Portfolio(PortfolioRecord, RefinedSet):
@@ -967,6 +1112,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
         db_path,
         fixed_tax=0,
         relative_tax=0,
+        spread=0,
+        fixed_spread=False,
         preload={},
         common_features={},
     ):
@@ -983,6 +1130,15 @@ class Portfolio(PortfolioRecord, RefinedSet):
         `relative_tax` : ``float``
             relative fraction of the operation price charged in an order
             Usually very small (tipically < 0.0005)
+        `spread` : ``float``
+            A multiplicative factor for the standard dev of last 5 candles
+            to generate a spread in operation prices if `fixed_spread=False`
+            If `fixed_spread=True` it is just the spread in local currency
+            Typically choose:
+                0.5 ~= 1 if `fixed_spread=False`
+                0.01 ~= 0.02 if `fixed_spread=True`
+        `fixed_spread` : ``bool``
+            How to interpret `spread` parameter
         `preload` : ``dict {str : list}``
             dictionary needed in `RefinedSet` constructor
         `commom_features` : ``dict { str : str }``
@@ -992,6 +1148,9 @@ class Portfolio(PortfolioRecord, RefinedSet):
         ref_set_args = (db_path, preload, common_features)
         self.fixed_tax = fixed_tax
         self.relative_tax = relative_tax
+        self.spread = spread
+        self.fixed_spread = fixed_spread
+        self.aliases = {}
         RefinedSet.__init__(self, *(ref_set_args))
         PortfolioRecord.__init__(self)
 
@@ -1007,14 +1166,21 @@ class Portfolio(PortfolioRecord, RefinedSet):
             self.__nearest_index(symbol, date)
         ]
 
-    def __approx_price(self, symbol, date):
+    def __approx_price(self, symbol, date, op_side):
         """Return approximate price (using nearest available date)"""
-        return self.refined_obj[symbol].df.Close[
-            self.__nearest_index(symbol, date)
-        ]
+        i = self.__nearest_index(symbol, date)
+        if self.fixed_spread:
+            op_spread = self.spread
+        else:
+            op_spread = (
+                self.spread
+                * (self.refined_obj[symbol].df.Close[i - 5 : i]).std()
+            )
+        op_price = self.refined_obj[symbol].df.Close[i] + op_side * op_spread
+        return op_price
 
     def set_position_buy(
-        self, symbol, date, quantity, sl=None, tp=None, ih=None
+        self, symbol, date, quantity, sl=None, tp=None, ih=None, parent=None
     ):
         """
         Insert a buy(long) position in the portfolio with possible halt
@@ -1038,6 +1204,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
         `ih` : ``int`` or ``pandas.Timedelta``
             time tolerance to close the trade. Case integer
             indicate the number of consecutive bars to wait
+        `parent` : ``StockTrade``
+            Sell trade from which this one is derived due to stop barriers
 
         """
         if tp is not None and tp <= 0:
@@ -1049,8 +1217,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
                 )
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, date)
-        approx_price = self.__approx_price(symbol, date)
-        self.record_trade(
+        approx_price = self.__approx_price(symbol, date, 1)
+        trade_id = self.record_trade(
             symbol,
             quantity,
             approx_price,
@@ -1058,6 +1226,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             1,
             self.fixed_tax,
             self.relative_tax,
+            parent=parent,
         )
         # If barriers are set, automatically include the sell operation
         cls_date, result = event_label(
@@ -1065,7 +1234,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
         )
         if ih is None and result == 0:
             return
-        self.set_position_sell(symbol, cls_date, quantity)
+        parent_trade = self.get_trade(trade_id)
+        self.set_position_sell(symbol, cls_date, quantity, parent=parent_trade)
 
     def set_position_sell(
         self,
@@ -1076,6 +1246,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         tp=None,
         ih=None,
         daily_tax=0.0,
+        parent=None,
     ):
         """
         Register a sell order(short) in the portfolio
@@ -1097,6 +1268,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
             indicate the number of consecutive bars to wait
         `dialy_tax` : ``float``
             the rent fraction required to maintain the order per day
+        `parent` : ``StockTrade``
+            Buy trade from which this one is derived due to stop barriers
 
         """
         if tp is not None:
@@ -1108,8 +1281,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
             raise ValueError("Invalid stop loss {} for sell order".format(sl))
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, date)
-        approx_price = self.__approx_price(symbol, date)
-        self.record_trade(
+        approx_price = self.__approx_price(symbol, date, -1)
+        trade_id = self.record_trade(
             symbol,
             quantity,
             approx_price,
@@ -1118,6 +1291,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             self.fixed_tax,
             self.relative_tax,
             daily_tax,
+            parent,
         )
         # If barriers are set, automatically include the buy position
         cls_date, result = event_label(
@@ -1125,9 +1299,78 @@ class Portfolio(PortfolioRecord, RefinedSet):
         )
         if ih is None and result == 0:
             return
-        self.set_position_buy(symbol, cls_date, quantity)
+        parent_trade = self.get_trade(trade_id)
+        self.set_position_buy(symbol, cls_date, quantity, parent=parent_trade)
 
-    def set_from_labels(self, symbol, nshares, labels_df):
+    def set_trade_pair(
+        self,
+        symbol,
+        nshares,
+        open_dt,
+        close_dt,
+        open_side,
+        rent_tax=0,
+        alias=None,
+    ):
+        """
+        Set pair of trades with the same number of shares that opens and close
+        some position in specific dates.
+
+        Paramters
+        ---------
+        `symbol` : ``str``
+            company symbol in stock market
+        `nshares` : ``int``
+            number of shares involved in the trade
+        `open_dt` : ``pandas.Timestamp``
+            datetime when the position was opened
+        `close_dt` : ``pandas.Timestamp``
+            datetime when the position was closed
+        `open_side` : ``int``
+            inform how the position is opened whether buy(+1) or close(-1)
+        `rent_tax` : ``float``
+            daily price fraction charged to sustain short position
+            This parameter is ignored if `side = 1`
+        `alias` : ``str``
+            when testing strategies for the same symbol this can be used
+            to do not mix all trades with the same symbol
+        """
+        if not alias:
+            alias = symbol
+        if alias not in self.aliases.keys():
+            self.aliases[alias] = symbol
+        self.new_refined_symbol(symbol)
+        valid_date = self.__nearest_date(symbol, open_dt)
+        approx_price = self.__approx_price(symbol, open_dt, open_side)
+        if open_side > 0:
+            rent_tax = 0
+        trade_id = self.record_trade(
+            alias,
+            nshares,
+            approx_price,
+            valid_date,
+            open_side,
+            self.fixed_tax,
+            self.relative_tax,
+            rent_tax,
+        )
+        valid_date = self.__nearest_date(symbol, close_dt)
+        approx_price = self.__approx_price(symbol, close_dt, -open_side)
+        parent_trade = self.get_trade(trade_id)
+        trade_id = self.record_trade(
+            alias,
+            nshares,
+            approx_price,
+            valid_date,
+            -open_side,
+            self.fixed_tax,
+            self.relative_tax,
+            parent=parent_trade,
+        )
+
+    def set_from_labels(
+        self, symbol, nshares, labels_df, rent_tax=0, alias=None
+    ):
         """
         Integrate with labels module to set operations from a strategy
 
@@ -1144,22 +1387,113 @@ class Portfolio(PortfolioRecord, RefinedSet):
         """
         if isinstance(nshares, int):
             nshares = nshares * np.ones(labels_df.index.size, dtype=int)
-        for init, side, end, quantity in zip(
+        iter_pack = zip(
             labels_df.index, labels_df.Side, labels_df.PositionEnd, nshares
-        ):
-            if side > 0:
-                self.set_position_buy(symbol, init, quantity)
-                self.set_position_sell(symbol, end, quantity)
-            else:
-                self.set_position_sell(symbol, init, quantity)
-                self.set_position_buy(symbol, end, quantity)
+        )
+        for init, side, end, quantity in iter_pack:
+            self.set_trade_pair(
+                symbol, quantity, init, end, side, rent_tax, alias
+            )
 
-    def overall_net_result(self, as_dataframe=False):
+    def trades_success_rate(self, symbol=None):
+        """Success rate [0, 1] of trades involving given `symbol`"""
+        if symbol:
+            trades = self.get_trades_symbol(symbol, True)
+        else:
+            trades = self.get_all_trades(True)
+        npairs = 0
+        correct_trades = 0
+        for trade in trades:
+            if trade.parent:
+                npairs += 1
+                result = (
+                    trade.parent.net_result(trade.unit_price, trade.date)
+                    - trade.operation_taxes()
+                )
+                if result > 0:
+                    correct_trades += 1
+        return correct_trades / npairs
+
+    def trades_average_rentability(self, symbol=None):
+        """Average rentability of trades involving given `symbol`"""
+        if symbol:
+            trades = self.get_trades_symbol(symbol, True)
+        else:
+            trades = self.get_all_trades(True)
+        npairs = 0
+        rent = 0
+        for trade in trades:
+            if trade.parent:
+                npairs += 1
+                res = (
+                    trade.parent.net_result(trade.unit_price, trade.date)
+                    - trade.operation_taxes()
+                )
+                if trade.parent.side > 0:
+                    rent += res / trade.parent.unit_price
+                else:
+                    rent += res / trade.unit_price
+        return rent / npairs
+
+    def trades_book_result(self, symbol=None):
+        """Return improved trade book with result for all paired trades"""
+        trades = self.get_paired_trades(symbol, True)
+        df_list = []
+        net_res = 0
+        traded_amount = 0
+        for trade in trades:
+            if trade.parent:
+                res = (
+                    trade.parent.net_result(trade.unit_price, trade.date)
+                    - trade.operation_taxes()
+                )
+                net_res += res
+                if trade.parent.side > 0:
+                    traded_value = trade.quantity * trade.parent.unit_price
+                    rent = res / (trade.quantity * trade.parent.unit_price)
+                else:
+                    traded_value = trade.quantity * trade.unit_price
+                    rent = res / (trade.quantity * trade.unit_price)
+                traded_amount += traded_value
+                df_row = [
+                    trade.parent.date,
+                    trade.date,
+                    trade.symbol,
+                    trade.parent.quantity,
+                    trade.parent.unit_price,
+                    trade.unit_price,
+                    trade.parent.side,
+                    res,
+                    rent,
+                    net_res,
+                    net_res / traded_amount,
+                ]
+                df_list.append(df_row)
+        raw_df = pd.DataFrame(
+            df_list,
+            columns=[
+                "PositionOpen",
+                "PositionEnd",
+                "Symbol",
+                "Quantity",
+                "EnterPrice",
+                "ExitPrice",
+                "Side",
+                "Result",
+                "Rentability",
+                "NetResult",
+                "WeightedRentability",
+            ],
+        )
+        return raw_df.set_index("PositionEnd")
+
+    def overall_net_result(self, as_dataframe=True, step="day"):
         """
-        Compute ``self.symbol_net_result`` for all present symbols
+        Compute ``self.symbol_net_result`` for all symbols present
         `as_dataframe` defines the format of return datatype, thus
         the result series of all symbols are constrained to latest
-        date among all indexes
+        date among all indexes. `step` give in minutes the temporal
+        resolution of the time series or a daily series if `step = "day"`
 
         Return
         ------
@@ -1170,8 +1504,8 @@ class Portfolio(PortfolioRecord, RefinedSet):
             symbols labeling the columns
         """
         res_dict = {}
-        for symbol in self.refined_obj.keys():
-            res_dict[symbol] = self.symbol_net_result(symbol, True)
+        for symbol in self.get_symbols_traded():
+            res_dict[symbol] = self.symbol_net_result(symbol, True, step)
         if not as_dataframe:
             return res_dict
         max_date = min([series.index[-1] for series in res_dict.values()])
@@ -1179,7 +1513,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         df["Total"] = df.sum(axis=1)
         return df.loc[:max_date]
 
-    def symbol_net_result(self, symbol, cummulative=True):
+    def symbol_net_result(self, symbol, cummulative=True, step="day"):
         """
         Compute the total return series for selected `symbol`
         in local currency. The `cummulative` hold the result
@@ -1187,35 +1521,63 @@ class Portfolio(PortfolioRecord, RefinedSet):
         all time returns. For example, if the last trade was
         in some time instant `t`, after that the series will
         display a constant value corresponding to the result
-        at the last trade point
+        `step` is the time series resolution in minutes or a
+        day in case `step = "day"`
         """
-        if not self.has_symbol(symbol):
+        if not self.symbol_in_records(symbol):
             return pd.Series([], dtype=float)
         trades = self.get_trades_symbol(symbol)[::-1]
+        proc_id, ret_list = self.__trade_pairs_preprocessing(
+            symbol, trades, step
+        )
         first_trade_date = trades[-1].date
         last_trade_date = trades[0].date
-        prices = self.refined_obj[symbol].get_close(first_trade_date)
+        if step != 1:
+            start_offset = pd.Timedelta(days=1)
+        else:
+            start_offset = pd.Timedelta(minutes=5)
+        prices = self.refined_obj[self.aliases[symbol]].get_close(
+            first_trade_date - start_offset, step=step
+        )
         full_ret = pd.Series(np.zeros(prices.size), index=prices.index)
-        trade_stack = [trades.pop()]  # stack of successive equal side trades
-        ret_list = []  # record return series every time a trade is closed
+        # ignore all trades taken in account in __trade_pairs_preprocessing
+        # trades that were not paired with stop mechanisms are now taken in
+        # account stacking and then removing
+        while trades and trades[-1].id in proc_id:
+            trades.pop()
+        trade_stack = []
+        if trades:
+            print("\nFound trades without pairs\n")
+            trade_stack.append(trades.pop())
         while trades:
-            trade_stack_flag = trade_stack[0].flag
-            while trades and trades[-1].flag == trade_stack_flag:
+            if trades[-1].id in proc_id:
+                trades.pop()
+                continue
+            trade_stack_flag = trade_stack[0].side
+            while trades and trades[-1].side == trade_stack_flag:
                 trade_stack.append(trades.pop())
             if not trades:
                 break
             reverse_trade = trades.pop()
+            reverse_price = reverse_trade.unit_price
             quant = reverse_trade.quantity
             dt = reverse_trade.date
             while trade_stack and quant >= trade_stack[-1].quantity:
                 pop_stack = trade_stack.pop()
-                ret_list.append(pop_stack.net_result_series(prices[:dt]))
-                quant = quant - pop_stack.quantity
+                ret_list.append(
+                    pop_stack.net_result_series(prices[:dt], lp=reverse_price)
+                    - reverse_trade.operation_taxes(pop_stack.quantity)
+                )
+                quant -= pop_stack.quantity
+                reverse_trade.quantity -= pop_stack.quantity
             if trade_stack:
                 # partial close
                 if quant > 0:
                     ret_list.append(
-                        trade_stack[-1].net_result_series(prices[:dt], quant)
+                        trade_stack[-1].net_result_series(
+                            prices[:dt], quant, reverse_price
+                        )
+                        - reverse_trade.operation_taxes(quant)
                     )
                     trade_stack[-1].quantity -= quant
                     quant = 0
@@ -1226,7 +1588,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
                     quant,
                     reverse_trade.unit_price,
                     reverse_trade.date,
-                    reverse_trade.flag,
+                    reverse_trade.side,
                     reverse_trade.fixed_tax,
                     reverse_trade.relative_tax,
                     reverse_trade.daily_tax,
@@ -1235,23 +1597,71 @@ class Portfolio(PortfolioRecord, RefinedSet):
             elif trades:
                 # reverse trade exactly closed all open positions(empty stack)
                 trade_stack.append(trades.pop())
-        while ret_list:
-            # compute returns of closed trades
-            trade_ret = ret_list.pop()
+        for ret in ret_list:
+            # compute (extended) returns of closed trades
+            ex_trade_ret = pd.Series(np.zeros(full_ret.size), full_ret.index)
+            ex_trade_ret[ret.index] = ret
             if cummulative:
-                end_dt = trade_ret.index[-1]
-                i = prices.index.get_loc(end_dt, method="backfill") + 1
-                extend_ind = prices.index[i:]
-                after_ret = pd.Series(trade_ret[-1], index=extend_ind)
-                trade_ret = pd.concat([trade_ret, after_ret])
-            fill_copy = full_ret.copy()
-            full_ret = (full_ret + trade_ret).fillna(fill_copy)
+                ex_trade_ret[ret.index[-1] :] = ret[-1]
+            full_ret = full_ret.add(ex_trade_ret)
         for trade in trade_stack:
             # compute returns of opened positions that remains on stack
-            trade_ret = trade.net_result_series(prices)
-            fill_copy = full_ret.copy()
-            full_ret = (full_ret + trade_ret).fillna(fill_copy)
+            ret = trade.net_result_series(prices)
+            ex_trade_ret = pd.Series(np.zeros(full_ret.size), full_ret.index)
+            ex_trade_ret[ret.index] = ret
+            full_ret = full_ret.add(ex_trade_ret)
         if trade_stack or cummulative:
             # if stack is not empty there are open positions
             last_trade_date = prices.size
         return full_ret[:last_trade_date]
+
+    def __trade_pairs_preprocessing(self, symbol, trades, step):
+        """
+        Assistant function to handle all paired trades due to
+        stop barriers and provide the net returns efficiently
+
+        Parameters
+        ----------
+        `symbol` : ``str``
+            company stock market symbol
+        `trades` : ``list[StockTrade]``
+            list of stock trades corresponding to `symbol`
+        `step` : ``int/"day"``
+            time step to build the return series
+
+        Return
+        ------
+        ``set[int], list[pandas.Series]``
+            Set of trades id that were taken into account and list with returns
+        """
+        first_trade_date = trades[-1].date
+        if step != 1:
+            start_offset = pd.Timedelta(days=1)
+        else:
+            start_offset = pd.Timedelta(minutes=5)
+        prices = self.refined_obj[self.aliases[symbol]].get_close(
+            first_trade_date - start_offset, step=step
+        )
+        ret_list = []
+        proc_id = set()
+        for trade in trades:
+            if trade.symbol != symbol:
+                raise ValueError(
+                    "Invalid symbol {} in trade pairs processing. "
+                    "Expected {}".format(trade.symbol, symbol)
+                )
+            if trade.parent:
+                dt = trade.date
+                lp = trade.unit_price
+                proc_id.add(trade.id)
+                proc_id.add(trade.parent.id)
+                ret_list.append(
+                    trade.parent.net_result_series(prices[:dt], lp=lp)
+                    - trade.operation_taxes()
+                )
+        return proc_id, ret_list
+
+    def reset_portfolio(self):
+        """Reset to empty portfolio removing refined data and trades"""
+        self.delete_all_trades()
+        self.reset_refined_set()

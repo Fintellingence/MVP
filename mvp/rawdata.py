@@ -375,7 +375,14 @@ class RawData:
         bar_method = self.__getattribute__(bar_type + "_bars")
         if bar_type != "time" and step == 1:
             step = self.__appropriate_step(start, stop, bar_type)
-        return bar_method(start, stop, step).Open
+        df_bars = bar_method(start, stop, step)
+        try:
+            df_bars.set_index("OpenTime", inplace=True)
+        except KeyError:
+            if not isinstance(step, str) and step > 1:
+                df_bars.set_index(df_bars.index - pd.Timedelta(step))
+        df_bars.index.name = "DateTime"
+        return df_bars.Open
 
     def get_high(self, start=None, stop=None, step=1, bar_type="time"):
         """ Get high price time series """
