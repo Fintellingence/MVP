@@ -926,6 +926,10 @@ class PortfolioRecord:
             symbols_set.add(trade.symbol)
         return list(symbols_set)
 
+    def symbol_in_records(self, symbol):
+        """Return whether a symbol has ever been traded"""
+        return symbol in self.get_symbols_traded()
+
     def get_trades_before(self, date, hard_copy=False):
         """Return list of trades objects occurred before `date`"""
         i = 0
@@ -1146,6 +1150,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         self.relative_tax = relative_tax
         self.spread = spread
         self.fixed_spread = fixed_spread
+        self.aliases = {}
         RefinedSet.__init__(self, *(ref_set_args))
         PortfolioRecord.__init__(self)
 
@@ -1298,7 +1303,14 @@ class Portfolio(PortfolioRecord, RefinedSet):
         self.set_position_buy(symbol, cls_date, quantity, parent=parent_trade)
 
     def set_trade_pair(
-        self, symbol, nshares, open_dt, close_dt, open_side, rent_tax=0
+        self,
+        symbol,
+        nshares,
+        open_dt,
+        close_dt,
+        open_side,
+        rent_tax=0,
+        alias=None,
     ):
         """
         Set pair of trades with the same number of shares that opens and close
@@ -1307,7 +1319,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         Paramters
         ---------
         `symbol` : ``str``
-            company symbol
+            company symbol in stock market
         `nshares` : ``int``
             number of shares involved in the trade
         `open_dt` : ``pandas.Timestamp``
@@ -1319,14 +1331,21 @@ class Portfolio(PortfolioRecord, RefinedSet):
         `rent_tax` : ``float``
             daily price fraction charged to sustain short position
             This parameter is ignored if `side = 1`
+        `alias` : ``str``
+            when testing strategies for the same symbol this can be used
+            to do not mix all trades with the same symbol
         """
+        if not alias:
+            alias = symbol
+        if alias not in self.aliases.keys():
+            self.aliases[alias] = symbol
         self.new_refined_symbol(symbol)
         valid_date = self.__nearest_date(symbol, open_dt)
         approx_price = self.__approx_price(symbol, open_dt, open_side)
         if open_side > 0:
             rent_tax = 0
         trade_id = self.record_trade(
-            symbol,
+            alias,
             nshares,
             approx_price,
             valid_date,
@@ -1339,7 +1358,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         approx_price = self.__approx_price(symbol, close_dt, -open_side)
         parent_trade = self.get_trade(trade_id)
         trade_id = self.record_trade(
-            symbol,
+            alias,
             nshares,
             approx_price,
             valid_date,
@@ -1349,7 +1368,9 @@ class Portfolio(PortfolioRecord, RefinedSet):
             parent=parent_trade,
         )
 
-    def set_from_labels(self, symbol, nshares, labels_df, rent_tax=0):
+    def set_from_labels(
+        self, symbol, nshares, labels_df, rent_tax=0, alias=None
+    ):
         """
         Integrate with labels module to set operations from a strategy
 
@@ -1366,12 +1387,15 @@ class Portfolio(PortfolioRecord, RefinedSet):
         """
         if isinstance(nshares, int):
             nshares = nshares * np.ones(labels_df.index.size, dtype=int)
-        for init, side, end, quantity in zip(
+        iter_pack = zip(
             labels_df.index, labels_df.Side, labels_df.PositionEnd, nshares
-        ):
-            self.set_trade_pair(symbol, quantity, init, end, side, rent_tax)
+        )
+        for init, side, end, quantity in iter_pack:
+            self.set_trade_pair(
+                symbol, quantity, init, end, side, rent_tax, alias
+            )
 
-    def trade_success_rate(self, symbol=None):
+    def trades_success_rate(self, symbol=None):
         """Success rate [0, 1] of trades involving given `symbol`"""
         if symbol:
             trades = self.get_trades_symbol(symbol, True)
@@ -1382,14 +1406,15 @@ class Portfolio(PortfolioRecord, RefinedSet):
         for trade in trades:
             if trade.parent:
                 npairs += 1
-                result = trade.parent.side * (
-                    trade.unit_price - trade.parent.unit_price
+                result = (
+                    trade.parent.net_result(trade.unit_price, trade.date)
+                    - trade.operation_taxes()
                 )
                 if result > 0:
                     correct_trades += 1
         return correct_trades / npairs
 
-    def trade_average_rentability(self, symbol=None):
+    def trades_average_rentability(self, symbol=None):
         """Average rentability of trades involving given `symbol`"""
         if symbol:
             trades = self.get_trades_symbol(symbol, True)
@@ -1400,18 +1425,14 @@ class Portfolio(PortfolioRecord, RefinedSet):
         for trade in trades:
             if trade.parent:
                 npairs += 1
+                res = (
+                    trade.parent.net_result(trade.unit_price, trade.date)
+                    - trade.operation_taxes()
+                )
                 if trade.parent.side > 0:
-                    rent += (
-                        trade.unit_price
-                        - trade.parent.unit_price
-                        - trade.parent.total_taxes(trade.date)
-                    ) / trade.parent.unit_price
+                    rent += res / trade.parent.unit_price
                 else:
-                    rent += (
-                        trade.parent.unit_price
-                        - trade.unit_price
-                        - trade.parent.total_taxes(trade.date)
-                    ) / trade.unit_price
+                    rent += res / trade.unit_price
         return rent / npairs
 
     def trades_book_result(self, symbol=None):
@@ -1422,7 +1443,10 @@ class Portfolio(PortfolioRecord, RefinedSet):
         traded_amount = 0
         for trade in trades:
             if trade.parent:
-                res = trade.parent.net_result(trade.unit_price, trade.date)
+                res = (
+                    trade.parent.net_result(trade.unit_price, trade.date)
+                    - trade.operation_taxes()
+                )
                 net_res += res
                 if trade.parent.side > 0:
                     traded_value = trade.quantity * trade.parent.unit_price
@@ -1463,7 +1487,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         )
         return raw_df.set_index("PositionEnd")
 
-    def overall_net_result(self, as_dataframe=False, step=60):
+    def overall_net_result(self, as_dataframe=True, step="day"):
         """
         Compute ``self.symbol_net_result`` for all symbols present
         `as_dataframe` defines the format of return datatype, thus
@@ -1480,7 +1504,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             symbols labeling the columns
         """
         res_dict = {}
-        for symbol in self.refined_obj.keys():
+        for symbol in self.get_symbols_traded():
             res_dict[symbol] = self.symbol_net_result(symbol, True, step)
         if not as_dataframe:
             return res_dict
@@ -1489,7 +1513,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         df["Total"] = df.sum(axis=1)
         return df.loc[:max_date]
 
-    def symbol_net_result(self, symbol, cummulative=True, step=60):
+    def symbol_net_result(self, symbol, cummulative=True, step="day"):
         """
         Compute the total return series for selected `symbol`
         in local currency. The `cummulative` hold the result
@@ -1500,7 +1524,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
         `step` is the time series resolution in minutes or a
         day in case `step = "day"`
         """
-        if not self.has_symbol(symbol):
+        if not self.symbol_in_records(symbol):
             return pd.Series([], dtype=float)
         trades = self.get_trades_symbol(symbol)[::-1]
         proc_id, ret_list = self.__trade_pairs_preprocessing(
@@ -1512,7 +1536,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             start_offset = pd.Timedelta(days=1)
         else:
             start_offset = pd.Timedelta(minutes=5)
-        prices = self.refined_obj[symbol].get_close(
+        prices = self.refined_obj[self.aliases[symbol]].get_close(
             first_trade_date - start_offset, step=step
         )
         full_ret = pd.Series(np.zeros(prices.size), index=prices.index)
@@ -1615,7 +1639,7 @@ class Portfolio(PortfolioRecord, RefinedSet):
             start_offset = pd.Timedelta(days=1)
         else:
             start_offset = pd.Timedelta(minutes=5)
-        prices = self.refined_obj[symbol].get_close(
+        prices = self.refined_obj[self.aliases[symbol]].get_close(
             first_trade_date - start_offset, step=step
         )
         ret_list = []

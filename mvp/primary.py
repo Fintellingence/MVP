@@ -43,7 +43,7 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}, draw=False):
 
     """
     sshift = 0
-    if kwargs.get("step").lower() == "day":
+    if kwargs.get("step") == "day":
         target = kwargs.get("target")
         if not target or target.lower().find("close") > 0:
             sshift = 1
@@ -88,7 +88,7 @@ def trend(refined_obj, threshold, window=1, kwargs={}):
 
     """
     sshift = 0
-    if kwargs.get("step").lower() == "day":
+    if kwargs.get("step") == "day":
         target = kwargs.get("target")
         if not target or target.lower().find("close") > 0:
             sshift = 1
@@ -133,7 +133,7 @@ def cummulative_returns(refined_obj, threshold, window=1, kwargs={}):
 
     """
     sshift = 0
-    if kwargs.get("step").lower() == "day":
+    if kwargs.get("step") == "day":
         target = kwargs.get("target")
         if not target or target.lower().find("close") > 0:
             sshift = 1
@@ -177,7 +177,7 @@ def bollinger_bands(
 
     """
     sshift = 0
-    if kwargs.get("step").lower() == "day":
+    if kwargs.get("step") == "day":
         target = kwargs.get("target")
         if not target or target.lower().find("close") > 0:
             sshift = 1
