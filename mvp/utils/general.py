@@ -28,7 +28,7 @@ def mean_quadratic_freq(data, time_spacing=1):
     return sqrt((freq * freq * np.abs(fft_weights)).sum() / weights_norm)
 
 
-def fracdiff_weights(d, max_weights=100, tol=None):
+def fracdiff_weights(d, max_weights=100, tol=None, scale_val=1):
     """
     Compute weights of fractional differentiation binomial series
     See also `mvp.utils.binomial_series_converge` and theoretical
@@ -44,9 +44,19 @@ def fracdiff_weights(d, max_weights=100, tol=None):
     `max_weights` : ``int``
         max number of weights to limit data/memory consumption
     `tol` : ``float``
-        minumum acceptable value for weights to automatic series cutoff
-        In convergence process if exceed `max_weights` print a warning,
-        but return the array without errors
+        Threshold to cutoff the series(which is theoretically infinite).
+        This value can have two interpretations depending on `scale_val`
+        which set how this threshold shall be applied to the series. For
+        default value `None` just comput `max_weights`, without evaluate
+        some convergence metric
+    `scale_val` : ``float``
+        At each new compute weight `k` divide `tol` by `scale_val ** k`,
+        and then check if the new weight is smaller than `tol`. With that,
+        one can control the series truncation error leading term, instead
+        of only cut the series based solely on weights, since the leading
+        truncation error term is the last weight computed times some past
+        value to the power `k`. Recommended some value based on the series
+        as mean or max.
 
     Return
     ------
@@ -54,9 +64,14 @@ def fracdiff_weights(d, max_weights=100, tol=None):
         wegiths/coefficients of binomial series expansion
 
     """
+    if scale_val < 0:
+        raise ValueError(
+            "scale_val in fracdiff_weights must be larger than 0."
+            " {:.1f} given".format(scale_val)
+        )
     if tol is None:
         w = np.ones(max_weights)
-        binomial_series_converge(d, tol, w, w.size, 0)
+        binomial_series_converge(d, tol / scale_val, w, w.size, 0)
         return w
     step = 1 + max_weights // 10
     w = np.empty(step)
@@ -64,7 +79,7 @@ def fracdiff_weights(d, max_weights=100, tol=None):
     flag = -1
     last = 0
     while flag < 0:
-        flag = binomial_series_converge(d, tol, w, w.size, last)
+        flag = binomial_series_converge(d, tol / scale_val, w, w.size, last)
         if w.size > max_weights:
             print(
                 "[!] Binomial series stiff cutoff by "

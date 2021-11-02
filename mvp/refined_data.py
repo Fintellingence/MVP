@@ -42,10 +42,17 @@ def assert_target(target):
         data_field : ["open", "high", "low", "close", "volume"]
     See ``mvp.rawdata.RawData`` methods with `bars` and `get` keywords
     """
-    if len(target.split(":")) != 2:
+    if len(target.split(":")) != 3:
         raise ValueError("Found invalid target '{}'".format(target))
     assert_bar_type(target.split(":")[0])
     assert_data_field(target.split(":")[1])
+    fracdiff_d = target.split(":")[2]
+    try:
+        float(fracdiff_d)
+    except Exception:
+        raise ValueError(
+            "Non float value in last target field {}".format(fracdiff_d)
+        )
 
 
 def assert_feature(feat_name):
@@ -221,67 +228,24 @@ class RefinedData(RawData):
                     pass
 
     def __code_formatter(self, name, step, extra_par, target):
-        """ Format string to use as key for cache dictionary """
+        """Format string to use as key for cache dictionary"""
         return "{}_{}_{}_{}".format(name, step, extra_par, target)
 
     def cache_features_keys(self):
-        """ internal keys used to cached features. Information purposes """
+        """internal keys used to cached features. Information purposes"""
         return list(self.__cached_features.keys())
 
     def cache_features_size(self):
-        """ Total size of cached features in bytes """
+        """Total size of cached features in bytes"""
         full_size = 0
         for feature_data in self.__cached_features.values():
             full_size = full_size + feature_data.__sizeof__()
         return full_size
 
     def cache_clean(self):
-        """ delete all features in cache memory """
+        """delete all features in cache memory"""
         del self.__cached_features
         self.__cached_features = {}
-
-    def get_volden(
-        self, start=None, stop=None, step=1, target="time:close", append=False
-    ):
-        """
-        Average volume exchange per tick/deal
-
-        Parameters
-        ----------
-        `start` : ``pandas.Timestamp``
-            initial time instant to slice the data timeseries
-        `stop` : ``pandas.Timestamp``
-            final time instant to slice the data timeseries
-        `step` : ``int``
-            dataframe bar's spacing value according to `target`
-        `target` : ``str``
-            string in the form "bar_type:field_name". The first part
-            `bar_type` refers to which quantity `step` refers to, as
-            ["time", "tick", "volume", "money"]. The second part,
-            `field_name`, is not applicable in this feature
-        `append` : ``bool``
-            Whether to append the full time series in cache memory or not
-            any further computation is avoided by a memory access
-
-        Return
-        ------
-        ``pandas.Series``
-
-        """
-        assert_target(target)
-        bar_type = target.split(":")[0]
-        str_code = self.__code_formatter("VOLDEN", step, 1, bar_type)
-        start, stop = self.assert_window(start, stop)
-        if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code].copy().loc[start:stop]
-        df = self.__getattribute__(bar_type + "_bars")(step=step)
-        vol_den = df.Volume / df.TickVol
-        clean_data = vol_den.replace([-np.inf, np.inf], np.nan).copy()
-        clean_data.dropna(inplace=True)
-        clean_data.name = "VolumeDensity"
-        if append:
-            self.__cached_features[str_code] = clean_data.astype(int)
-        return clean_data[start:stop].astype(int)
 
     def get_sma(
         self,
@@ -289,7 +253,8 @@ class RefinedData(RawData):
         start=None,
         stop=None,
         step=1,
-        target="time:close",
+        target="time:close:0",
+        fd_err=1e-4,
         append=False,
     ):
         """
@@ -325,9 +290,12 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
-        bar_type, field_name = target.split(":")
-        field_method = self.__getattribute__("get_" + field_name)
-        target_series = field_method(step=step, bar_type=bar_type)
+        bar_type, field_name, d_str = target.split(":")
+        d = float(d_str)
+        fd_target = bar_type + ":" + field_name
+        target_series = self.get_fracdiff(
+            d, start, stop, step, fd_target, fd_err, append
+        )
         moving_avg = target_series.rolling(window).mean()
         moving_avg.name = "MovingAverage"
         if append:
@@ -340,7 +308,8 @@ class RefinedData(RawData):
         start=None,
         stop=None,
         step=1,
-        target="time:close",
+        target="time:close:0",
+        fd_err=1E-4,
         append=False,
     ):
         """
@@ -376,9 +345,12 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
-        bar_type, field_name = target.split(":")
-        field_method = self.__getattribute__("get_" + field_name)
-        target_series = field_method(step=step, bar_type=bar_type)
+        bar_type, field_name, d_str = target.split(":")
+        d = float(d_str)
+        fd_target = bar_type + ":" + field_name
+        target_series = self.get_fracdiff(
+            d, start, stop, step, fd_target, fd_err, append
+        )
         moving_std = target_series.rolling(window).std()
         moving_std.name = "StandardDeviation"
         if append:
@@ -391,11 +363,12 @@ class RefinedData(RawData):
         start=None,
         stop=None,
         step=1,
-        target="time:close",
+        target="time:close:0",
+        fd_err=1E-4,
         append=False,
     ):
         """
-        Compute normalized returns of buy operations executed in a window
+        Compute relative returns of buy operations executed in a window
 
         Parameters
         ----------
@@ -427,9 +400,12 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
-        bar_type, field_name = target.split(":")
-        field_method = self.__getattribute__("get_" + field_name)
-        target_series = field_method(step=step, bar_type=bar_type)
+        bar_type, field_name, d_str = target.split(":")
+        d = float(d_str)
+        fd_target = bar_type + ":" + field_name
+        target_series = self.get_fracdiff(
+            d, start, stop, step, fd_target, fd_err, append
+        )
         return_series = (
             target_series - target_series.shift(window)
         ) / target_series.shift(window)
@@ -444,7 +420,8 @@ class RefinedData(RawData):
         start=None,
         stop=None,
         step=1,
-        target="time:close",
+        target="time:close:0",
+        fd_err=1E-4,
         append=False,
     ):
         """
@@ -480,9 +457,12 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
-        bar_type, field_name = target.split(":")
-        field_method = self.__getattribute__("get_" + field_name)
-        target_series = field_method(step=step, bar_type=bar_type)
+        bar_type, field_name, d_str = target.split(":")
+        d = float(d_str)
+        fd_target = bar_type + ":" + field_name
+        target_series = self.get_fracdiff(
+            d, start, stop, step, fd_target, fd_err, append
+        )
         return_series = target_series - target_series.shift(periods=1)
         gain_or_zero = return_series.apply(lambda x: 0 if x < 0 else x)
         loss_or_zero = return_series.apply(lambda x: 0 if x > 0 else -x)
@@ -502,7 +482,8 @@ class RefinedData(RawData):
         start=None,
         stop=None,
         step=1,
-        target="time:close",
+        target="time:close:0",
+        fd_err=1E-4,
         append=False,
     ):
         """
@@ -543,9 +524,12 @@ class RefinedData(RawData):
         str_code = self.__code_formatter("AUTOCORR", step, extra_code, target)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code]
-        bar_type, field_name = target.split(":")
-        field_method = self.__getattribute__("get_" + field_name)
-        target_series = field_method(start, stop, step, bar_type)
+        bar_type, field_name, d_str = target.split(":")
+        d = float(d_str)
+        fd_target = bar_type + ":" + field_name
+        target_series = self.get_fracdiff(
+            d, start, stop, step, fd_target, fd_err, append
+        )
         if shift >= target_series.size:
             raise ValueError(
                 "Period enclosed from {} to {} provided {} "
@@ -558,61 +542,6 @@ class RefinedData(RawData):
             self.__cached_features[str_code] = autocorr
         return autocorr
 
-    def get_autocorrmany(
-        self,
-        shift,
-        starts,
-        stops,
-        step=1,
-        target="time:close",
-        append=False,
-    ):
-        """
-        Compute auto-correlation function for multiple time intervals
-        For each start and stop call `self.autocorr_period`
-
-        Parameters
-        ----------
-        `shift` : ``int``
-            displacement to separate the two data samples
-        `starts` : ``list`` of ``pandas.Timestamp``
-            list of first date/minute of the period. Size of `stops`
-        `stops` : ``list`` of ``pandas.Timestamp``
-            list of end of the period. Size of `starts`
-        `step` : ``int``
-            dataframe bar's spacing value according to `target`
-        `target` : ``str``
-            string in the form "bar_type:field_name". The first part
-            `bar_type` refers to which quantity `step` refers to, as
-            ["time", "tick", "volume", "money"]. The second part,
-            `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]
-        `append` : ``bool``
-            Whether to append the full time series in cache memory or not
-            Any further computation is avoided by a memory access
-
-        Return
-        ------
-        ``pandas.DataFrame``
-            Several results of autocorrelation in different periods
-
-        """
-        if len(starts) != len(stops):
-            raise ValueError("starts and stops must have same size")
-        autocorr = np.empty(len(starts))
-        for i, (start, stop) in enumerate(zip(starts, stops)):
-            try:
-                autocorr[i] = self.get_autocorr_period(
-                    shift, start, stop, step, target, append
-                )
-            except Exception:
-                autocorr[i] = np.nan
-        autocorr_df = pd.DataFrame(
-            {"FinalDate": stops, "Autocorr": autocorr}, index=starts
-        )
-        autocorr_df.index.name = "InitialDate"
-        return autocorr_df
-
     def get_autocorrmov(
         self,
         window,
@@ -620,7 +549,8 @@ class RefinedData(RawData):
         start=None,
         stop=None,
         step=1,
-        target="time:close",
+        target="time:close:0",
+        fd_err=1E-4,
         append=False,
     ):
         """
@@ -667,9 +597,12 @@ class RefinedData(RawData):
         )
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].copy().loc[start:stop]
-        bar_type, field_name = target.split(":")
-        field_method = self.__getattribute__("get_" + field_name)
-        target_series = field_method(step=step, bar_type=bar_type)
+        bar_type, field_name, d_str = target.split(":")
+        d = float(d_str)
+        fd_target = bar_type + ":" + field_name
+        target_series = self.get_fracdiff(
+            d, start, stop, step, fd_target, fd_err, append
+        )
         target_vals = target_series.values
         if target_vals.size < window:
             raise ValueError(
@@ -695,78 +628,14 @@ class RefinedData(RawData):
             self.__cached_features[str_code] = mov_autocorr_ser
         return mov_autocorr_ser.loc[start:stop]
 
-    def __apply_fracdiff_weights(self, weights, x_vector):
-        return np.dot(weights[::-1], x_vector)
-
-    def get_fracdiff(
-        self,
-        d,
-        start=None,
-        stop=None,
-        step=1,
-        target="time:close",
-        append=False,
-        weights_tol=1e-3,
-    ):
-        """
-        Compute fractional differentiation of a series with the binomial
-        expansion formula for an arbitrary derivative order
-
-        Parameters
-        ----------
-        `d` : ``float``
-            derivative order (d = 1 implies daily returns) lying in (0,1]
-        `start` : ``pandas.Timestamp`` or ``int``
-            first dataframe index of the period
-        `stop` : ``pandas.Timestamp`` or ``int``
-            last dataframe index of the period
-        `step` : ``int``
-            dataframe bar's spacing value according to `target`
-        `target` : ``str``
-            string in the form "bar_type:field_name". The first part
-            `bar_type` refers to which quantity `step` refers to, as
-            ["time", "tick", "volume", "money"]. The second part,
-            `field_name` refers to one of the values in candlesticks
-            ["open", "high", "low", "close", "volume"]
-        `append` : ``bool``
-            Whether to append the full time series in cache memory or not
-            The all-time data series is used in `append=True` case as for
-            any further computation is avoided by a memory access
-        `weights_tol` : ``float``
-            minimum value for a weight in the binomial series expansion
-            for convergence criterion. Limited to use a 1/3 of data pts
-            or the target series
-
-        Return
-        ------
-        ``pandas.Timeseries``
-
-        """
-        assert_target(target)
-        dcode = "{:.2f}".format(d)
-        str_code = self.__code_formatter("FRAC_DIFF", step, dcode, target)
-        start, stop = self.assert_window(start, stop)
-        if str_code in self.__cached_features.keys():
-            return self.__cached_features[str_code].loc[start:stop]
-        bar_type, field_name = target.split(":")
-        field_method = self.__getattribute__("get_" + field_name)
-        target_series = field_method(step=step, bar_type=bar_type)
-        w = utils.fracdiff_weights(d, target_series.size // 3, weights_tol)
-        fracdiff_series = target_series.rolling(window=w.size).apply(
-            lambda x: self.__apply_fracdiff_weights(w, x), raw=True
-        )
-        fracdiff_series.name = "FracDiff"
-        if append:
-            self.__cached_features[str_code] = fracdiff_series.dropna()
-        return fracdiff_series.loc[start:stop].dropna()
-
     def get_volafreq(
         self,
         window,
         start=None,
         stop=None,
         step=1,
-        target="time:close",
+        target="time:close:0",
+        fd_err=1E-4,
         append=False,
     ):
         """
@@ -811,9 +680,12 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].loc[start:stop]
-        bar_type, field_name = target.split(":")
-        field_method = self.__getattribute__("get_" + field_name)
-        target_series = field_method(step=step, bar_type=bar_type)
+        bar_type, field_name, d_str = target.split(":")
+        d = float(d_str)
+        fd_target = bar_type + ":" + field_name
+        target_series = self.get_fracdiff(
+            d, start, stop, step, fd_target, fd_err, append
+        )
         if isinstance(step, str):
             step = 1
         vol_series = target_series.rolling(window).apply(
@@ -829,7 +701,8 @@ class RefinedData(RawData):
         start=None,
         stop=None,
         step=1,
-        target="time:close",
+        target="time:close:0",
+        fd_err=1E-4,
         append=False,
     ):
         """
@@ -870,12 +743,89 @@ class RefinedData(RawData):
         start, stop = self.assert_window(start, stop)
         if str_code in self.__cached_features.keys():
             return self.__cached_features[str_code].loc[start:stop]
-        df = self.__getattribute__(bar_type + "_bars")(step=step)
-        max_price = df.High.rolling(window).max()
-        min_price = df.Low.rolling(window).min()
+        bar_type, field_name, d_str = target.split(":")
+        d = float(d_str)
+        high_series = self.get_fracdiff(
+            d, start, stop, step, bar_type + ":high", fd_err, append
+        )
+        low_series = self.get_fracdiff(
+            d, start, stop, step, bar_type + ":low", fd_err, append
+        )
+        max_price = high_series.rolling(window).max()
+        min_price = low_series.rolling(window).min()
         ma = self.get_sma(window, step=step, target=bar_type + ":close")
         vol_series = (max_price - min_price) / ma
         vol_series.name = "GainVolatility"
         if append:
             self.__cached_features[str_code] = vol_series.dropna()
         return vol_series.loc[start:stop].dropna()
+
+    def __apply_fracdiff_weights(self, weights, x_vector):
+        return np.dot(weights[::-1], x_vector)
+
+    def get_fracdiff(
+        self,
+        d,
+        start=None,
+        stop=None,
+        step=1,
+        target="time:close",
+        leading_error=1e-4,
+        append=False,
+    ):
+        """
+        Compute fractional differentiation of a series with the binomial
+        expansion formula for an arbitrary derivative order
+
+        Parameters
+        ----------
+        `d` : ``float``
+            derivative order (d = 1 implies daily returns) lying in (0,1]
+        `start` : ``pandas.Timestamp`` or ``int``
+            first dataframe index of the period
+        `stop` : ``pandas.Timestamp`` or ``int``
+            last dataframe index of the period
+        `step` : ``int``
+            dataframe bar's spacing value according to `target`
+        `target` : ``str``
+            string in the form "bar_type:field_name". The first part
+            `bar_type` refers to which quantity `step` refers to, as
+            ["time", "tick", "volume", "money"]. The second part,
+            `field_name` refers to one of the values in candlesticks
+            ["open", "high", "low", "close", "volume"]
+        `leading_error` : ``float``
+            Accepted leading term error in the series cutoff. The leading
+            term of the error is the value of the `k-th` term in the series
+            such that `w[k] * X.max() < leading_error` with `X` being the
+            target series
+        `append` : ``bool``
+            Whether to append the full time series in cache memory or not
+            The all-time data series is used in `append=True` case as for
+            any further computation is avoided by a memory access
+
+        Return
+        ------
+        ``pandas.Timeseries``
+
+        """
+        assert_target(target + ":" + str(d))
+        dcode = "{:.2f}".format(d)
+        str_code = self.__code_formatter("FRAC_DIFF", step, dcode, target)
+        start, stop = self.assert_window(start, stop)
+        if str_code in self.__cached_features.keys():
+            return self.__cached_features[str_code].loc[start:stop]
+        bar_type, field_name = target.split(":")
+        field_method = self.__getattribute__("get_" + field_name)
+        target_series = field_method(step=step, bar_type=bar_type)
+        if (d == 0):
+            return target_series.loc[start:stop].dropna()
+        w = utils.fracdiff_weights(
+            d, target_series.size // 4, leading_error, target_series.max()
+        )
+        fracdiff_series = target_series.rolling(window=w.size).apply(
+            lambda x: self.__apply_fracdiff_weights(w, x), raw=True
+        )
+        fracdiff_series.name = "FracDiff"
+        if append:
+            self.__cached_features[str_code] = fracdiff_series.dropna()
+        return fracdiff_series.loc[start:stop].dropna()

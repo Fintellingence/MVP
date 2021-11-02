@@ -253,10 +253,11 @@ def binomial_series_converge(d, tolerance, w_array, w_size, last_index):
     `w_array` : ``numpy.array``
         With weights computed up to `last_index`. Must have size `w_size`
     `w_size` : ``int``
-        current size of `w_array`
+        current size of `w_array`. Must be greater than `last_index + 1`
     `last_index` : ``int``
-        index of last weight set in `w_array` and from which must continue
-        This means that up to index `last_index` all weights were computed
+        index of last weight set in `w_array`. This means that, up to index
+        `last_index` all weights were computed and start computing new ones
+        from index ́`last_index + 1`
 
     Modified
     --------

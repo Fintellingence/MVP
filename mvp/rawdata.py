@@ -405,6 +405,17 @@ class RawData:
             step = self.__appropriate_step(start, stop, bar_type)
         return bar_method(start, stop, step).Volume
 
+    def get_volden(self, start=None, stop=None, step=1, bar_type="time"):
+        """ Get volume density time series """
+        bar_method = self.__getattribute__(bar_type + "_bars")
+        if bar_type != "time" and step == 1:
+            step = self.__appropriate_step(start, stop, bar_type)
+        df = bar_method(start, stop, step)
+        vol_den = df.Volume / df.TickVol
+        clean_data = vol_den.replace([-np.inf, np.inf], np.nan).copy()
+        clean_data.dropna(inplace=True)
+        return clean_data.astype(int)
+
     def tick_bars(self, start=None, stop=None, step=None):
         """
         Set dataframe bars for every `step`-deals/ticks traded in stock market
