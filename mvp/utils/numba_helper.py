@@ -194,7 +194,16 @@ def sign_mark_cusum(n, inp_arr, accum_ind, sign_mark, threshold):
     return k
 
 
-@njit(int32(int32, int32[:], int32[:]))
+@njit(["int32(int32[:])", "int32(int64[:])"])
+def next_day_index(days):
+    arr_size = days.size
+    for i in prange(arr_size - 1):
+        if days[i + 1] != days[i]:
+            return i + 1
+    return arr_size
+
+
+@njit(["int32(int32, int32[:], int32[:])", "int64(int64, int64[:], int64[:])"])
 def indexing_new_days(n, days, new_days_ind):
     """
     Mark all indexes in which a new day begins from intraday array

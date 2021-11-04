@@ -51,8 +51,9 @@
 
 """
 
+import numpy as np
 import pandas as pd
-from mvp.utils import smallest_cusum_i
+from mvp.utils import smallest_cusum_i, indexing_new_days
 
 
 def horizon_trading_range(minute1_data, ih, ih_type):
@@ -108,6 +109,14 @@ def horizon_trading_range(minute1_data, ih, ih_type):
             ih_index = 1 + time_index.get_loc(final_t, method="backfill")
     elif ih_type == "bars":
         ih_index = ih
+    elif ih_type == "days":
+        day_vals = time_index.day.values.astype("int32")
+        new_days_start = np.empty(day_vals.size, dtype="int32")
+        ndays = indexing_new_days(day_vals.size, day_vals, new_days_start)
+        if ih >= ndays:
+            ih_index = time_index.size
+        else:
+            ih_index = new_days_start[ih] + 1
     else:
         if ih_type == "Volume" or ih_type == "TickVol":
             horizon_vals = minute1_data[ih_type].values

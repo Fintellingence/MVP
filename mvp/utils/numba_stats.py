@@ -124,5 +124,8 @@ def moving_correlation(window, data_set1, data_set2, mv_corr):
             - data_set1[i] * data_set2[i]
             + data_set1[j] * data_set2[j]
         )
-        corr = (new_cross_sum - window * avg1 * avg2) / sqrt(sig1 * sig2)
-        mv_corr[j] = corr
+        if (sig1 * sig2 == 0):
+            mv_corr[j] = 0
+        else:
+            corr = (new_cross_sum - window * avg1 * avg2) / sqrt(sig1 * sig2)
+            mv_corr[j] = corr

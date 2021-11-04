@@ -62,7 +62,7 @@ def crossing_ma(refined_obj, window1, window2, kwargs={}, draw=False):
     return pd.Series(np.sign(diff[cross_time].values), cross_time, np.int32)
 
 
-def trend(refined_obj, threshold, window=1, kwargs={}):
+def cummulative_trend(refined_obj, threshold, window=1, kwargs={}):
     """
     Consider the return series over (generally) very short moving average
     to slice in sequences of positive and negative values. For each slice

@@ -309,7 +309,7 @@ class RefinedData(RawData):
         stop=None,
         step=1,
         target="time:close:0",
-        fd_err=1E-4,
+        fd_err=1e-4,
         append=False,
     ):
         """
@@ -364,7 +364,7 @@ class RefinedData(RawData):
         stop=None,
         step=1,
         target="time:close:0",
-        fd_err=1E-4,
+        fd_err=1e-4,
         append=False,
     ):
         """
@@ -421,7 +421,7 @@ class RefinedData(RawData):
         stop=None,
         step=1,
         target="time:close:0",
-        fd_err=1E-4,
+        fd_err=1e-4,
         append=False,
     ):
         """
@@ -483,7 +483,7 @@ class RefinedData(RawData):
         stop=None,
         step=1,
         target="time:close:0",
-        fd_err=1E-4,
+        fd_err=1e-4,
         append=False,
     ):
         """
@@ -550,7 +550,7 @@ class RefinedData(RawData):
         stop=None,
         step=1,
         target="time:close:0",
-        fd_err=1E-4,
+        fd_err=1e-4,
         append=False,
     ):
         """
@@ -603,7 +603,9 @@ class RefinedData(RawData):
         target_series = self.get_fracdiff(
             d, start, stop, step, fd_target, fd_err, append
         )
-        target_vals = target_series.values
+        target_vals = (
+            target_series.values + np.random.random(target_series.size) / 1000
+        )
         if target_vals.size < window:
             raise ValueError(
                 "The number of data points between {} and {} "
@@ -635,7 +637,7 @@ class RefinedData(RawData):
         stop=None,
         step=1,
         target="time:close:0",
-        fd_err=1E-4,
+        fd_err=1e-4,
         append=False,
     ):
         """
@@ -702,7 +704,7 @@ class RefinedData(RawData):
         stop=None,
         step=1,
         target="time:close:0",
-        fd_err=1E-4,
+        fd_err=1e-4,
         append=False,
     ):
         """
@@ -817,7 +819,7 @@ class RefinedData(RawData):
         bar_type, field_name = target.split(":")
         field_method = self.__getattribute__("get_" + field_name)
         target_series = field_method(step=step, bar_type=bar_type)
-        if (d == 0):
+        if d == 0:
             return target_series.loc[start:stop].dropna()
         w = utils.fracdiff_weights(
             d, target_series.size // 4, leading_error, target_series.max()
